@@ -1,0 +1,595 @@
+# ARCHITECTURE.md  
+# Arquitectura de TotalChat
+
+## 1. Visión general
+
+TotalChat será una plataforma SaaS conversacional multi-tenant para reservas.
+
+El primer vertical será citas médicas y servicios profesionales de salud.
+
+La arquitectura combina:
+
+- Backend FastAPI.
+- PostgreSQL con schema por tenant.
+- pgvector para búsqueda semántica.
+- Redis para estado temporal y locks.
+- LangGraph para flujos conversacionales.
+- OpenAI como proveedor LLM inicial.
+- Consola administrativa web.
+- Telegram como primer canal.
+- Wompi futuro.
+- n8n como automatización complementaria.
+
+## 2. Diagrama lógico
+
+```text
+Telegram / WhatsApp
+        ↓
+FastAPI Webhooks
+        ↓
+Tenant Resolver
+        ↓
+Conversation State / Redis
+        ↓
+LangGraph Booking Agent
+        ↓
+Domain Tools
+        ↓
+Domain Services
+        ↓
+PostgreSQL tenant schema
+        ↓
+Domain Events
+        ↓
+n8n / Notificaciones / Recordatorios
+```
+
+Consola administrativa:
+
+```text
+Admin Web Console
+        ↓
+FastAPI Admin API
+        ↓
+Auth + Tenant Resolver
+        ↓
+Domain Services
+        ↓
+PostgreSQL tenant schema
+```
+
+## 3. Stack técnico
+
+### Backend
+
+- Python.
+- FastAPI.
+- Pydantic.
+- SQLAlchemy.
+- Alembic.
+- Uvicorn/Gunicorn.
+
+### IA
+
+- LangChain.
+- LangGraph.
+- OpenAI inicial.
+- Abstracción `LLMProvider`.
+
+### Base de datos
+
+- PostgreSQL.
+- pgvector.
+- Schema `public`.
+- Schema por tenant.
+
+### Estado temporal
+
+- Redis.
+
+### Frontend admin
+
+Recomendado:
+
+- React.
+- TypeScript.
+- Vite.
+- Tailwind CSS.
+- shadcn/ui.
+- TanStack Query.
+- React Hook Form.
+- Zod.
+
+### Infraestructura
+
+- Linux.
+- Docker Compose.
+- Nginx.
+- Let's Encrypt.
+- Dominio/subdominio.
+
+## 4. Multi-tenancy
+
+### 4.1. Modelo elegido
+
+TotalChat usará schema PostgreSQL por tenant.
+
+```text
+public
+tenant_dra_ana
+tenant_clinica_vida
+tenant_dr_carlos
+```
+
+### 4.2. Schema public
+
+Contiene control SaaS:
+
+- tenants.
+- tenant_channels.
+- tenant_domains.
+- tenant_settings.
+- users.
+- user_tenants.
+- plans.
+- subscriptions.
+- global_audit_log.
+- schema_migrations_control.
+
+### 4.3. Schema tenant
+
+Contiene datos operativos del tenant:
+
+- organizations.
+- locations.
+- rooms.
+- practitioners.
+- specialties.
+- practitioner_services.
+- prices.
+- patients.
+- bookings.
+- payments.
+- messages.
+- semantic_documents.
+
+### 4.4. Tenant resolver
+
+Cada petición debe resolver tenant antes de tocar datos operativos.
+
+Fuentes posibles:
+
+- Telegram bot token/canal.
+- WhatsApp phone number ID.
+- Subdominio.
+- URL pública.
+- Token de webhook.
+- Sesión administrativa.
+
+Flujo:
+
+```text
+Request
+↓
+Identify channel/domain/session
+↓
+Query public.tenant_channels or public.tenant_domains
+↓
+Get tenant.schema_name
+↓
+Open DB session with safe tenant context
+↓
+Execute domain services
+```
+
+El LLM jamás resuelve tenant.
+
+## 5. Backend
+
+Estructura recomendada:
+
+```text
+backend/
+├── app/
+│   ├── main.py
+│   ├── config.py
+│   ├── api/
+│   ├── auth/
+│   ├── db/
+│   ├── tenants/
+│   ├── domain/
+│   ├── booking/
+│   ├── payments/
+│   ├── ai/
+│   ├── channels/
+│   ├── events/
+│   └── admin/
+├── migrations/
+├── tests/
+└── pyproject.toml
+```
+
+## 6. Frontend administrativo
+
+Estructura recomendada:
+
+```text
+frontend/
+├── src/
+│   ├── app/
+│   ├── components/
+│   ├── features/
+│   │   ├── auth/
+│   │   ├── dashboard/
+│   │   ├── organizations/
+│   │   ├── practitioners/
+│   │   ├── services/
+│   │   ├── pricing/
+│   │   ├── availability/
+│   │   ├── bookings/
+│   │   ├── patients/
+│   │   ├── payments/
+│   │   └── settings/
+│   ├── lib/
+│   └── main.tsx
+└── package.json
+```
+
+## 7. LangGraph
+
+El agente conversacional debe usar herramientas controladas.
+
+Flujo base:
+
+```text
+receive_message
+↓
+resolve_conversation_state
+↓
+classify_intent
+↓
+collect_required_context
+↓
+search_service_or_specialty
+↓
+resolve_practitioner_if_needed
+↓
+resolve_modality
+↓
+resolve_payer_plan_if_needed
+↓
+find_available_slots
+↓
+offer_slots
+↓
+collect_minimal_patient_data
+↓
+create_tentative_booking
+↓
+handle_payment_option
+↓
+confirm_or_hold_booking
+↓
+send_confirmation_or_pending_message
+```
+
+## 8. LLMProvider
+
+El código no debe llamar directamente a OpenAI desde cualquier módulo.
+
+Debe existir:
+
+```text
+LLMProvider
+OpenAIProvider
+```
+
+Futuro:
+
+```text
+OllamaProvider
+OtherProvider
+```
+
+Variables:
+
+```text
+TOTALCHAT_LLM_PROVIDER=openai
+TOTALCHAT_LLM_MODEL=...
+TOTALCHAT_EMBEDDINGS_PROVIDER=openai
+TOTALCHAT_EMBEDDINGS_MODEL=...
+```
+
+## 9. pgvector
+
+Cada tenant puede tener documentos semánticos propios.
+
+Usos:
+
+- Búsqueda de servicios.
+- Especialidades.
+- FAQ.
+- Políticas.
+- Instrucciones.
+- Mensajes base.
+
+No se usa para disponibilidad ni precio.
+
+## 10. Redis
+
+Usos iniciales:
+
+- Estado de conversación.
+- Holds temporales.
+- Locks.
+- Rate limiting.
+- Cache ligera.
+
+La verdad siempre está en PostgreSQL.
+
+## 11. Eventos de dominio
+
+El backend debe emitir eventos.
+
+Ejemplos:
+
+- booking.created
+- booking.confirmed
+- booking.cancelled
+- payment.evidence_uploaded
+- payment.pending_manual_review
+- payment.review_overdue
+- virtual_link.pending
+- reminder.due
+- attendance.confirmed
+- attendance.declined
+
+n8n puede consumir eventos, pero no decide la verdad.
+
+## 12. Despliegue
+
+Recomendado:
+
+```text
+Linux host
+├── Nginx + Certbot
+└── Docker Compose
+    ├── backend
+    ├── frontend
+    ├── postgres
+    └── redis
+```
+
+Puertos externos:
+
+- 80/443 solamente.
+
+Puertos internos:
+
+- backend 8000.
+- postgres 5432.
+- redis 6379.
+
+## 13. Seguridad arquitectónica
+
+Reglas:
+
+- Resolver tenant antes de ejecutar herramientas.
+- Nunca exponer schema selection al LLM.
+- Auditar acciones críticas.
+- Validar webhooks.
+- No guardar secretos en repo.
+- Hash de passwords.
+- Roles por tenant.
+
+## 14. External Scheduling and Meeting Providers
+
+TotalChat debe soportar una capa genérica de proveedores externos de agenda y calendarios.
+
+```text
+TotalChat Booking Core
+        ↓
+SchedulingProvider interface
+        ├── InternalSchedulingProvider
+        ├── DocplannerSchedulingProvider
+        ├── GoogleCalendarSchedulingProvider
+        ├── MicrosoftCalendarSchedulingProvider
+        └── OtherSchedulingProvider
+```
+
+También debe existir una capa separada para reuniones virtuales:
+
+```text
+MeetingProvider interface
+        ├── ManualMeetingProvider
+        ├── GoogleMeetProvider
+        ├── MicrosoftTeamsMeetingProvider
+        ├── ZoomMeetingProvider
+        └── OtherMeetingProvider
+```
+
+### 14.1. SchedulingProvider
+
+Responsable de:
+
+- consultar disponibilidad;
+- crear reservas;
+- cancelar reservas;
+- reprogramar reservas;
+- consultar reservas externas;
+- crear bloqueos;
+- eliminar bloqueos;
+- sincronizar eventos externos.
+
+### 14.2. MeetingProvider
+
+Responsable de:
+
+- crear link de reunión;
+- actualizar link de reunión;
+- cancelar reunión;
+- consultar link;
+- guardar detalles virtuales.
+
+### 14.3. Modos por tenant
+
+Cada tenant, organización o profesional podrá usar:
+
+```text
+schedule_authority = totalchat | docplanner | google_calendar | microsoft_calendar | other
+meeting_provider = manual | google_meet | microsoft_teams | zoom | other
+```
+
+### 14.4. Autoridad de agenda
+
+Modos soportados:
+
+```text
+internal_authoritative
+external_authoritative
+hybrid
+```
+
+Si el modo es `external_authoritative`, TotalChat no debe confirmar localmente sin confirmación/reserva externa.
+
+### 14.5. Sync mode
+
+```text
+none
+read_only
+write_through
+bidirectional
+```
+
+El modo recomendado para evitar doble reserva con agenda externa es `write_through`, y luego `bidirectional` cuando existan callbacks o sincronización madura.
+
+### 14.6. Implementación MVP
+
+El MVP implementará:
+
+```text
+InternalSchedulingProvider
+ManualMeetingProvider
+```
+
+Docplanner, Google Calendar, Microsoft Calendar, Google Meet y Teams serán fases futuras, pero la arquitectura debe quedar preparada.
+
+## Arquitectura multi-solución
+
+TotalChat debe organizarse como una plataforma multi-solución:
+
+```text
+TotalChat Platform
+        ├── TotalChat Core
+        ├── MediChat
+        ├── RestoChat
+        ├── HotelChat
+        ├── StayChat
+        └── StoreChat
+```
+
+El core compartido ofrece capacidades técnicas reutilizables:
+
+- tenants;
+- auth;
+- conversations;
+- LLM providers;
+- channels;
+- payments;
+- scheduling providers;
+- meeting providers;
+- notifications;
+- events;
+- audit.
+
+Los verticales contienen dominio específico.
+
+El primer vertical funcional será:
+
+```text
+solutions/medichat/
+```
+
+La arquitectura recomendada de repo es:
+
+```text
+TotalChat/
+├── apps/
+│   ├── api/
+│   ├── admin-web/
+│   └── worker/
+├── packages/
+│   ├── core/
+│   ├── auth/
+│   ├── tenancy/
+│   ├── conversations/
+│   ├── ai/
+│   ├── channels/
+│   ├── payments/
+│   ├── scheduling/
+│   ├── meetings/
+│   ├── notifications/
+│   └── events/
+└── solutions/
+    ├── medichat/
+    ├── restochat/
+    ├── hotelchat/
+    ├── staychat/
+    └── storechat/
+```
+
+Regla:
+
+```text
+TotalChat Core no debe conocer detalles de MediChat.
+MediChat usa capacidades del core, pero su dominio vive dentro del vertical.
+```
+
+## Campaigns and Broadcast Messaging
+
+TotalChat Platform debe incluir un módulo transversal de campañas y comunicados.
+
+Ubicación recomendada:
+
+```text
+packages/campaigns/
+```
+
+Flujo:
+
+```text
+Admin Console
+    ↓
+CampaignService
+    ↓
+AudienceResolver
+    ↓
+CampaignDeliveryPlanner
+    ↓
+CampaignScheduler / Worker
+    ↓
+ChannelProvider
+    ↓
+Telegram / WhatsApp / otros
+    ↓
+Delivery status update
+    ↓
+Campaign metrics
+```
+
+Integraciones:
+
+```text
+packages/campaigns
+packages/channels
+packages/notifications
+packages/conversations
+packages/events
+solutions/medichat audience resolver
+```
+
+Regla:
+
+```text
+Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos por vertical.
+```
