@@ -1,0 +1,1107 @@
+# API_CONTRACTS.md
+# Contratos API iniciales de TotalChat
+
+## 1. Propósito
+
+Este documento define los contratos REST iniciales que deben guiar la implementación de TotalChat.
+
+La intención no es cerrar para siempre la API, sino evitar que Codex invente rutas, nombres, payloads y respuestas inconsistentes entre fases.
+
+Los contratos aquí definidos deben usarse como base para:
+
+- `specs/001-project-foundation/contracts.md`
+- `specs/002-multitenancy/contracts.md`
+- `specs/003-booking-domain/contracts.md`
+- `specs/004-admin-console/contracts.md`
+- `specs/007-payments-manual-review/contracts.md`
+- `specs/008-reminders-confirmation/contracts.md`
+- specs futuras de canales, agenda externa y reuniones virtuales.
+
+## 2. Principios de diseño API
+
+### 2.1. Separación por superficie
+
+TotalChat debe separar superficies de API:
+
+```text
+/api/platform/*
+/api/admin/*
+/api/public/*
+/api/webhooks/*
+/api/internal/*
+```
+
+### 2.2. `/api/platform/*`
+
+Rutas para administración SaaS/plataforma.
+
+Ejemplos:
+
+- crear tenant;
+- listar tenants;
+- provisionar schema;
+- gestionar canales;
+- gestionar usuarios globales.
+
+Estas rutas no pertenecen a la operación diaria del tenant.
+
+### 2.3. `/api/admin/*`
+
+Rutas para consola administrativa del tenant.
+
+Requieren autenticación de usuario administrativo y contexto de tenant.
+
+Ejemplos:
+
+- crear profesionales;
+- crear servicios;
+- definir precios;
+- crear disponibilidad;
+- revisar pagos;
+- crear citas manuales.
+
+### 2.4. `/api/public/*`
+
+Rutas públicas controladas.
+
+Ejemplos futuros:
+
+- consulta pública de disponibilidad si se habilita;
+- landing de reserva web;
+- confirmaciones por token seguro.
+
+### 2.5. `/api/webhooks/*`
+
+Rutas de entrada desde sistemas externos.
+
+Ejemplos:
+
+- Telegram;
+- WhatsApp futuro;
+- Wompi futuro;
+- Docplanner futuro;
+- Google/Microsoft futuro;
+- n8n si se recibe callback.
+
+### 2.6. `/api/internal/*`
+
+Rutas internas para workers, schedulers o n8n cuando aplique.
+
+Deben protegerse con token interno o mecanismo equivalente.
+
+## 3. Convenciones generales
+
+### 3.1. Formato de respuesta exitosa
+
+Respuesta simple:
+
+```json
+{
+  "data": {}
+}
+```
+
+Respuesta lista:
+
+```json
+{
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "page_size": 50,
+    "total": 125
+  }
+}
+```
+
+Respuesta de acción:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "status": "created"
+  }
+}
+```
+
+### 3.2. Formato de error
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid request payload.",
+    "details": {}
+  }
+}
+```
+
+Códigos sugeridos:
+
+```text
+VALIDATION_ERROR
+AUTHENTICATION_REQUIRED
+AUTHORIZATION_FAILED
+TENANT_NOT_FOUND
+RESOURCE_NOT_FOUND
+CONFLICT
+BUSINESS_RULE_VIOLATION
+EXTERNAL_PROVIDER_ERROR
+PAYMENT_REVIEW_REQUIRED
+SLOT_NOT_AVAILABLE
+INTERNAL_ERROR
+```
+
+### 3.3. Identificadores
+
+Usar UUID para entidades principales.
+
+No exponer nombres de schemas al frontend ni al LLM.
+
+### 3.4. Tenant context
+
+Las rutas `/api/admin/*` deben resolver tenant por:
+
+- token/sesión del usuario;
+- header administrativo controlado;
+- tenant seleccionado en la consola.
+
+No se debe aceptar un `schema_name` enviado por el cliente.
+
+Header opcional para consola multi-tenant:
+
+```http
+X-TotalChat-Tenant-Id: <tenant_uuid>
+```
+
+El backend debe verificar que el usuario tenga acceso al tenant.
+
+### 3.5. Idempotencia
+
+Para operaciones críticas se recomienda soportar:
+
+```http
+Idempotency-Key: <uuid>
+```
+
+Aplicar especialmente a:
+
+- creación de cita;
+- creación de intento de pago;
+- aprobación de pago;
+- eventos externos;
+- webhooks.
+
+## 4. Health y foundation
+
+### 4.1. GET `/health`
+
+Uso:
+
+Validar que la app está viva.
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "status": "ok",
+    "service": "totalchat-api",
+    "version": "0.1.0"
+  }
+}
+```
+
+### 4.2. GET `/ready`
+
+Uso:
+
+Validar dependencias mínimas.
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "status": "ready",
+    "database": "ok",
+    "redis": "ok"
+  }
+}
+```
+
+## 5. Autenticación admin
+
+### 5.1. POST `/api/auth/login`
+
+Request:
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "secret"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "access_token": "jwt",
+    "refresh_token": "jwt",
+    "token_type": "bearer",
+    "expires_in": 1800
+  }
+}
+```
+
+### 5.2. POST `/api/auth/refresh`
+
+Request:
+
+```json
+{
+  "refresh_token": "jwt"
+}
+```
+
+### 5.3. GET `/api/auth/me`
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "email": "admin@example.com",
+    "full_name": "Admin",
+    "tenants": [
+      {
+        "tenant_id": "uuid",
+        "tenant_name": "Consultorio Dra. Ana",
+        "role": "owner"
+      }
+    ]
+  }
+}
+```
+
+## 6. Plataforma / tenants
+
+### 6.1. POST `/api/platform/tenants`
+
+Crea tenant y opcionalmente provisiona schema.
+
+Request:
+
+```json
+{
+  "name": "Consultorio Psicóloga Ana",
+  "slug": "psicologa-ana",
+  "owner_email": "ana@example.com",
+  "owner_full_name": "Ana Gómez",
+  "provision_schema": true
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "Consultorio Psicóloga Ana",
+    "slug": "psicologa-ana",
+    "status": "active",
+    "schema_status": "provisioned"
+  }
+}
+```
+
+Reglas:
+
+- `slug` debe ser único.
+- `schema_name` lo genera el backend.
+- No permitir que el usuario defina directamente el nombre del schema sin sanitización.
+- Si falla el provisioning, registrar error y no dejar estado ambiguo.
+
+### 6.2. GET `/api/platform/tenants`
+
+Lista tenants.
+
+### 6.3. GET `/api/platform/tenants/{tenant_id}`
+
+Detalle tenant.
+
+### 6.4. POST `/api/platform/tenants/{tenant_id}/channels`
+
+Configura canal.
+
+Request Telegram:
+
+```json
+{
+  "channel_type": "telegram",
+  "external_identifier": "telegram_bot_username_or_id",
+  "settings": {
+    "bot_name": "TotalChat Demo",
+    "webhook_enabled": true
+  }
+}
+```
+
+Reglas:
+
+- El token del bot no debe devolverse en respuestas.
+- Secretos se guardan cifrados o en secret manager/variables según estrategia.
+
+## 7. Organizaciones
+
+### 7.1. POST `/api/admin/organizations`
+
+Request:
+
+```json
+{
+  "name": "Consultorio Psicóloga Ana",
+  "organization_type": "independent_practitioner",
+  "legal_name": "Ana Gómez",
+  "tax_id": "123456789",
+  "email": "contacto@example.com",
+  "phone": "+573001112233"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "Consultorio Psicóloga Ana",
+    "status": "active"
+  }
+}
+```
+
+### 7.2. GET `/api/admin/organizations`
+
+### 7.3. GET `/api/admin/organizations/{organization_id}`
+
+### 7.4. PATCH `/api/admin/organizations/{organization_id}`
+
+### 7.5. POST `/api/admin/organizations/{organization_id}/disable`
+
+No eliminar físicamente por defecto.
+
+## 8. Sedes y consultorios
+
+### 8.1. POST `/api/admin/locations`
+
+Request:
+
+```json
+{
+  "organization_id": "uuid",
+  "name": "Sede Poblado",
+  "address": "Carrera 43A #...",
+  "city": "Medellín",
+  "neighborhood": "El Poblado",
+  "reference": "Edificio Médico, piso 8",
+  "is_virtual": false
+}
+```
+
+### 8.2. POST `/api/admin/rooms`
+
+Request:
+
+```json
+{
+  "location_id": "uuid",
+  "name": "Consultorio 801",
+  "room_type": "consulting_room",
+  "capacity": 1
+}
+```
+
+## 9. Profesionales y especialidades
+
+### 9.1. POST `/api/admin/practitioners`
+
+Request:
+
+```json
+{
+  "full_name": "Ana Gómez",
+  "professional_type": "psychologist",
+  "professional_license": "TP-12345",
+  "email": "ana@example.com",
+  "phone": "+573001112233"
+}
+```
+
+### 9.2. POST `/api/admin/specialties`
+
+Request:
+
+```json
+{
+  "name": "Psicología",
+  "description": "Servicios de psicología clínica y terapias."
+}
+```
+
+### 9.3. POST `/api/admin/practitioners/{practitioner_id}/specialties`
+
+Request:
+
+```json
+{
+  "specialty_id": "uuid"
+}
+```
+
+## 10. Servicios del profesional
+
+### 10.1. POST `/api/admin/practitioner-services`
+
+Request:
+
+```json
+{
+  "organization_id": "uuid",
+  "practitioner_id": "uuid",
+  "service_catalog_id": null,
+  "name": "Terapia cognitivo conductual",
+  "description": "Sesión terapéutica individual de 60 minutos.",
+  "duration_minutes": 60,
+  "requires_payment": true
+}
+```
+
+Reglas:
+
+- El servicio pertenece al profesional.
+- La especialidad no define precio.
+- El precio no se guarda aquí como único precio.
+- Debe permitir varios precios mediante `practitioner_service_prices`.
+
+### 10.2. POST `/api/admin/practitioner-services/{service_id}/modalities`
+
+Request presencial:
+
+```json
+{
+  "modality": "in_person",
+  "location_id": "uuid",
+  "room_id": "uuid"
+}
+```
+
+Request virtual:
+
+```json
+{
+  "modality": "virtual",
+  "location_id": null,
+  "room_id": null
+}
+```
+
+## 11. Jerarquía comercial y precios
+
+### 11.1. POST `/api/admin/payer-types`
+
+Request:
+
+```json
+{
+  "code": "medicina_prepagada",
+  "name": "Medicina prepagada",
+  "description": "Planes de medicina prepagada."
+}
+```
+
+### 11.2. POST `/api/admin/payers`
+
+Request:
+
+```json
+{
+  "payer_type_id": "uuid",
+  "name": "Colsanitas",
+  "description": "Entidad de medicina prepagada."
+}
+```
+
+### 11.3. POST `/api/admin/payer-plans`
+
+Request:
+
+```json
+{
+  "payer_id": "uuid",
+  "name": "Plan avanzado",
+  "description": "Plan avanzado de Colsanitas."
+}
+```
+
+### 11.4. POST `/api/admin/practitioner-service-prices`
+
+Request:
+
+```json
+{
+  "practitioner_service_id": "uuid",
+  "payer_plan_id": "uuid",
+  "price": 100000,
+  "currency": "COP",
+  "valid_from": "2026-07-01",
+  "valid_to": null
+}
+```
+
+Reglas:
+
+- El precio se asocia a `service + payer_plan`.
+- Particular se modela como `payer_type=particular`, `payer=Particular`, `payer_plan=Tarifa particular`.
+- La cita debe guardar snapshot de tipo, pagador, plan y precio.
+
+### 11.5. GET `/api/admin/practitioner-services/{service_id}/prices`
+
+Debe devolver tarifas activas del servicio.
+
+## 12. Pacientes
+
+### 12.1. POST `/api/admin/patients`
+
+Request mínimo:
+
+```json
+{
+  "full_name": "Juan Pérez",
+  "phone": "+573001112233",
+  "email": null,
+  "document_type": null,
+  "document_number": null,
+  "created_from_channel": "admin"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "full_name": "Juan Pérez",
+    "profile_status": "minimal"
+  }
+}
+```
+
+Reglas:
+
+- Paciente previo no es requisito para cita.
+- Si faltan datos no críticos, `profile_status` puede ser `minimal` o `incomplete`.
+
+### 12.2. POST `/api/admin/patients/{patient_id}/payer-profiles`
+
+Request:
+
+```json
+{
+  "payer_plan_id": "uuid",
+  "member_id": "ABC123",
+  "validation_status": "declared",
+  "valid_from": null,
+  "valid_to": null
+}
+```
+
+## 13. Disponibilidad
+
+### 13.1. POST `/api/admin/availability-rules`
+
+Request:
+
+```json
+{
+  "organization_id": "uuid",
+  "practitioner_id": "uuid",
+  "practitioner_service_id": null,
+  "location_id": "uuid",
+  "room_id": "uuid",
+  "modality": "in_person",
+  "weekday": 1,
+  "start_time": "08:00",
+  "end_time": "12:00",
+  "valid_from": "2026-07-01",
+  "valid_to": null,
+  "buffer_minutes": 0
+}
+```
+
+Reglas:
+
+- `weekday`: 1 lunes, 7 domingo, o el estándar que se defina en implementación; debe documentarse.
+- Si `practitioner_service_id` es null, aplica a servicios compatibles.
+- La generación de slots debe respetar duración del servicio.
+
+### 13.2. POST `/api/admin/availability-exceptions`
+
+Request:
+
+```json
+{
+  "practitioner_id": "uuid",
+  "location_id": null,
+  "room_id": null,
+  "starts_at": "2026-07-20T08:00:00-05:00",
+  "ends_at": "2026-07-20T12:00:00-05:00",
+  "exception_type": "administrative_block",
+  "reason": "Bloqueo administrativo"
+}
+```
+
+### 13.3. GET `/api/admin/availability/slots`
+
+Query:
+
+```text
+?practitioner_service_id=uuid
+&practitioner_id=uuid
+&modality=in_person
+&date_from=2026-07-10
+&date_to=2026-07-17
+&payer_plan_id=uuid
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "starts_at": "2026-07-10T09:00:00-05:00",
+      "ends_at": "2026-07-10T10:00:00-05:00",
+      "practitioner_id": "uuid",
+      "location_id": "uuid",
+      "room_id": "uuid",
+      "modality": "in_person",
+      "source": "internal"
+    }
+  ]
+}
+```
+
+Reglas:
+
+- El endpoint debe usar `SchedulingProvider`.
+- En MVP, provider implementado: `InternalSchedulingProvider`.
+- No acoplar directamente el controller al cálculo interno.
+
+## 14. Citas
+
+### 14.1. POST `/api/admin/bookings`
+
+Request:
+
+```json
+{
+  "patient": {
+    "id": null,
+    "full_name": "Juan Pérez",
+    "phone": "+573001112233",
+    "email": null
+  },
+  "practitioner_service_id": "uuid",
+  "payer_plan_id": "uuid",
+  "modality": "in_person",
+  "starts_at": "2026-07-10T09:00:00-05:00",
+  "location_id": "uuid",
+  "room_id": "uuid",
+  "created_channel": "admin"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "status": "tentative",
+    "payment_status": "pending",
+    "service_name_snapshot": "Terapia cognitivo conductual",
+    "payer_plan_name_snapshot": "Plan avanzado",
+    "price_snapshot": 100000,
+    "currency_snapshot": "COP",
+    "total_amount": 100000
+  }
+}
+```
+
+Reglas:
+
+- Si paciente no existe, se crea mínimo.
+- Debe validar slot con `SchedulingProvider`.
+- Debe guardar snapshot.
+- No confirmar si el pago es requerido y no hay pago confirmado o política que permita confirmación sin pago.
+
+### 14.2. POST `/api/admin/bookings/{booking_id}/confirm`
+
+Confirma cita según reglas de pago.
+
+Request:
+
+```json
+{
+  "reason": "Pago aprobado manualmente"
+}
+```
+
+Reglas:
+
+- No confirmar transferencia sin revisión aprobada.
+- Si agenda externa es autoridad, debe existir booking externo/mapping válido.
+
+### 14.3. POST `/api/admin/bookings/{booking_id}/cancel`
+
+Request:
+
+```json
+{
+  "reason": "Cancelado por paciente",
+  "release_slot": true
+}
+```
+
+### 14.4. POST `/api/admin/bookings/{booking_id}/reschedule`
+
+Request:
+
+```json
+{
+  "new_starts_at": "2026-07-11T10:00:00-05:00",
+  "new_location_id": "uuid",
+  "new_room_id": "uuid",
+  "reason": "Solicitud paciente"
+}
+```
+
+## 15. Pagos
+
+### 15.1. GET `/api/admin/payment-settings`
+
+### 15.2. PATCH `/api/admin/payment-settings`
+
+Request:
+
+```json
+{
+  "allow_gateway_payment": false,
+  "allow_manual_transfer": true,
+  "allow_pay_at_location": false,
+  "require_payment_before_confirmation": true,
+  "payment_evidence_due_minutes": 60,
+  "manual_review_due_policy": "next_business_day_noon",
+  "auto_expire_if_no_evidence": true,
+  "auto_expire_if_review_overdue": false,
+  "refund_policy_days": 5
+}
+```
+
+### 15.3. POST `/api/admin/bookings/{booking_id}/payment-attempts`
+
+Request transferencia:
+
+```json
+{
+  "method": "manual_transfer",
+  "amount_expected": 100000,
+  "currency": "COP"
+}
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "method": "manual_transfer",
+    "status": "pending_evidence",
+    "evidence_due_at": "2026-07-05T18:00:00-05:00"
+  }
+}
+```
+
+### 15.4. POST `/api/admin/payment-attempts/{payment_attempt_id}/evidence`
+
+Request conceptual:
+
+```json
+{
+  "file_url": "s3://bucket/evidence.png",
+  "file_type": "image/png",
+  "uploaded_by": "patient"
+}
+```
+
+Reglas:
+
+- Al cargar evidencia, booking pasa a `pending_manual_payment_review`.
+- El slot queda protegido.
+- IA puede prevalidar, pero no aprobar.
+
+### 15.5. POST `/api/admin/payment-attempts/{payment_attempt_id}/reviews`
+
+Request aprobar:
+
+```json
+{
+  "decision": "approved",
+  "notes": "Pago verificado en cuenta bancaria.",
+  "confirmed_against_bank": true
+}
+```
+
+Request rechazar:
+
+```json
+{
+  "decision": "rejected",
+  "notes": "El comprobante no corresponde al valor esperado.",
+  "confirmed_against_bank": false
+}
+```
+
+Reglas:
+
+- `approved` requiere `confirmed_against_bank=true`.
+- Aprobación confirma pago.
+- Si pago requerido, puede confirmar cita.
+- Todo queda auditado.
+
+## 16. Citas virtuales
+
+### 16.1. POST `/api/admin/bookings/{booking_id}/virtual-details`
+
+Request link manual:
+
+```json
+{
+  "provider": "manual",
+  "meeting_url": "https://meet.example.com/abc",
+  "meeting_id": null,
+  "access_code": null,
+  "created_mode": "manual"
+}
+```
+
+Reglas:
+
+- MVP soporta link manual.
+- Providers automáticos son futuros.
+
+## 17. Recordatorios y confirmación
+
+### 17.1. GET `/api/admin/appointment-confirmation-settings`
+
+### 17.2. PATCH `/api/admin/appointment-confirmation-settings`
+
+Request:
+
+```json
+{
+  "enabled": true,
+  "reminder_hours_before": 24,
+  "require_attendance_confirmation": true,
+  "second_confirmation_on_negative_response": true,
+  "no_response_policy": "notify_admin",
+  "auto_cancel_on_no_response": false,
+  "refund_policy_days": 5
+}
+```
+
+### 17.3. POST `/api/internal/reminders/due`
+
+Endpoint interno/scheduler para generar recordatorios vencidos.
+
+### 17.4. POST `/api/admin/bookings/{booking_id}/attendance-confirmation`
+
+Request confirmar:
+
+```json
+{
+  "response": "confirmed",
+  "channel": "telegram"
+}
+```
+
+Request negativa inicial:
+
+```json
+{
+  "response": "declined",
+  "channel": "telegram"
+}
+```
+
+Regla:
+
+- `declined` no cancela inmediatamente.
+- Debe pasar a `declined_pending_second_confirmation`.
+
+### 17.5. POST `/api/admin/bookings/{booking_id}/attendance-cancellation-confirmation`
+
+Request:
+
+```json
+{
+  "confirm_cancel": true
+}
+```
+
+Reglas:
+
+- Solo después de segunda confirmación se cancela y libera slot.
+- Si había pago, crear/actualizar estado de reembolso según política.
+
+## 18. Webhooks
+
+### 18.1. POST `/api/webhooks/telegram/{channel_token}`
+
+Recibe mensajes Telegram.
+
+Reglas:
+
+- Resolver tenant por `channel_token` o configuración segura.
+- Persistir mensaje.
+- Invocar agente.
+- Responder por Telegram.
+- No exponer errores internos al usuario.
+
+### 18.2. POST `/api/webhooks/wompi`
+
+Futuro.
+
+### 18.3. POST `/api/webhooks/external-scheduling/{provider}`
+
+Futuro para Docplanner/Google/Microsoft cuando aplique.
+
+## 19. Contratos de proveedores internos
+
+Los endpoints de disponibilidad y bookings no deben implementar directamente la lógica de agenda. Deben usar servicios que dependan de interfaces:
+
+```text
+SchedulingProvider
+MeetingProvider
+LLMProvider
+EmbeddingsProvider
+PaymentProvider
+```
+
+En MVP:
+
+```text
+SchedulingProvider = InternalSchedulingProvider
+MeetingProvider = ManualMeetingProvider
+PaymentProvider = SimulatedPaymentProvider / ManualTransferProvider
+LLMProvider = OpenAIProvider
+```
+
+## 20. Endpoints mínimos por fase
+
+### Fase 1
+
+- GET `/health`
+- GET `/ready`
+
+### Fase 2
+
+- POST `/api/platform/tenants`
+- GET `/api/platform/tenants`
+- POST `/api/platform/tenants/{tenant_id}/channels`
+
+### Fase 3
+
+- CRUD organizaciones
+- CRUD sedes
+- CRUD consultorios
+- CRUD profesionales
+- CRUD especialidades
+- CRUD servicios
+- CRUD precios
+- CRUD pacientes
+
+### Fase 4
+
+- Disponibilidad
+- Crear cita
+- Cancelar cita
+- Reprogramar cita
+
+### Fase 5
+
+- Configuración pagos
+- Intentos de pago
+- Evidencias
+- Revisiones
+
+### Fase 6
+
+- Endpoints requeridos por consola admin
+
+### Fase 7+
+
+- Agent tools internas
+- Telegram webhook
+- Recordatorios
+- Integraciones externas futuras
+
+## 21. Campañas y comunicados
+
+### 21.1. POST `/api/admin/campaigns`
+
+Crea campaña.
+
+### 21.2. GET `/api/admin/campaigns`
+
+Lista campañas.
+
+### 21.3. POST `/api/admin/campaigns/{campaign_id}/preview-audience`
+
+Calcula audiencia estimada.
+
+### 21.4. POST `/api/admin/campaigns/{campaign_id}/send-now`
+
+Envía inmediatamente.
+
+Request:
+
+```json
+{
+  "confirm_send": true
+}
+```
+
+### 21.5. POST `/api/admin/campaigns/{campaign_id}/schedule`
+
+Programa envío.
+
+### 21.6. POST `/api/admin/campaigns/{campaign_id}/cancel`
+
+Cancela campaña.
+
+### 21.7. GET `/api/admin/campaigns/{campaign_id}/deliveries`
+
+Lista entregas.
+
+### 21.8. GET `/api/admin/campaigns/{campaign_id}/metrics`
+
+Métricas.
