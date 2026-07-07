@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     environment: str = "dev"
     service_name: str = "totalchat-api"
+    database_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
