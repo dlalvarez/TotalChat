@@ -21,3 +21,16 @@ curl -X POST http://localhost:8000/api/platform/tenants \
 3. Las migraciones base se aplicaron al schema.
 4. Crear dos tenants no mezcla datos.
 5. Usuario solo accede a tenants asignados.
+
+## Run public migrations locally
+
+The Alembic baseline lives under `backend/alembic`. Configure `TOTALCHAT_DATABASE_URL`
+for a PostgreSQL database, then run:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+Tenant provisioning creates a sanitized tenant schema and initializes tenant schema
+migration tracking only. Booking-domain tables are intentionally excluded from this phase.
