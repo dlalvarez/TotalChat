@@ -54,3 +54,9 @@ La creación programática de una reserva tentativa debe ejecutarse desde servic
 6. Las transiciones posteriores de booking deben pasar por `BookingTransitionService` y respetar `docs/STATE_MACHINES.md`.
 
 Exclusiones de esta fase: routers FastAPI, pagos, adaptadores externos de agenda/calendario, Telegram, LangGraph y consola administrativa.
+
+## Internal scheduling provider baseline
+
+The MVP internal scheduling provider remains a backend-only service baseline; it does not expose admin API endpoints in this phase. Slot lookup requires an explicit trusted `TenantContext` and never accepts `schema_name` from client input.
+
+Availability slot generation uses tenant-scoped `availability_rules` with ISO weekday numbering (Monday=1, Sunday=7), the selected `practitioner_service.duration_minutes`, practitioner, modality, location, and room constraints. A rule with `practitioner_service_id = null` can apply to compatible services. Active `availability_exceptions` and active/protected bookings block overlapping slots; terminal bookings do not block availability. Returned internal slots include start/end times, practitioner, location, room, modality, and `source = "internal"`.
