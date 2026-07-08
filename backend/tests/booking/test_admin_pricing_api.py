@@ -162,6 +162,7 @@ def test_create_practitioner_service_price_validations(admin_session, tenant_con
     assert missing_plan.status_code == 404
     assert missing_plan.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
     assert negative.status_code == 422
+    assert negative.json()["error"]["code"] == "VALIDATION_ERROR"
     assert currency.status_code == 422
     assert dates.status_code == 422
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -33,4 +34,5 @@ async def http_error_handler(_request: Request, exc: HTTPException) -> JSONRespo
 
 
 async def validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
-    return api_error_response("VALIDATION_ERROR", "Invalid request parameters.", 422, {"errors": exc.errors()})
+    errors = jsonable_encoder(exc.errors())
+    return api_error_response("VALIDATION_ERROR", "Invalid request parameters.", 422, {"errors": errors})
