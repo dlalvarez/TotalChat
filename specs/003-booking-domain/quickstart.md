@@ -60,3 +60,9 @@ Exclusiones de esta fase: routers FastAPI, pagos, adaptadores externos de agenda
 The MVP internal scheduling provider remains a backend-only service baseline; it does not expose admin API endpoints in this phase. Slot lookup requires an explicit trusted `TenantContext` and never accepts `schema_name` from client input.
 
 Availability slot generation uses tenant-scoped `availability_rules` with ISO weekday numbering (Monday=1, Sunday=7), the selected `practitioner_service.duration_minutes`, practitioner, modality, location, and room constraints. A rule with `practitioner_service_id = null` can apply to compatible services. Active `availability_exceptions` and active/protected bookings block overlapping slots; terminal bookings do not block availability. Returned internal slots include start/end times, practitioner, location, room, modality, and `source = "internal"`.
+
+## Admin availability slots API baseline
+
+PR #7 exposes `GET /api/admin/availability/slots` for admin slot lookup only. The endpoint requires `X-TotalChat-Tenant-Id` with an active tenant UUID, resolves the tenant from `public.tenants`, and does not accept or return `schema_name`. Full admin user-to-tenant authorization remains a future auth/admin phase.
+
+Supported query parameters are `practitioner_service_id`, optional `practitioner_id`, `modality`, `date_from`, `date_to`, optional `payer_plan_id`, optional `location_id`, and optional `room_id`. `payer_plan_id` is accepted for contract compatibility, but pricing logic is not part of slot lookup. The route delegates slot calculation to the `SchedulingProvider` baseline (`InternalSchedulingProvider`) and returns successful responses as `{"data": [...]}`.

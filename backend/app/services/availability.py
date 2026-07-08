@@ -25,6 +25,8 @@ class AvailableSlot:
 
 
 class SchedulingProvider(Protocol):
+    def list_available_slots(self, session: Session, tenant_context: TenantContext, **kwargs) -> list[AvailableSlot]: ...
+
     def ensure_slot_available(
         self,
         session: Session,
