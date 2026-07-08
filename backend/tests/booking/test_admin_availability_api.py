@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from app.api.admin.availability import get_scheduling_provider
 from app.api.admin.dependencies import get_admin_tenant_context, get_db_session
@@ -24,7 +25,7 @@ def tenant_context():
 
 @pytest.fixture()
 def session_with_availability():
-    engine = create_engine("sqlite:///:memory:")
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     for table in TENANT_TABLES:
         table.create(engine)
     with Session(engine) as session:
