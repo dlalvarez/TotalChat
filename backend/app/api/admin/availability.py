@@ -40,8 +40,8 @@ def list_availability_slots(
     payer_plan_id: UUID | None = Query(default=None),
     location_id: UUID | None = None,
     room_id: UUID | None = None,
-    session: Session = Depends(get_db_session),
     tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
     scheduling_provider: SchedulingProvider = Depends(get_scheduling_provider),
 ) -> dict[str, list[dict[str, object]]]:
     # payer_plan_id is intentionally accepted for API-contract compatibility; pricing

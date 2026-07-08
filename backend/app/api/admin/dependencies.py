@@ -16,8 +16,16 @@ def _api_error(code: str, message: str, status_code: int) -> HTTPException:
     return HTTPException(status_code=status_code, detail={"code": code, "message": message, "details": {}})
 
 
-def get_admin_tenant_context(
+def require_admin_tenant_id(
     x_totalchat_tenant_id: UUID | None = Header(default=None, alias="X-TotalChat-Tenant-Id"),
+) -> UUID:
+    if x_totalchat_tenant_id is None:
+        raise _api_error("AUTHENTICATION_REQUIRED", "X-TotalChat-Tenant-Id header is required.", 401)
+    return x_totalchat_tenant_id
+
+
+def get_admin_tenant_context(
+    x_totalchat_tenant_id: UUID = Depends(require_admin_tenant_id),
     session: Session = Depends(get_db_session),
 ) -> TenantContext:
     """Resolve trusted admin tenant context from the selected tenant header.
@@ -26,9 +34,6 @@ def get_admin_tenant_context(
     allowing access to tenant-scoped admin resources. This baseline only trusts the
     admin tenant selection header and validates the tenant record is active.
     """
-    if x_totalchat_tenant_id is None:
-        raise _api_error("AUTHENTICATION_REQUIRED", "X-TotalChat-Tenant-Id header is required.", 401)
-
     tenant = session.get(Tenant, x_totalchat_tenant_id)
     if tenant is None or tenant.status != "active":
         raise _api_error("TENANT_NOT_FOUND", "Tenant not found.", 404)
