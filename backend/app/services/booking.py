@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -22,7 +21,8 @@ from app.models.tenant import (
     Room,
     ServiceModality,
 )
-from app.services.errors import BusinessRuleViolation, DomainValidationError, PricingNotFound, ResourceNotFound, SlotNotAvailable
+from app.services.errors import BusinessRuleViolation, DomainValidationError, PricingNotFound, ResourceNotFound
+from app.services.availability import InternalSchedulingProvider, SchedulingProvider
 from app.tenancy.context import TenantContext
 
 
@@ -173,27 +173,6 @@ class BookingTransitionService:
         booking.status = new_status
         return booking
 
-
-class SchedulingProvider(Protocol):
-    def ensure_slot_available(self, session: Session, *, starts_at: datetime, ends_at: datetime, practitioner_id: UUID, location_id: UUID | None = None, room_id: UUID | None = None) -> None: ...
-
-
-class InternalSchedulingProvider:
-    ACTIVE_STATUSES = {"tentative", "pending_payment", "pending_payment_evidence", "pending_manual_payment_review", "review_overdue", "confirmed", "confirmed_without_payment"}
-
-    def ensure_slot_available(self, session: Session, *, starts_at: datetime, ends_at: datetime, practitioner_id: UUID, location_id: UUID | None = None, room_id: UUID | None = None) -> None:
-        stmt = select(Booking.id).where(
-            Booking.practitioner_id == practitioner_id,
-            Booking.status.in_(self.ACTIVE_STATUSES),
-            Booking.starts_at < ends_at,
-            Booking.ends_at > starts_at,
-        )
-        if location_id is not None:
-            stmt = stmt.where(or_(Booking.location_id.is_(None), Booking.location_id == location_id))
-        if room_id is not None:
-            stmt = stmt.where(or_(Booking.room_id.is_(None), Booking.room_id == room_id))
-        if session.execute(stmt.limit(1)).first() is not None:
-            raise SlotNotAvailable("Requested slot overlaps an active booking")
 
 
 class BookingService:

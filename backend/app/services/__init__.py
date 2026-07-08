@@ -1,11 +1,10 @@
+from app.services.availability import AvailableSlot, AvailabilityService, InternalSchedulingProvider, SchedulingProvider
 from app.services.booking import (
     BookingService,
     BookingSnapshotBuilder,
     BookingTransitionService,
-    InternalSchedulingProvider,
     PriceResolution,
     PricingService,
-    SchedulingProvider,
     PatientService,
 )
 from app.services.errors import (
@@ -19,6 +18,8 @@ from app.services.errors import (
 )
 
 __all__ = [
+    "AvailableSlot",
+    "AvailabilityService",
     "BookingService",
     "BookingSnapshotBuilder",
     "BookingTransitionService",
