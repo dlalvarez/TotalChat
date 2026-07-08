@@ -481,3 +481,124 @@ def test_admin_booking_actions_delegate_to_domain_service(monkeypatch, booking_s
         clear_overrides()
     assert response.status_code == 200
     assert called["confirm"] is True
+
+
+def reschedule_payload(loc, room, *, starts_at="2026-07-10T10:00:00-05:00", reason="Solicitud paciente"):
+    return {
+        "new_starts_at": starts_at,
+        "new_location_id": str(loc.id),
+        "new_room_id": str(room.id),
+        "reason": reason,
+    }
+
+
+def test_admin_bookings_reschedule_from_confirmed_updates_slot_location_room_and_reason(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    new_loc = Location(organization_id=service.organization_id, name="Sede Sur", address="Carrera 45")
+    new_room = Room(location=new_loc, name="Consultorio 402")
+    session.add_all([new_loc, new_room])
+    session.flush()
+    session.add(ServiceModality(practitioner_service_id=service.id, modality="in_person", location_id=new_loc.id, room_id=new_room.id, status="active"))
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/reschedule", json=reschedule_payload(new_loc, new_room, starts_at="2026-07-10T10:00:00-05:00"), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "rescheduled"
+    assert data["starts_at"] == "2026-07-10T10:00:00-05:00"
+    assert data["ends_at"] == "2026-07-10T10:50:00-05:00"
+    assert data["location_id"] == str(new_loc.id)
+    assert data["room_id"] == str(new_room.id)
+    assert data["admin_reschedule_reason"] == "Solicitud paciente"
+    persisted = session.get(Booking, booking.id)
+    assert persisted.location_id == new_loc.id
+    assert persisted.room_id == new_room.id
+    assert persisted.address_snapshot == "Carrera 45"
+    assert persisted.room_snapshot == "Consultorio 402"
+    assert persisted.admin_reschedule_reason == "Solicitud paciente"
+    assert persisted.patient_id == patient.id
+    assert persisted.practitioner_service_id == service.id
+    assert persisted.payer_plan_id == plan.id
+    assert persisted.price_snapshot == Decimal("100000.00")
+
+
+def test_admin_bookings_reschedule_from_confirmed_without_payment(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed_without_payment")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/reschedule", json=reschedule_payload(loc, room), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "rescheduled"
+
+
+@pytest.mark.parametrize("status", ["tentative", "cancelled_by_admin"])
+def test_admin_bookings_reschedule_invalid_states_fail_business_rule(booking_session, tenant_context, status):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status=status)
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/reschedule", json=reschedule_payload(loc, room), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+
+
+def test_admin_bookings_reschedule_request_rejects_schema_name(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed")
+    body = reschedule_payload(loc, room) | {"schema_name": "tenant_bad"}
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/reschedule", json=body, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 422
+
+
+def test_admin_bookings_reschedule_slot_conflict_is_rejected(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed")
+    _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 10, 0), status="confirmed")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/reschedule", json=reschedule_payload(loc, room), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "SLOT_NOT_AVAILABLE"
+
+
+def test_admin_booking_reschedule_delegates_to_service_and_provider(monkeypatch, booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed")
+    called = {"service": False, "provider": False}
+    from app.services.booking import BookingService
+    original = BookingService.reschedule_booking_by_admin
+
+    def recording_reschedule(self, *args, **kwargs):
+        called["service"] = True
+        return original(self, *args, **kwargs)
+
+    class RecordingProvider:
+        def list_available_slots(self, session, tenant_context, **kwargs):
+            return []
+
+        def ensure_slot_available(self, session, **kwargs):
+            called["provider"] = True
+
+    monkeypatch.setattr(BookingService, "reschedule_booking_by_admin", recording_reschedule)
+    install_overrides(session, tenant_context)
+    app.dependency_overrides[get_booking_scheduling_provider] = lambda: RecordingProvider()
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/reschedule", json=reschedule_payload(loc, room), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert called == {"service": True, "provider": True}

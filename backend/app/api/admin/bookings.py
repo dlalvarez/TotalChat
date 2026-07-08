@@ -38,6 +38,15 @@ class CancelAdminBookingRequest(BaseModel):
     release_slot: bool = True
 
 
+class RescheduleAdminBookingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    new_starts_at: datetime
+    new_location_id: UUID | None = None
+    new_room_id: UUID | None = None
+    reason: str
+
+
 class CreateAdminBookingRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -75,6 +84,7 @@ def serialize_booking(booking: Booking) -> dict[str, object]:
         "currency_snapshot": booking.currency_snapshot,
         "total_amount": _serialize_amount(booking.total_amount),
         "admin_cancellation_reason": booking.admin_cancellation_reason,
+        "admin_reschedule_reason": booking.admin_reschedule_reason,
     }
 
 
@@ -110,6 +120,29 @@ def cancel_admin_booking(
 ) -> dict[str, dict[str, object]]:
     try:
         booking = BookingService(session, tenant_context).cancel_booking_by_admin(booking_id, reason=payload.reason, release_slot=payload.release_slot)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_booking(booking)}
+
+
+@router.post("/{booking_id}/reschedule")
+def reschedule_admin_booking(
+    booking_id: UUID,
+    payload: RescheduleAdminBookingRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+    scheduling_provider: SchedulingProvider = Depends(get_booking_scheduling_provider),
+) -> dict[str, dict[str, object]]:
+    try:
+        booking = BookingService(session, tenant_context, scheduling_provider=scheduling_provider).reschedule_booking_by_admin(
+            booking_id,
+            new_starts_at=payload.new_starts_at,
+            new_location_id=payload.new_location_id,
+            new_room_id=payload.new_room_id,
+            reason=payload.reason,
+        )
         session.commit()
     except Exception:
         session.rollback()

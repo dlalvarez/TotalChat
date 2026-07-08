@@ -83,6 +83,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
         )
     )
     apply_admin_cancellation_reason_tenant_migration(connection, schema_name)
+    apply_admin_reschedule_reason_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -103,6 +104,30 @@ def apply_admin_cancellation_reason_tenant_migration(connection: Connection, sch
             f'''
             INSERT INTO "{schema_name}".tenant_schema_migrations (version)
             VALUES ('003_admin_cancellation_reason')
+            ON CONFLICT (version) DO NOTHING
+            '''
+        )
+    )
+
+
+def apply_admin_reschedule_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Add nullable admin reschedule reason to existing tenant booking tables."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+
+    connection.execute(
+        text(
+            f'''
+            ALTER TABLE "{schema_name}".bookings
+            ADD COLUMN IF NOT EXISTS admin_reschedule_reason TEXT
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('004_admin_reschedule_reason')
             ON CONFLICT (version) DO NOTHING
             '''
         )
