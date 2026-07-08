@@ -248,4 +248,5 @@ class Booking(TimestampMixin, Base):
     room_snapshot: Mapped[str | None] = mapped_column(String(255))
     created_channel: Mapped[str | None] = mapped_column(String(50))
     pending_patient_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    admin_cancellation_reason: Mapped[str | None] = mapped_column(Text)
     organization: Mapped[Organization] = relationship(back_populates="bookings")

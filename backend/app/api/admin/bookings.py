@@ -4,7 +4,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,6 +25,17 @@ class AdminBookingPatientRequest(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     email: str | None = None
+
+
+class ConfirmAdminBookingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CancelAdminBookingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str
+    release_slot: bool = True
 
 
 class CreateAdminBookingRequest(BaseModel):
@@ -63,6 +74,7 @@ def serialize_booking(booking: Booking) -> dict[str, object]:
         "price_snapshot": _serialize_amount(booking.price_snapshot),
         "currency_snapshot": booking.currency_snapshot,
         "total_amount": _serialize_amount(booking.total_amount),
+        "admin_cancellation_reason": booking.admin_cancellation_reason,
     }
 
 
@@ -70,6 +82,39 @@ def _serialize_amount(value: Decimal) -> int | float:
     if value == value.to_integral_value():
         return int(value)
     return float(value)
+
+
+@router.post("/{booking_id}/confirm")
+def confirm_admin_booking(
+    booking_id: UUID,
+    payload: ConfirmAdminBookingRequest = Body(default_factory=ConfirmAdminBookingRequest),
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = payload
+    try:
+        booking = BookingService(session, tenant_context).confirm_booking(booking_id)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_booking(booking)}
+
+
+@router.post("/{booking_id}/cancel")
+def cancel_admin_booking(
+    booking_id: UUID,
+    payload: CancelAdminBookingRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    try:
+        booking = BookingService(session, tenant_context).cancel_booking_by_admin(booking_id, reason=payload.reason, release_slot=payload.release_slot)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_booking(booking)}
 
 
 @router.get("/{booking_id}")

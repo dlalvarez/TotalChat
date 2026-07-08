@@ -381,3 +381,103 @@ def test_admin_bookings_list_missing_tenant_header_returns_authentication_requir
     response = TestClient(app).get("/api/admin/bookings")
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def test_admin_bookings_cancel_from_tentative_preserves_reason(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="tentative")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/cancel", json={"reason": "Doctor unavailable", "release_slot": True}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "cancelled_by_admin"
+    assert response.json()["data"]["admin_cancellation_reason"] == "Doctor unavailable"
+    assert "schema_name" not in response.json()["data"]
+
+
+def test_admin_bookings_cancel_from_confirmed_without_payment(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed_without_payment")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/cancel", json={"reason": "Patient called admin"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "cancelled_by_admin"
+
+
+def test_admin_bookings_cancel_from_terminal_state_fails_business_rule(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="cancelled_by_admin")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/cancel", json={"reason": "Again"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+
+
+def test_admin_bookings_confirm_allowed_without_required_payment(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    service.requires_payment = False
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="tentative")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/confirm", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "confirmed_without_payment"
+
+
+def test_admin_bookings_confirm_from_cancelled_by_admin_fails_business_rule(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    service.requires_payment = False
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="cancelled_by_admin")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/confirm", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+
+
+def test_admin_bookings_action_requests_do_not_accept_schema_name(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    service.requires_payment = False
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="tentative")
+    install_overrides(session, tenant_context)
+    try:
+        confirm_response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/confirm", json={"schema_name": "tenant_bad"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        cancel_response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/cancel", json={"reason": "x", "schema_name": "tenant_bad"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert confirm_response.status_code == 422
+    assert cancel_response.status_code == 422
+
+
+def test_admin_booking_actions_delegate_to_domain_service(monkeypatch, booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="tentative")
+    service.requires_payment = False
+    called = {"confirm": False}
+    from app.services.booking import BookingService
+    original = BookingService.confirm_booking
+
+    def recording_confirm(self, booking_id):
+        called["confirm"] = True
+        return original(self, booking_id)
+
+    monkeypatch.setattr(BookingService, "confirm_booking", recording_confirm)
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(f"/api/admin/bookings/{booking.id}/confirm", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert called["confirm"] is True
