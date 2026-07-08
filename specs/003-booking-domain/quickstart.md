@@ -41,3 +41,16 @@ Usar `docs/TEST_FIXTURES.md`, tenant demo `Consultorio Psicóloga Ana`.
 ## Migración tenant
 
 La línea base de tablas del dominio de reservas se aplica por schema de tenant después de `002_base` mediante `apply_booking_domain_tenant_migration(connection, schema_name)`. Esta migración registra la versión `003_booking_domain` en `<tenant_schema>.tenant_schema_migrations` y no crea tablas del dominio de reservas en `public`.
+
+## Servicios internos de reserva
+
+La creación programática de una reserva tentativa debe ejecutarse desde servicios internos del backend, sin exponer endpoints en esta fase:
+
+1. Resolver el tenant mediante infraestructura confiable y construir `TenantContext`.
+2. Abrir una `sqlalchemy.orm.Session` apuntando al schema operativo del tenant.
+3. Llamar `BookingService.create_tentative_booking(...)` con `practitioner_service_id`, `payer_plan_id`, horario, modalidad y paciente mínimo o `patient_id`.
+4. `PricingService` resuelve tarifa solo por `practitioner_service + payer_plan` vigente; la especialidad no participa en precio.
+5. `BookingSnapshotBuilder` guarda la verdad histórica de servicio, profesional, modalidad, sede, plan, precio, moneda, total, dirección y consultorio donde aplique.
+6. Las transiciones posteriores de booking deben pasar por `BookingTransitionService` y respetar `docs/STATE_MACHINES.md`.
+
+Exclusiones de esta fase: routers FastAPI, pagos, adaptadores externos de agenda/calendario, Telegram, LangGraph y consola administrativa.
