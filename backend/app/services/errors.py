@@ -13,6 +13,10 @@ class BusinessRuleViolation(DomainError):
     """Raised when a requested domain operation violates documented rules."""
 
 
+class ConflictError(DomainError):
+    """Raised when a requested create/update conflicts with existing data."""
+
+
 class ResourceNotFound(DomainError):
     """Raised when a tenant-scoped resource cannot be found."""
 

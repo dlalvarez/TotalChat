@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.services.errors import BusinessRuleViolation, DomainValidationError, ResourceNotFound, SlotNotAvailable
+from app.services.errors import BusinessRuleViolation, ConflictError, DomainValidationError, ResourceNotFound, SlotNotAvailable
 
 
 def api_error_response(code: str, message: str, status_code: int, details: dict | None = None) -> JSONResponse:
@@ -16,6 +17,8 @@ async def domain_error_handler(_request: Request, exc: Exception) -> JSONRespons
         return api_error_response("VALIDATION_ERROR", str(exc), 400)
     if isinstance(exc, ResourceNotFound):
         return api_error_response("RESOURCE_NOT_FOUND", str(exc), 404)
+    if isinstance(exc, ConflictError):
+        return api_error_response("CONFLICT", str(exc), 409)
     if isinstance(exc, SlotNotAvailable):
         return api_error_response("SLOT_NOT_AVAILABLE", str(exc), 409)
     if isinstance(exc, BusinessRuleViolation):
@@ -31,4 +34,5 @@ async def http_error_handler(_request: Request, exc: HTTPException) -> JSONRespo
 
 
 async def validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
-    return api_error_response("VALIDATION_ERROR", "Invalid request parameters.", 422, {"errors": exc.errors()})
+    errors = jsonable_encoder(exc.errors())
+    return api_error_response("VALIDATION_ERROR", "Invalid request parameters.", 422, {"errors": errors})
