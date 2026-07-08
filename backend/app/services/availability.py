@@ -36,6 +36,7 @@ class SchedulingProvider(Protocol):
         practitioner_id: UUID,
         location_id: UUID | None = None,
         room_id: UUID | None = None,
+        exclude_booking_id: UUID | None = None,
     ) -> None: ...
 
 
@@ -147,25 +148,27 @@ class AvailabilityService:
 
 
 class InternalSchedulingProvider:
-    ACTIVE_STATUSES = {"tentative", "pending_payment", "pending_payment_evidence", "pending_manual_payment_review", "review_overdue", "confirmed", "confirmed_without_payment"}
+    ACTIVE_STATUSES = {"tentative", "pending_payment", "pending_payment_evidence", "pending_manual_payment_review", "review_overdue", "confirmed", "confirmed_without_payment", "rescheduled"}
 
     def list_available_slots(self, session: Session, tenant_context: TenantContext, **kwargs) -> list[AvailableSlot]:
         return AvailabilityService(session, tenant_context).list_available_slots(**kwargs)
 
-    def slot_has_active_booking(self, session: Session, slot: AvailableSlot) -> bool:
-        return self._overlapping_active_booking(session, starts_at=slot.starts_at, ends_at=slot.ends_at, practitioner_id=slot.practitioner_id, location_id=slot.location_id, room_id=slot.room_id)
+    def slot_has_active_booking(self, session: Session, slot: AvailableSlot, *, exclude_booking_id: UUID | None = None) -> bool:
+        return self._overlapping_active_booking(session, starts_at=slot.starts_at, ends_at=slot.ends_at, practitioner_id=slot.practitioner_id, location_id=slot.location_id, room_id=slot.room_id, exclude_booking_id=exclude_booking_id)
 
-    def ensure_slot_available(self, session: Session, *, starts_at: datetime, ends_at: datetime, practitioner_id: UUID, location_id: UUID | None = None, room_id: UUID | None = None) -> None:
-        if self._overlapping_active_booking(session, starts_at=starts_at, ends_at=ends_at, practitioner_id=practitioner_id, location_id=location_id, room_id=room_id):
+    def ensure_slot_available(self, session: Session, *, starts_at: datetime, ends_at: datetime, practitioner_id: UUID, location_id: UUID | None = None, room_id: UUID | None = None, exclude_booking_id: UUID | None = None) -> None:
+        if self._overlapping_active_booking(session, starts_at=starts_at, ends_at=ends_at, practitioner_id=practitioner_id, location_id=location_id, room_id=room_id, exclude_booking_id=exclude_booking_id):
             raise SlotNotAvailable("Requested slot overlaps an active booking")
 
-    def _overlapping_active_booking(self, session: Session, *, starts_at: datetime, ends_at: datetime, practitioner_id: UUID, location_id: UUID | None, room_id: UUID | None) -> bool:
+    def _overlapping_active_booking(self, session: Session, *, starts_at: datetime, ends_at: datetime, practitioner_id: UUID, location_id: UUID | None, room_id: UUID | None, exclude_booking_id: UUID | None = None) -> bool:
         stmt = select(Booking.id).where(
             Booking.practitioner_id == practitioner_id,
             Booking.status.in_(self.ACTIVE_STATUSES),
             Booking.starts_at < ends_at,
             Booking.ends_at > starts_at,
         )
+        if exclude_booking_id is not None:
+            stmt = stmt.where(Booking.id != exclude_booking_id)
         if location_id is not None:
             stmt = stmt.where(or_(Booking.location_id.is_(None), Booking.location_id == location_id))
         if room_id is not None:

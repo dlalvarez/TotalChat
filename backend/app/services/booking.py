@@ -296,9 +296,12 @@ class BookingService:
             raise ResourceNotFound("Room not found")
 
         self._validate_modality(practitioner_service.id, booking.modality, new_location_id, new_room_id)
+        stripped_reason = reason.strip()
+        if not stripped_reason:
+            raise DomainValidationError("Admin reschedule requires a reason")
+        self.transition_service.validate_transition(booking.status, "rescheduled")
         new_ends_at = new_starts_at + timedelta(minutes=practitioner_service.duration_minutes)
 
-        self.transition_service.reschedule_booking_by_admin(booking, reason=reason)
         self.scheduling_provider.ensure_slot_available(
             self.session,
             starts_at=new_starts_at,
@@ -306,7 +309,9 @@ class BookingService:
             practitioner_id=booking.practitioner_id,
             location_id=new_location_id,
             room_id=new_room_id,
+            exclude_booking_id=booking.id,
         )
+        self.transition_service.reschedule_booking_by_admin(booking, reason=stripped_reason)
         booking.starts_at = new_starts_at
         booking.ends_at = new_ends_at
         booking.location_id = new_location_id

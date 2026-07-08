@@ -602,3 +602,19 @@ def test_admin_booking_reschedule_delegates_to_service_and_provider(monkeypatch,
         clear_overrides()
     assert response.status_code == 200
     assert called == {"service": True, "provider": True}
+
+
+def test_admin_bookings_reschedule_same_slot_excludes_current_booking(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(
+            f"/api/admin/bookings/{booking.id}/reschedule",
+            json=reschedule_payload(loc, room, starts_at="2026-07-10T09:00:00-05:00"),
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "rescheduled"
