@@ -3,14 +3,14 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.admin.dependencies import get_admin_tenant_context
 from app.db.session import get_db_session
-from app.models.tenant import Location, Organization, Practitioner, PractitionerSpecialty, Room, Specialty
-from app.services.errors import ResourceNotFound
+from app.models.tenant import Location, Organization, Practitioner, PractitionerService, PractitionerSpecialty, Room, ServiceModality, Specialty
+from app.services.errors import BusinessRuleViolation, DomainValidationError, ResourceNotFound
 from app.tenancy.context import TenantContext
 
 router = APIRouter(tags=["admin-resources"])
@@ -92,6 +92,25 @@ class CreateSpecialtyRequest(BaseModel):
     description: str | None = None
 
 
+class CreatePractitionerServiceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    organization_id: UUID
+    practitioner_id: UUID
+    name: str
+    description: str | None = None
+    duration_minutes: int = Field(gt=0)
+    requires_payment: bool = True
+
+
+class CreateServiceModalityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    modality: str
+    location_id: UUID | None = None
+    room_id: UUID | None = None
+
+
 class AssignPractitionerSpecialtyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -154,6 +173,30 @@ def serialize_specialty(specialty: Specialty) -> dict[str, object]:
         "name": specialty.name,
         "description": specialty.description,
         "status": specialty.status,
+    }
+
+
+def serialize_practitioner_service(service: PractitionerService) -> dict[str, object]:
+    return {
+        "id": str(service.id),
+        "organization_id": str(service.organization_id),
+        "practitioner_id": str(service.practitioner_id),
+        "name": service.name,
+        "description": service.description,
+        "duration_minutes": service.duration_minutes,
+        "requires_payment": service.requires_payment,
+        "status": service.status,
+    }
+
+
+def serialize_service_modality(modality: ServiceModality) -> dict[str, object]:
+    return {
+        "id": str(modality.id),
+        "practitioner_service_id": str(modality.practitioner_service_id),
+        "modality": modality.modality,
+        "location_id": str(modality.location_id) if modality.location_id is not None else None,
+        "room_id": str(modality.room_id) if modality.room_id is not None else None,
+        "status": modality.status,
     }
 
 
@@ -412,3 +455,85 @@ def assign_practitioner_specialty(
             session.rollback()
             raise
     return {"data": serialize_practitioner_specialty(association)}
+
+
+@router.post("/practitioner-services")
+def create_practitioner_service(
+    payload: CreatePractitionerServiceRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(Organization, payload.organization_id) is None:
+        raise ResourceNotFound("Organization not found.")
+    if session.get(Practitioner, payload.practitioner_id) is None:
+        raise ResourceNotFound("Practitioner not found.")
+
+    service = PractitionerService(**payload.model_dump())
+    try:
+        session.add(service)
+        session.commit()
+        session.refresh(service)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_practitioner_service(service)}
+
+
+@router.get("/practitioner-services")
+def list_practitioner_services(
+    organization_id: UUID | None = None,
+    practitioner_id: UUID | None = None,
+    status: str | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    stmt = select(PractitionerService)
+    if organization_id is not None:
+        stmt = stmt.where(PractitionerService.organization_id == organization_id)
+    if practitioner_id is not None:
+        stmt = stmt.where(PractitionerService.practitioner_id == practitioner_id)
+    if status is not None:
+        stmt = stmt.where(PractitionerService.status == status)
+    services = session.scalars(stmt.order_by(PractitionerService.name, PractitionerService.id)).all()
+    return {"data": [serialize_practitioner_service(service) for service in services]}
+
+
+@router.post("/practitioner-services/{service_id}/modalities")
+def create_service_modality(
+    service_id: UUID,
+    payload: CreateServiceModalityRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(PractitionerService, service_id) is None:
+        raise ResourceNotFound("Practitioner service not found.")
+
+    if payload.modality not in {"in_person", "virtual"}:
+        raise DomainValidationError("Unsupported service modality.")
+
+    if payload.modality == "virtual":
+        if payload.location_id is not None or payload.room_id is not None:
+            raise BusinessRuleViolation("Virtual modalities must not include location_id or room_id.")
+    else:
+        if payload.location_id is None or payload.room_id is None:
+            raise DomainValidationError("In-person modalities require location_id and room_id.")
+        if session.get(Location, payload.location_id) is None:
+            raise ResourceNotFound("Location not found.")
+        room = session.get(Room, payload.room_id)
+        if room is None:
+            raise ResourceNotFound("Room not found.")
+        if room.location_id != payload.location_id:
+            raise BusinessRuleViolation("Room does not belong to the provided location.")
+
+    modality = ServiceModality(practitioner_service_id=service_id, **payload.model_dump())
+    try:
+        session.add(modality)
+        session.commit()
+        session.refresh(modality)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_service_modality(modality)}
