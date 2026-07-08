@@ -37,3 +37,7 @@ patient.profile_status = minimal or incomplete
 ## Fixture recomendado
 
 Usar `docs/TEST_FIXTURES.md`, tenant demo `Consultorio Psicóloga Ana`.
+
+## Migración tenant
+
+La línea base de tablas del dominio de reservas se aplica por schema de tenant después de `002_base` mediante `apply_booking_domain_tenant_migration(connection, schema_name)`. Esta migración registra la versión `003_booking_domain` en `<tenant_schema>.tenant_schema_migrations` y no crea tablas del dominio de reservas en `public`.

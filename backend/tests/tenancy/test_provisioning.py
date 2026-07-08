@@ -18,4 +18,4 @@ def test_provision_tenant_creates_public_row_and_schema_migration() -> None:
     assert added_tenant.schema_name == "tenant_tenant_alpha"
     assert context.schema_name == "tenant_tenant_alpha"
     session.flush.assert_called_once()
-    assert connection.execute.call_count == 3
+    assert connection.execute.call_count > 3
