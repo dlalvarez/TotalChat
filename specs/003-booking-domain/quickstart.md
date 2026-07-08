@@ -74,3 +74,14 @@ PR #8 exposes `POST /api/admin/bookings` for admin-created tentative bookings on
 Request bodies include `patient`, `practitioner_service_id`, `payer_plan_id`, `modality`, `starts_at`, optional `location_id`, optional `room_id`, and `created_channel`. When `patient.id` is present, the route passes that patient id to `BookingService.create_tentative_booking(...)`; when it is null or omitted, the route passes minimal patient data so the service can create a minimal patient. The controller does not duplicate pricing, snapshot, patient creation, or slot validation logic.
 
 Successful responses use `{"data": {...}}` with the tentative booking id, status, payment status, safe booking identifiers, and snapshot fields required by `docs/API_CONTRACTS.md`. Confirmation, cancellation, rescheduling, payments, channels, external scheduling adapters, and frontend behavior remain excluded from this baseline.
+
+## Admin read-only bookings API baseline
+
+PR #9 exposes read-only admin booking retrieval endpoints for bookings already created by the backend booking service:
+
+- `GET /api/admin/bookings/{booking_id}` returns `{"data": {...}}` for one tenant-scoped booking or the standard `RESOURCE_NOT_FOUND` error when the booking id does not exist in the resolved tenant schema.
+- `GET /api/admin/bookings` returns `{"data": [...], "meta": {"limit": ..., "offset": ...}}` for tenant-scoped bookings with simple `limit`/`offset` pagination.
+
+Both endpoints require `X-TotalChat-Tenant-Id`, resolve tenant context server-side, use the tenant schema selected by the backend, and never accept or expose `schema_name`. List filters are intentionally minimal and read-only: `status`, `practitioner_id`, `patient_id`, `date_from`, and `date_to`; date filters apply to `Booking.starts_at`.
+
+This baseline does not add booking confirmation, cancellation, rescheduling, payment flows, channels, external scheduling adapters, JWT authentication, or admin frontend behavior.

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.admin.dependencies import get_admin_tenant_context
 from app.db.session import get_db_session
 from app.models.tenant import Booking
 from app.services.booking import BookingService
+from app.services.errors import ResourceNotFound
 from app.services.availability import InternalSchedulingProvider, SchedulingProvider
 from app.tenancy.context import TenantContext
 
@@ -52,7 +54,11 @@ def serialize_booking(booking: Booking) -> dict[str, object]:
         "room_id": str(booking.room_id) if booking.room_id is not None else None,
         "status": booking.status,
         "payment_status": booking.payment_status,
+        "starts_at": booking.starts_at.isoformat(),
+        "ends_at": booking.ends_at.isoformat(),
+        "modality": booking.modality,
         "service_name_snapshot": booking.service_name_snapshot,
+        "practitioner_name_snapshot": booking.practitioner_name_snapshot,
         "payer_plan_name_snapshot": booking.payer_plan_name_snapshot,
         "price_snapshot": _serialize_amount(booking.price_snapshot),
         "currency_snapshot": booking.currency_snapshot,
@@ -64,6 +70,48 @@ def _serialize_amount(value: Decimal) -> int | float:
     if value == value.to_integral_value():
         return int(value)
     return float(value)
+
+
+@router.get("/{booking_id}")
+def get_admin_booking(
+    booking_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    booking = session.get(Booking, booking_id)
+    if booking is None:
+        raise ResourceNotFound("Booking not found.")
+
+    return {"data": serialize_booking(booking)}
+
+
+@router.get("")
+def list_admin_bookings(
+    status: str | None = None,
+    practitioner_id: UUID | None = None,
+    patient_id: UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, object]:
+    stmt = select(Booking)
+    if status is not None:
+        stmt = stmt.where(Booking.status == status)
+    if practitioner_id is not None:
+        stmt = stmt.where(Booking.practitioner_id == practitioner_id)
+    if patient_id is not None:
+        stmt = stmt.where(Booking.patient_id == patient_id)
+    if date_from is not None:
+        stmt = stmt.where(Booking.starts_at >= datetime.combine(date_from, time.min))
+    if date_to is not None:
+        stmt = stmt.where(Booking.starts_at <= datetime.combine(date_to, time.max))
+
+    stmt = stmt.order_by(Booking.starts_at, Booking.id).limit(limit).offset(offset)
+    bookings = session.scalars(stmt).all()
+    return {"data": [serialize_booking(booking) for booking in bookings], "meta": {"limit": limit, "offset": offset}}
 
 
 @router.post("")
