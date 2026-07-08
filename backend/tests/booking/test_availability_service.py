@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, Organization, Patient, Practitioner, PractitionerService, Room, ServiceModality
 from app.services.availability import AvailabilityService, InternalSchedulingProvider
-from app.services.errors import DomainValidationError
+from app.services.errors import DomainValidationError, SlotNotAvailable
 from app.tenancy.context import TenantContext
 
 TENANT_TABLES = [Organization.__table__, Location.__table__, Room.__table__, Practitioner.__table__, PractitionerService.__table__, ServiceModality.__table__, Patient.__table__, AvailabilityRule.__table__, AvailabilityException.__table__, Booking.__table__]
@@ -100,3 +100,43 @@ def test_rejects_invalid_date_range_or_missing_required_context(session, ctx, av
         AvailabilityService(session, None)  # type: ignore[arg-type]
     with pytest.raises(DomainValidationError):
         InternalSchedulingProvider().list_available_slots(session, None, practitioner_service_id=availability_fixture[4].id, start_date=date(2026, 7, 13), end_date=date(2026, 7, 13), modality="in_person")  # type: ignore[arg-type]
+
+
+def test_internal_scheduling_provider_treats_rescheduled_as_active_status():
+    assert "rescheduled" in InternalSchedulingProvider.ACTIVE_STATUSES
+
+
+def test_rescheduled_booking_blocks_available_slots(session, ctx, availability_fixture):
+    add_booking(session, availability_fixture, starts_at=datetime(2026, 7, 13, 9, 30), status="rescheduled")
+    assert [(s.starts_at.time(), s.ends_at.time()) for s in list_slots(session, ctx, availability_fixture)] == [(time(9), time(9, 30)), (time(10), time(10, 30))]
+
+
+def test_internal_scheduling_provider_can_exclude_same_booking_from_conflict(session, availability_fixture):
+    _org, loc, room, practitioner, _service, _patient = availability_fixture
+    booking = add_booking(session, availability_fixture, starts_at=datetime(2026, 7, 13, 9, 30), status="confirmed")
+    InternalSchedulingProvider().ensure_slot_available(
+        session,
+        starts_at=booking.starts_at,
+        ends_at=booking.ends_at,
+        practitioner_id=practitioner.id,
+        location_id=loc.id,
+        room_id=room.id,
+        exclude_booking_id=booking.id,
+    )
+
+
+def test_internal_scheduling_provider_still_rejects_other_active_booking_with_exclusion(session, availability_fixture):
+    _org, loc, room, practitioner, _service, _patient = availability_fixture
+    booking = add_booking(session, availability_fixture, starts_at=datetime(2026, 7, 13, 9, 30), status="confirmed")
+    other_booking = add_booking(session, availability_fixture, starts_at=datetime(2026, 7, 13, 9, 30), status="confirmed_without_payment")
+    with pytest.raises(SlotNotAvailable):
+        InternalSchedulingProvider().ensure_slot_available(
+            session,
+            starts_at=booking.starts_at,
+            ends_at=booking.ends_at,
+            practitioner_id=practitioner.id,
+            location_id=loc.id,
+            room_id=room.id,
+            exclude_booking_id=booking.id,
+        )
+    assert other_booking.id != booking.id

@@ -189,6 +189,12 @@ class BookingTransitionService:
         booking.admin_cancellation_reason = reason.strip()
         return self.transition(booking, "cancelled_by_admin")
 
+    def reschedule_booking_by_admin(self, booking: Booking, *, reason: str) -> Booking:
+        if not reason.strip():
+            raise DomainValidationError("Admin reschedule requires a reason")
+        booking.admin_reschedule_reason = reason.strip()
+        return self.transition(booking, "rescheduled")
+
 
 class BookingService:
     def __init__(self, session: Session, tenant_context: TenantContext, scheduling_provider: SchedulingProvider | None = None):
@@ -271,6 +277,49 @@ class BookingService:
         if booking is None:
             raise ResourceNotFound("Booking not found")
         return self.transition_service.cancel_booking_by_admin(booking, reason=reason, release_slot=release_slot)
+
+    def reschedule_booking_by_admin(self, booking_id: UUID, *, new_starts_at: datetime, new_location_id: UUID | None, new_room_id: UUID | None, reason: str) -> Booking:
+        booking = self.session.get(Booking, booking_id)
+        if booking is None:
+            raise ResourceNotFound("Booking not found")
+        practitioner_service = self.session.get(PractitionerService, booking.practitioner_service_id)
+        if practitioner_service is None or practitioner_service.status != "active":
+            raise ResourceNotFound("Practitioner service not found")
+        practitioner = self.session.get(Practitioner, booking.practitioner_id)
+        if practitioner is None or practitioner.status != "active":
+            raise ResourceNotFound("Practitioner not found")
+        location = self.session.get(Location, new_location_id) if new_location_id else None
+        room = self.session.get(Room, new_room_id) if new_room_id else None
+        if new_location_id and location is None:
+            raise ResourceNotFound("Location not found")
+        if new_room_id and room is None:
+            raise ResourceNotFound("Room not found")
+
+        self._validate_modality(practitioner_service.id, booking.modality, new_location_id, new_room_id)
+        stripped_reason = reason.strip()
+        if not stripped_reason:
+            raise DomainValidationError("Admin reschedule requires a reason")
+        self.transition_service.validate_transition(booking.status, "rescheduled")
+        new_ends_at = new_starts_at + timedelta(minutes=practitioner_service.duration_minutes)
+
+        self.scheduling_provider.ensure_slot_available(
+            self.session,
+            starts_at=new_starts_at,
+            ends_at=new_ends_at,
+            practitioner_id=booking.practitioner_id,
+            location_id=new_location_id,
+            room_id=new_room_id,
+            exclude_booking_id=booking.id,
+        )
+        self.transition_service.reschedule_booking_by_admin(booking, reason=stripped_reason)
+        booking.starts_at = new_starts_at
+        booking.ends_at = new_ends_at
+        booking.location_id = new_location_id
+        booking.room_id = new_room_id
+        booking.location_name_snapshot = location.name if location else None
+        booking.address_snapshot = location.address if location else None
+        booking.room_snapshot = room.name if room else None
+        return booking
 
     def _validate_modality(self, practitioner_service_id: UUID, modality: str, location_id: UUID | None, room_id: UUID | None) -> None:
         stmt = select(ServiceModality).where(
