@@ -168,11 +168,26 @@ class BookingTransitionService:
         if current_status in self.TERMINAL_STATES or new_status not in self.ALLOWED_TRANSITIONS.get(current_status, set()):
             raise BusinessRuleViolation(f"Invalid booking status transition: {current_status} -> {new_status}")
 
+    PAYMENT_SATISFIED_STATUSES = {"approved", "paid"}
+
     def transition(self, booking: Booking, new_status: str) -> Booking:
         self.validate_transition(booking.status, new_status)
         booking.status = new_status
         return booking
 
+    def confirm_booking(self, booking: Booking, practitioner_service: PractitionerService) -> Booking:
+        if practitioner_service.requires_payment:
+            if booking.payment_status not in self.PAYMENT_SATISFIED_STATUSES:
+                raise BusinessRuleViolation("Booking requires satisfied payment before confirmation")
+            return self.transition(booking, "confirmed")
+        return self.transition(booking, "confirmed_without_payment")
+
+    def cancel_booking_by_admin(self, booking: Booking, *, reason: str, release_slot: bool = True) -> Booking:
+        if not reason.strip():
+            raise DomainValidationError("Admin cancellation requires a reason")
+        _ = release_slot  # Internal scheduling frees the slot by removing this booking from active statuses.
+        booking.admin_cancellation_reason = reason.strip()
+        return self.transition(booking, "cancelled_by_admin")
 
 
 class BookingService:
@@ -185,6 +200,7 @@ class BookingService:
         self.patient_service = PatientService(session)
         self.snapshot_builder = BookingSnapshotBuilder()
         self.scheduling_provider = scheduling_provider or InternalSchedulingProvider()
+        self.transition_service = BookingTransitionService()
 
     def create_tentative_booking(
         self,
@@ -240,6 +256,21 @@ class BookingService:
         self.session.add(booking)
         self.session.flush()
         return booking
+
+    def confirm_booking(self, booking_id: UUID) -> Booking:
+        booking = self.session.get(Booking, booking_id)
+        if booking is None:
+            raise ResourceNotFound("Booking not found")
+        practitioner_service = self.session.get(PractitionerService, booking.practitioner_service_id)
+        if practitioner_service is None:
+            raise ResourceNotFound("Practitioner service not found")
+        return self.transition_service.confirm_booking(booking, practitioner_service)
+
+    def cancel_booking_by_admin(self, booking_id: UUID, *, reason: str, release_slot: bool = True) -> Booking:
+        booking = self.session.get(Booking, booking_id)
+        if booking is None:
+            raise ResourceNotFound("Booking not found")
+        return self.transition_service.cancel_booking_by_admin(booking, reason=reason, release_slot=release_slot)
 
     def _validate_modality(self, practitioner_service_id: UUID, modality: str, location_id: UUID | None, room_id: UUID | None) -> None:
         stmt = select(ServiceModality).where(

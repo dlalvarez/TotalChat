@@ -138,3 +138,49 @@ def test_booking_service_creates_tentative_booking_with_snapshot(session, bookin
 def test_booking_service_requires_tenant_context(session):
     with pytest.raises(DomainValidationError):
         BookingService(session, None)  # type: ignore[arg-type]
+
+
+def test_booking_transition_service_confirms_without_payment_when_service_allows_on_site(session, booking_fixture):
+    org, loc, room, practitioner, service, _payer_type, _payer, plan, _price = booking_fixture
+    service.requires_payment = False
+    patient = Patient(full_name="Paciente Uno")
+    session.add(patient); session.flush()
+    booking = Booking(
+        organization_id=org.id, patient_id=patient.id, practitioner_id=practitioner.id, practitioner_service_id=service.id,
+        payer_plan_id=plan.id, location_id=loc.id, room_id=room.id, modality="in_person",
+        starts_at=datetime(2026, 7, 10, 14, 0, tzinfo=timezone.utc), ends_at=datetime(2026, 7, 10, 14, 50, tzinfo=timezone.utc), status="tentative",
+        service_name_snapshot=service.name, duration_minutes_snapshot=service.duration_minutes, practitioner_name_snapshot=practitioner.full_name,
+        modality_snapshot="in_person", payer_plan_name_snapshot=plan.name, price_snapshot=Decimal("120000.00"), currency_snapshot="COP", total_amount=Decimal("120000.00"),
+    )
+    assert BookingTransitionService().confirm_booking(booking, service).status == "confirmed_without_payment"
+
+
+def test_booking_transition_service_rejects_confirm_when_required_payment_not_satisfied(session, booking_fixture):
+    org, loc, room, practitioner, service, _payer_type, _payer, plan, _price = booking_fixture
+    patient = Patient(full_name="Paciente Uno")
+    session.add(patient); session.flush()
+    booking = Booking(
+        organization_id=org.id, patient_id=patient.id, practitioner_id=practitioner.id, practitioner_service_id=service.id,
+        payer_plan_id=plan.id, location_id=loc.id, room_id=room.id, modality="in_person",
+        starts_at=datetime(2026, 7, 10, 14, 0, tzinfo=timezone.utc), ends_at=datetime(2026, 7, 10, 14, 50, tzinfo=timezone.utc), status="tentative",
+        service_name_snapshot=service.name, duration_minutes_snapshot=service.duration_minutes, practitioner_name_snapshot=practitioner.full_name,
+        modality_snapshot="in_person", payer_plan_name_snapshot=plan.name, price_snapshot=Decimal("120000.00"), currency_snapshot="COP", total_amount=Decimal("120000.00"),
+    )
+    with pytest.raises(BusinessRuleViolation):
+        BookingTransitionService().confirm_booking(booking, service)
+
+
+def test_booking_transition_service_admin_cancel_preserves_reason(session, booking_fixture):
+    org, loc, room, practitioner, service, _payer_type, _payer, plan, _price = booking_fixture
+    patient = Patient(full_name="Paciente Uno")
+    session.add(patient); session.flush()
+    booking = Booking(
+        organization_id=org.id, patient_id=patient.id, practitioner_id=practitioner.id, practitioner_service_id=service.id,
+        payer_plan_id=plan.id, location_id=loc.id, room_id=room.id, modality="in_person",
+        starts_at=datetime(2026, 7, 10, 14, 0, tzinfo=timezone.utc), ends_at=datetime(2026, 7, 10, 14, 50, tzinfo=timezone.utc), status="confirmed",
+        service_name_snapshot=service.name, duration_minutes_snapshot=service.duration_minutes, practitioner_name_snapshot=practitioner.full_name,
+        modality_snapshot="in_person", payer_plan_name_snapshot=plan.name, price_snapshot=Decimal("120000.00"), currency_snapshot="COP", total_amount=Decimal("120000.00"),
+    )
+    BookingTransitionService().cancel_booking_by_admin(booking, reason="Admin unavailable")
+    assert booking.status == "cancelled_by_admin"
+    assert booking.admin_cancellation_reason == "Admin unavailable"
