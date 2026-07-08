@@ -183,3 +183,12 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 [ ] El PR soporta idempotencia o estrategia equivalente.
 [ ] El PR no permite que IA envíe campañas sin revisión humana.
 ```
+## 16. Testing database policy
+
+```text
+[ ] SQLite appears only in tests, never runtime/deployment config.
+[ ] SQLite in-memory tests are limited to fast isolated unit/API tests.
+[ ] PostgreSQL is used for migrations, schema-per-tenant, pgvector and integration behavior.
+[ ] The PR does not use SQLite as an architectural alternative to PostgreSQL.
+[ ] Tests relying on PostgreSQL-specific behavior are not asserted using SQLite only.
+```
