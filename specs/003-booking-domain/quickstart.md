@@ -66,3 +66,11 @@ Availability slot generation uses tenant-scoped `availability_rules` with ISO we
 PR #7 exposes `GET /api/admin/availability/slots` for admin slot lookup only. The endpoint requires `X-TotalChat-Tenant-Id` with an active tenant UUID, resolves the tenant from `public.tenants`, and does not accept or return `schema_name`. Full admin user-to-tenant authorization remains a future auth/admin phase.
 
 Supported query parameters are `practitioner_service_id`, optional `practitioner_id`, `modality`, `date_from`, `date_to`, optional `payer_plan_id`, optional `location_id`, and optional `room_id`. `payer_plan_id` is accepted for contract compatibility, but pricing logic is not part of slot lookup. The route delegates slot calculation to the `SchedulingProvider` baseline (`InternalSchedulingProvider`) and returns successful responses as `{"data": [...]}`.
+
+## Admin tentative booking API baseline
+
+PR #8 exposes `POST /api/admin/bookings` for admin-created tentative bookings only. The endpoint requires `X-TotalChat-Tenant-Id`, resolves the tenant server-side, does not accept `schema_name`, and never returns tenant schema names. Full JWT/admin authorization remains a future auth/admin phase.
+
+Request bodies include `patient`, `practitioner_service_id`, `payer_plan_id`, `modality`, `starts_at`, optional `location_id`, optional `room_id`, and `created_channel`. When `patient.id` is present, the route passes that patient id to `BookingService.create_tentative_booking(...)`; when it is null or omitted, the route passes minimal patient data so the service can create a minimal patient. The controller does not duplicate pricing, snapshot, patient creation, or slot validation logic.
+
+Successful responses use `{"data": {...}}` with the tentative booking id, status, payment status, safe booking identifiers, and snapshot fields required by `docs/API_CONTRACTS.md`. Confirmation, cancellation, rescheduling, payments, channels, external scheduling adapters, and frontend behavior remain excluded from this baseline.
