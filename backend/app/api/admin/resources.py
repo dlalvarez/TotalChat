@@ -1,16 +1,31 @@
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.admin.dependencies import get_admin_tenant_context
 from app.db.session import get_db_session
-from app.models.tenant import Location, Organization, Practitioner, PractitionerService, PractitionerSpecialty, Room, ServiceModality, Specialty
-from app.services.errors import BusinessRuleViolation, DomainValidationError, ResourceNotFound
+from app.models.tenant import (
+    Location,
+    Organization,
+    Payer,
+    PayerPlan,
+    PayerType,
+    Practitioner,
+    PractitionerService,
+    PractitionerServicePrice,
+    PractitionerSpecialty,
+    Room,
+    ServiceModality,
+    Specialty,
+)
+from app.services.errors import BusinessRuleViolation, ConflictError, DomainValidationError, ResourceNotFound
 from app.tenancy.context import TenantContext
 
 router = APIRouter(tags=["admin-resources"])
@@ -116,6 +131,103 @@ class AssignPractitionerSpecialtyRequest(BaseModel):
 
     specialty_id: UUID
 
+
+class CreatePayerTypeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    name: str
+    description: str | None = None
+
+
+class CreatePayerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    payer_type_id: UUID
+    name: str
+    description: str | None = None
+
+
+class CreatePayerPlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    payer_id: UUID
+    name: str
+    description: str | None = None
+
+
+class CreatePractitionerServicePriceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    practitioner_service_id: UUID
+    payer_plan_id: UUID
+    price: Decimal = Field(ge=0)
+    currency: str
+    valid_from: date
+    valid_to: date | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str) -> str:
+        if len(value) != 3 or not value.isalpha() or value.upper() != value:
+            raise ValueError("currency must be a 3-letter uppercase code")
+        return value
+
+    @model_validator(mode="after")
+    def validate_dates(self) -> "CreatePractitionerServicePriceRequest":
+        if self.valid_to is not None and self.valid_to < self.valid_from:
+            raise ValueError("valid_to must not be before valid_from")
+        return self
+
+
+
+def _serialize_amount(value: Decimal) -> int | float:
+    if value == value.to_integral_value():
+        return int(value)
+    return float(value)
+
+
+def serialize_payer_type(payer_type: PayerType) -> dict[str, object]:
+    return {
+        "id": str(payer_type.id),
+        "code": payer_type.code,
+        "name": payer_type.name,
+        "description": payer_type.description,
+        "status": payer_type.status,
+    }
+
+
+def serialize_payer(payer: Payer) -> dict[str, object]:
+    return {
+        "id": str(payer.id),
+        "payer_type_id": str(payer.payer_type_id),
+        "name": payer.name,
+        "description": payer.description,
+        "status": payer.status,
+    }
+
+
+def serialize_payer_plan(plan: PayerPlan) -> dict[str, object]:
+    return {
+        "id": str(plan.id),
+        "payer_id": str(plan.payer_id),
+        "name": plan.name,
+        "description": plan.description,
+        "status": plan.status,
+    }
+
+
+def serialize_practitioner_service_price(price: PractitionerServicePrice) -> dict[str, object]:
+    return {
+        "id": str(price.id),
+        "practitioner_service_id": str(price.practitioner_service_id),
+        "payer_plan_id": str(price.payer_plan_id),
+        "price": _serialize_amount(price.price),
+        "currency": price.currency,
+        "valid_from": price.valid_from.isoformat(),
+        "valid_to": price.valid_to.isoformat() if price.valid_to is not None else None,
+        "status": price.status,
+    }
 
 def serialize_organization(organization: Organization) -> dict[str, object]:
     return {
@@ -537,3 +649,103 @@ def create_service_modality(
         session.rollback()
         raise
     return {"data": serialize_service_modality(modality)}
+
+
+@router.post("/payer-types")
+def create_payer_type(
+    payload: CreatePayerTypeRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    existing = session.scalar(select(PayerType).where(PayerType.code == payload.code))
+    if existing is not None:
+        raise ConflictError("Payer type code already exists.")
+    payer_type = PayerType(**payload.model_dump())
+    try:
+        session.add(payer_type)
+        session.commit()
+        session.refresh(payer_type)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payer_type(payer_type)}
+
+
+@router.post("/payers")
+def create_payer(
+    payload: CreatePayerRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(PayerType, payload.payer_type_id) is None:
+        raise ResourceNotFound("Payer type not found.")
+    payer = Payer(**payload.model_dump())
+    try:
+        session.add(payer)
+        session.commit()
+        session.refresh(payer)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payer(payer)}
+
+
+@router.post("/payer-plans")
+def create_payer_plan(
+    payload: CreatePayerPlanRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(Payer, payload.payer_id) is None:
+        raise ResourceNotFound("Payer not found.")
+    plan = PayerPlan(**payload.model_dump())
+    try:
+        session.add(plan)
+        session.commit()
+        session.refresh(plan)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payer_plan(plan)}
+
+
+@router.post("/practitioner-service-prices")
+def create_practitioner_service_price(
+    payload: CreatePractitionerServicePriceRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(PractitionerService, payload.practitioner_service_id) is None:
+        raise ResourceNotFound("Practitioner service not found.")
+    if session.get(PayerPlan, payload.payer_plan_id) is None:
+        raise ResourceNotFound("Payer plan not found.")
+    price = PractitionerServicePrice(**payload.model_dump())
+    try:
+        session.add(price)
+        session.commit()
+        session.refresh(price)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_practitioner_service_price(price)}
+
+
+@router.get("/practitioner-services/{service_id}/prices")
+def list_practitioner_service_prices(
+    service_id: UUID,
+    status: str | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if session.get(PractitionerService, service_id) is None:
+        raise ResourceNotFound("Practitioner service not found.")
+    stmt = select(PractitionerServicePrice).where(PractitionerServicePrice.practitioner_service_id == service_id)
+    if status is not None:
+        stmt = stmt.where(PractitionerServicePrice.status == status)
+    prices = session.scalars(stmt.order_by(PractitionerServicePrice.valid_from, PractitionerServicePrice.payer_plan_id, PractitionerServicePrice.id)).all()
+    return {"data": [serialize_practitioner_service_price(price) for price in prices]}
