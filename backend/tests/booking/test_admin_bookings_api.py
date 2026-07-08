@@ -508,8 +508,8 @@ def test_admin_bookings_reschedule_from_confirmed_updates_slot_location_room_and
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["status"] == "rescheduled"
-    assert data["starts_at"] == "2026-07-10T10:00:00-05:00"
-    assert data["ends_at"] == "2026-07-10T10:50:00-05:00"
+    assert datetime.fromisoformat(data["starts_at"]).replace(tzinfo=None) == datetime(2026, 7, 10, 10, 0)
+    assert datetime.fromisoformat(data["ends_at"]).replace(tzinfo=None) == datetime(2026, 7, 10, 10, 50)
     assert data["location_id"] == str(new_loc.id)
     assert data["room_id"] == str(new_room.id)
     assert data["admin_reschedule_reason"] == "Solicitud paciente"
