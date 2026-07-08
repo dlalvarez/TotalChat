@@ -197,3 +197,187 @@ def test_admin_bookings_endpoint_delegates_to_booking_service_scheduling_provide
     assert captured["called"] is True
     assert captured["session"] is session
     assert captured["kwargs"]["location_id"] == loc.id
+
+
+def _create_booking_via_api(session, tenant_context, loc, room, service, plan, *, starts_at="2026-07-10T09:00:00-05:00", patient=None):
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).post(
+            "/api/admin/bookings",
+            json=payload(loc, room, service, plan, patient=patient, starts_at=starts_at),
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    return response.json()["data"]
+
+
+def _direct_booking(session, loc, room, practitioner, service, plan, patient, *, starts_at, status="tentative"):
+    booking = Booking(
+        organization_id=service.organization_id,
+        patient_id=patient.id,
+        practitioner_id=practitioner.id,
+        practitioner_service_id=service.id,
+        payer_plan_id=plan.id,
+        location_id=loc.id,
+        room_id=room.id,
+        modality="in_person",
+        starts_at=starts_at,
+        ends_at=starts_at.replace(hour=starts_at.hour + 1),
+        status=status,
+        service_name_snapshot=service.name,
+        duration_minutes_snapshot=service.duration_minutes,
+        practitioner_name_snapshot=practitioner.full_name,
+        modality_snapshot="in_person",
+        location_name_snapshot=loc.name,
+        payer_plan_name_snapshot=plan.name,
+        price_snapshot=Decimal("100000.00"),
+        currency_snapshot="COP",
+        total_amount=Decimal("100000.00"),
+    )
+    session.add(booking)
+    session.flush()
+    return booking
+
+
+def test_admin_bookings_get_returns_created_booking(booking_session, tenant_context):
+    session, loc, room, _practitioner, service, plan, _price, _existing_patient = booking_session
+    created = _create_booking_via_api(session, tenant_context, loc, room, service, plan)
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get(f"/api/admin/bookings/{created['id']}", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["id"] == created["id"]
+    assert data["starts_at"] is not None
+    assert data["ends_at"] is not None
+    assert data["modality"] == "in_person"
+    assert data["practitioner_name_snapshot"] == "Dra. Ana Pérez"
+
+
+def test_admin_bookings_get_does_not_expose_schema_name(booking_session, tenant_context):
+    session, loc, room, _practitioner, service, plan, _price, _existing_patient = booking_session
+    created = _create_booking_via_api(session, tenant_context, loc, room, service, plan)
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get(f"/api/admin/bookings/{created['id']}", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert "schema_name" not in response.json()["data"]
+
+
+def test_admin_bookings_get_unknown_booking_returns_404(booking_session, tenant_context):
+    session, *_ = booking_session
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get(f"/api/admin/bookings/{uuid4()}", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
+
+
+def test_admin_bookings_list_bookings(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, existing_patient = booking_session
+    booking = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 10, 9, 0))
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get("/api/admin/bookings", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"][0]["id"] == str(booking.id)
+    assert body["meta"] == {"limit": 50, "offset": 0}
+
+
+def test_admin_bookings_list_filters_by_status(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, existing_patient = booking_session
+    wanted = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 10, 9, 0), status="confirmed")
+    _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 11, 9, 0), status="tentative")
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get("/api/admin/bookings?status=confirmed", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [str(wanted.id)]
+
+
+def test_admin_bookings_list_filters_by_practitioner_id(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, existing_patient = booking_session
+    wanted = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 10, 9, 0))
+    other_practitioner = Practitioner(full_name="Dr. Otro", status="active")
+    other_service = PractitionerService(organization_id=service.organization_id, practitioner=other_practitioner, name="Otra consulta", duration_minutes=50, status="active")
+    session.add_all([other_practitioner, other_service]); session.flush()
+    _direct_booking(session, loc, room, other_practitioner, other_service, plan, existing_patient, starts_at=datetime(2026, 7, 11, 9, 0))
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get(f"/api/admin/bookings?practitioner_id={practitioner.id}", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [str(wanted.id)]
+
+
+def test_admin_bookings_list_filters_by_patient_id(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, existing_patient = booking_session
+    wanted = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 10, 9, 0))
+    other_patient = Patient(full_name="Otro Paciente")
+    session.add(other_patient); session.flush()
+    _direct_booking(session, loc, room, practitioner, service, plan, other_patient, starts_at=datetime(2026, 7, 11, 9, 0))
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get(f"/api/admin/bookings?patient_id={existing_patient.id}", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [str(wanted.id)]
+
+
+def test_admin_bookings_list_filters_by_date_range(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, existing_patient = booking_session
+    _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 9, 9, 0))
+    wanted = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 10, 9, 0))
+    _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 11, 9, 0))
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get("/api/admin/bookings?date_from=2026-07-10&date_to=2026-07-10", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [str(wanted.id)]
+
+
+def test_admin_bookings_list_limit_offset_works(booking_session, tenant_context):
+    session, loc, room, practitioner, service, plan, _price, existing_patient = booking_session
+    _first = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 9, 9, 0))
+    second = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 10, 9, 0))
+    _third = _direct_booking(session, loc, room, practitioner, service, plan, existing_patient, starts_at=datetime(2026, 7, 11, 9, 0))
+    install_overrides(session, tenant_context)
+    try:
+        response = TestClient(app).get("/api/admin/bookings?limit=1&offset=1", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [str(second.id)]
+    assert response.json()["meta"] == {"limit": 1, "offset": 1}
+
+
+def test_admin_bookings_list_missing_tenant_header_returns_authentication_required():
+    response = TestClient(app).get("/api/admin/bookings")
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
