@@ -34,6 +34,16 @@ Principios específicos de esta base:
 - Los UUIDs pueden viajar por API y estado interno, pero no deben ser solicitados como entrada normal a usuarios administrativos.
 - Las pantallas deben mostrar etiquetas humanas, estados comprensibles y acciones operativas claras.
 
+
+## 2.3. Fase 6B.2 — Consultorios y Profesionales funcionales
+
+La Fase 6B.2 agrega los módulos funcionales de Consultorios y Profesionales siguiendo los patrones de integración frontend de Organizaciones y Sedes.
+
+- Consultorios consulta y crea registros contra el backend usando una sede seleccionada por nombre legible desde un dropdown poblado con sedes reales.
+- Profesionales consulta y crea datos básicos del profesional con campos administrativos legibles.
+- La asignación de especialidades, servicios, precios, disponibilidad y citas permanece diferida para fases posteriores.
+- Los UUIDs continúan siendo identificadores internos: pueden viajar por API y estado de la aplicación, pero no se solicitan como entrada normal del usuario.
+
 ## 3. Principios de UX/UI para la Consola Administrativa
 
 La consola administrativa de TotalChat/MediChat no debe ser una interfaz meramente técnica ni una simple exposición de endpoints del backend. Debe ser una herramienta profesional, agradable, clara y fácil de usar para usuarios administrativos reales de consultorios, profesionales de salud, clínicas y organizaciones.
