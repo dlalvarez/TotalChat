@@ -144,8 +144,9 @@ def create_availability_rule(
     rule = AvailabilityRule(**payload.model_dump())
     try:
         session.add(rule)
-        session.commit()
+        session.flush()
         session.refresh(rule)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -166,8 +167,9 @@ def create_availability_exception(
     exception = AvailabilityException(**payload.model_dump())
     try:
         session.add(exception)
-        session.commit()
+        session.flush()
         session.refresh(exception)
+        session.commit()
     except Exception:
         session.rollback()
         raise

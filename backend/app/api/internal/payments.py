@@ -36,8 +36,9 @@ def expire_missing_evidence(
             force=request.force,
             notes=request.notes,
         )
-        session.commit()
+        session.flush()
         session.refresh(result.payment_attempt)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -64,8 +65,9 @@ def mark_review_overdue(
             force=request.force,
             notes=request.notes,
         )
-        session.commit()
+        session.flush()
         session.refresh(result.payment_attempt)
+        session.commit()
     except Exception:
         session.rollback()
         raise
