@@ -18,6 +18,7 @@ from app.models.tenant import (
     PatientPayerProfile,
     PaymentAttempt,
     PaymentEvidence,
+    PaymentReview,
     PaymentSettings,
     Payer,
     PayerPlan,
@@ -31,7 +32,7 @@ from app.models.tenant import (
     Specialty,
 )
 from app.services.errors import BusinessRuleViolation, ConflictError, DomainValidationError, ResourceNotFound
-from app.services.payments import PAYMENT_ATTEMPT_METHODS, PAYMENT_ATTEMPT_STATUSES, PaymentAttemptService, PaymentEvidenceService
+from app.services.payments import PAYMENT_ATTEMPT_METHODS, PAYMENT_ATTEMPT_STATUSES, PAYMENT_REVIEW_DECISIONS, PaymentAttemptService, PaymentEvidenceService, PaymentReviewService
 from app.tenancy.context import TenantContext
 
 router = APIRouter(tags=["admin-resources"])
@@ -261,6 +262,13 @@ class RegisterPaymentEvidenceRequest(BaseModel):
     notes: str | None = None
 
 
+class ReviewPaymentAttemptRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reviewer_user_id: UUID | None = None
+    notes: str | None = None
+
+
 class CreatePatientRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -370,6 +378,17 @@ def serialize_payment_evidence(evidence: PaymentEvidence) -> dict[str, object]:
         "uploaded_at": evidence.uploaded_at.isoformat(),
         "uploaded_channel": evidence.uploaded_channel,
         "notes": evidence.notes,
+    }
+
+
+def serialize_payment_review(review: PaymentReview) -> dict[str, object]:
+    return {
+        "id": str(review.id),
+        "payment_attempt_id": str(review.payment_attempt_id),
+        "decision": review.decision,
+        "reviewer_user_id": str(review.reviewer_user_id) if review.reviewer_user_id is not None else None,
+        "reviewed_at": review.reviewed_at.isoformat(),
+        "notes": review.notes,
     }
 
 
@@ -1036,6 +1055,67 @@ def list_payment_evidence(
         .order_by(PaymentEvidence.uploaded_at, PaymentEvidence.id)
     ).all()
     return {"data": [serialize_payment_evidence(evidence) for evidence in evidence_rows]}
+
+
+@router.post("/payment-attempts/{payment_attempt_id}/approve")
+def approve_payment_attempt(
+    payment_attempt_id: UUID,
+    payload: ReviewPaymentAttemptRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    try:
+        review = PaymentReviewService(session, tenant_context).approve_attempt(
+            payment_attempt_id=payment_attempt_id,
+            **payload.model_dump(),
+        )
+        session.commit()
+        session.refresh(review)
+        attempt = session.get(PaymentAttempt, payment_attempt_id)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": {"payment_attempt": serialize_payment_attempt(attempt), "review": serialize_payment_review(review)}}
+
+
+@router.post("/payment-attempts/{payment_attempt_id}/reject")
+def reject_payment_attempt(
+    payment_attempt_id: UUID,
+    payload: ReviewPaymentAttemptRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    try:
+        review = PaymentReviewService(session, tenant_context).reject_attempt(
+            payment_attempt_id=payment_attempt_id,
+            **payload.model_dump(),
+        )
+        session.commit()
+        session.refresh(review)
+        attempt = session.get(PaymentAttempt, payment_attempt_id)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": {"payment_attempt": serialize_payment_attempt(attempt), "review": serialize_payment_review(review)}}
+
+
+@router.get("/payment-reviews")
+def list_payment_reviews(
+    payment_attempt_id: UUID | None = None,
+    decision: str | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if decision is not None and decision not in PAYMENT_REVIEW_DECISIONS:
+        raise DomainValidationError("decision must be approved or rejected")
+    stmt = select(PaymentReview)
+    if payment_attempt_id is not None:
+        stmt = stmt.where(PaymentReview.payment_attempt_id == payment_attempt_id)
+    if decision is not None:
+        stmt = stmt.where(PaymentReview.decision == decision)
+    reviews = session.scalars(stmt.order_by(PaymentReview.reviewed_at, PaymentReview.id)).all()
+    return {"data": [serialize_payment_review(review) for review in reviews]}
 
 
 @router.post("/payment-settings")
