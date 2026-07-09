@@ -3,7 +3,12 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import DDLElement
 from sqlalchemy.sql.elements import TextClause
 
-from app.tenancy.schema import apply_admin_cancellation_reason_tenant_migration, apply_admin_reschedule_reason_tenant_migration, apply_booking_domain_tenant_migration
+from app.tenancy.schema import (
+    apply_admin_cancellation_reason_tenant_migration,
+    apply_admin_reschedule_reason_tenant_migration,
+    apply_booking_domain_tenant_migration,
+    apply_patient_payer_profiles_tenant_migration,
+)
 
 
 class RecordingConnection:
@@ -34,6 +39,12 @@ def test_booking_domain_migration_creates_tables_in_tenant_schema_only() -> None
     assert "003_admin_cancellation_reason" in sql
     assert "ADD COLUMN IF NOT EXISTS admin_reschedule_reason TEXT" in sql
     assert "004_admin_reschedule_reason" in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".patient_payer_profiles' in sql
+    assert '"tenant_alpha".patients' in sql
+    assert '"tenant_alpha".payer_plans' in sql
+    assert '"public".patient_payer_profiles' not in sql
+    assert "public.patient_payer_profiles" not in sql
+    assert "005_patient_payer_profiles" in sql
 
 
 def test_booking_domain_migration_rejects_invalid_schema_name() -> None:
@@ -49,3 +60,26 @@ def test_admin_cancellation_reason_migration_rejects_invalid_schema_name() -> No
 def test_admin_reschedule_reason_migration_rejects_invalid_schema_name() -> None:
     with pytest.raises(ValueError):
         apply_admin_reschedule_reason_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
+
+
+def test_patient_payer_profiles_migration_creates_table_in_tenant_schema_only() -> None:
+    connection = RecordingConnection()
+    apply_patient_payer_profiles_tenant_migration(connection, "tenant_alpha")  # type: ignore[arg-type]
+
+    sql = "\n".join(connection.statements)
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".patient_payer_profiles' in sql
+    assert "patient_id UUID NOT NULL" in sql
+    assert "payer_plan_id UUID NOT NULL" in sql
+    assert "member_id VARCHAR(120)" in sql
+    assert "authorization_required BOOLEAN DEFAULT false NOT NULL" in sql
+    assert "status VARCHAR(32) DEFAULT 'active' NOT NULL" in sql
+    assert 'FOREIGN KEY(patient_id) REFERENCES "tenant_alpha".patients (id)' in sql
+    assert 'FOREIGN KEY(payer_plan_id) REFERENCES "tenant_alpha".payer_plans (id)' in sql
+    assert '"public".patient_payer_profiles' not in sql
+    assert "public.patient_payer_profiles" not in sql
+    assert "005_patient_payer_profiles" in sql
+
+
+def test_patient_payer_profiles_migration_rejects_invalid_schema_name() -> None:
+    with pytest.raises(ValueError):
+        apply_patient_payer_profiles_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]

@@ -84,6 +84,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     )
     apply_admin_cancellation_reason_tenant_migration(connection, schema_name)
     apply_admin_reschedule_reason_tenant_migration(connection, schema_name)
+    apply_patient_payer_profiles_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -128,6 +129,40 @@ def apply_admin_reschedule_reason_tenant_migration(connection: Connection, schem
             f'''
             INSERT INTO "{schema_name}".tenant_schema_migrations (version)
             VALUES ('004_admin_reschedule_reason')
+            ON CONFLICT (version) DO NOTHING
+            '''
+        )
+    )
+
+
+def apply_patient_payer_profiles_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Add patient payer profiles to existing tenant booking-domain schemas."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+
+    connection.execute(
+        text(
+            f'''
+            CREATE TABLE IF NOT EXISTS "{schema_name}".patient_payer_profiles (
+                id UUID NOT NULL,
+                patient_id UUID NOT NULL,
+                payer_plan_id UUID NOT NULL,
+                member_id VARCHAR(120),
+                authorization_required BOOLEAN DEFAULT false NOT NULL,
+                notes TEXT,
+                status VARCHAR(32) DEFAULT 'active' NOT NULL,
+                PRIMARY KEY (id),
+                FOREIGN KEY(patient_id) REFERENCES "{schema_name}".patients (id),
+                FOREIGN KEY(payer_plan_id) REFERENCES "{schema_name}".payer_plans (id)
+            )
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('005_patient_payer_profiles')
             ON CONFLICT (version) DO NOTHING
             '''
         )

@@ -8,7 +8,7 @@ def test_tenant_booking_domain_models_are_registered_without_public_schema() -> 
     expected = {
         "organizations", "locations", "rooms", "practitioners", "specialties", "practitioner_specialties",
         "practitioner_services", "service_modalities", "payer_types", "payers", "payer_plans",
-        "practitioner_service_prices", "patients", "patient_contacts", "availability_rules",
+        "practitioner_service_prices", "patients", "patient_contacts", "patient_payer_profiles", "availability_rules",
         "availability_exceptions", "bookings",
     }
     assert expected.issubset(Base.metadata.tables.keys())

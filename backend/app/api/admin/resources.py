@@ -14,6 +14,8 @@ from app.db.session import get_db_session
 from app.models.tenant import (
     Location,
     Organization,
+    Patient,
+    PatientPayerProfile,
     Payer,
     PayerPlan,
     PayerType,
@@ -180,6 +182,25 @@ class CreatePractitionerServicePriceRequest(BaseModel):
         return self
 
 
+class CreatePatientRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str
+    document_type: str | None = None
+    document_number: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
+class CreatePatientPayerProfileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    payer_plan_id: UUID
+    member_id: str | None = None
+    authorization_required: bool = False
+    notes: str | None = None
+
+
 
 def _serialize_amount(value: Decimal) -> int | float:
     if value == value.to_integral_value():
@@ -228,6 +249,31 @@ def serialize_practitioner_service_price(price: PractitionerServicePrice) -> dic
         "valid_to": price.valid_to.isoformat() if price.valid_to is not None else None,
         "status": price.status,
     }
+
+
+def serialize_patient(patient: Patient) -> dict[str, object]:
+    return {
+        "id": str(patient.id),
+        "full_name": patient.full_name,
+        "document_type": patient.document_type,
+        "document_number": patient.document_number,
+        "email": patient.email,
+        "phone": patient.phone,
+        "status": patient.profile_status,
+    }
+
+
+def serialize_patient_payer_profile(profile: PatientPayerProfile) -> dict[str, object]:
+    return {
+        "id": str(profile.id),
+        "patient_id": str(profile.patient_id),
+        "payer_plan_id": str(profile.payer_plan_id),
+        "member_id": profile.member_id,
+        "authorization_required": profile.authorization_required,
+        "notes": profile.notes,
+        "status": profile.status,
+    }
+
 
 def serialize_organization(organization: Organization) -> dict[str, object]:
     return {
@@ -318,6 +364,47 @@ def serialize_practitioner_specialty(association: PractitionerSpecialty) -> dict
         "specialty_id": str(association.specialty_id),
         "status": association.status,
     }
+
+
+@router.post("/patients")
+def create_patient(
+    payload: CreatePatientRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    patient = Patient(**payload.model_dump())
+    try:
+        session.add(patient)
+        session.commit()
+        session.refresh(patient)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_patient(patient)}
+
+
+@router.post("/patients/{patient_id}/payer-profiles")
+def create_patient_payer_profile(
+    patient_id: UUID,
+    payload: CreatePatientPayerProfileRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(Patient, patient_id) is None:
+        raise ResourceNotFound("Patient not found.")
+    if session.get(PayerPlan, payload.payer_plan_id) is None:
+        raise ResourceNotFound("Payer plan not found.")
+    profile = PatientPayerProfile(patient_id=patient_id, **payload.model_dump())
+    try:
+        session.add(profile)
+        session.commit()
+        session.refresh(profile)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_patient_payer_profile(profile)}
 
 
 @router.post("/organizations")
