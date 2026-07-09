@@ -140,6 +140,7 @@ class PayerPlan(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
     payer: Mapped[Payer] = relationship(back_populates="plans")
     prices: Mapped[list["PractitionerServicePrice"]] = relationship(back_populates="payer_plan")
+    patient_profiles: Mapped[list["PatientPayerProfile"]] = relationship(back_populates="payer_plan")
 
 
 class PractitionerServicePrice(Base):
@@ -168,6 +169,20 @@ class Patient(TimestampMixin, Base):
     profile_status: Mapped[str] = mapped_column(String(32), nullable=False, default="minimal", server_default="minimal")
     created_from_channel: Mapped[str | None] = mapped_column(String(50))
     contacts: Mapped[list["PatientContact"]] = relationship(back_populates="patient")
+    payer_profiles: Mapped[list["PatientPayerProfile"]] = relationship(back_populates="patient")
+
+
+class PatientPayerProfile(Base):
+    __tablename__ = "patient_payer_profiles"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False)
+    payer_plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("payer_plans.id"), nullable=False)
+    member_id: Mapped[str | None] = mapped_column(String(120))
+    authorization_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
+    patient: Mapped[Patient] = relationship(back_populates="payer_profiles")
+    payer_plan: Mapped[PayerPlan] = relationship(back_populates="patient_profiles")
 
 
 class PatientContact(Base):

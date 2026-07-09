@@ -7,6 +7,7 @@ from app.models.tenant import (
     Organization,
     Patient,
     PatientContact,
+    PatientPayerProfile,
     Payer,
     PayerPlan,
     PayerType,
@@ -23,5 +24,5 @@ __all__ = [
     "Tenant", "TenantChannel", "User", "UserTenant",
     "Organization", "Location", "Room", "Practitioner", "Specialty", "PractitionerSpecialty",
     "PractitionerService", "ServiceModality", "PayerType", "Payer", "PayerPlan",
-    "PractitionerServicePrice", "Patient", "PatientContact", "AvailabilityRule", "AvailabilityException", "Booking",
+    "PractitionerServicePrice", "Patient", "PatientContact", "PatientPayerProfile", "AvailabilityRule", "AvailabilityException", "Booking",
 ]
