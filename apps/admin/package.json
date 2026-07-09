@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 127.0.0.1",
+    "dev:public": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
@@ -8,7 +9,6 @@
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@tanstack/react-query": "^5.83.0",
-    "@vitejs/plugin-react": "^4.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "react": "^18.3.1",
@@ -18,6 +18,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.6.0",
     "@eslint/js": "^9.30.1",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",

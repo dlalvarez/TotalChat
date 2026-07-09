@@ -18,6 +18,8 @@ El bot no puede funcionar correctamente sin datos maestros.
 - React Hook Form.
 - Zod.
 
+Nota de desarrollo: el servidor Vite debe enlazar por defecto a `127.0.0.1` para flujos con SSH tunneling. Cualquier modo público debe ser explícito y temporal.
+
 
 ## 2.1. Fase 6A — Shell administrativo y base UX/UI
 
@@ -73,7 +75,7 @@ y resolver internamente el UUID correspondiente.
 
 La consola administrativa debe sentirse como un producto SaaS profesional, no como una herramienta técnica interna. El usuario debe poder administrar su operación sin conocer detalles internos de base de datos, UUIDs, rutas API o nombres de tablas.
 
-## 3. Autenticación
+## 4. Autenticación
 
 Recomendación:
 
@@ -92,13 +94,13 @@ staff
 readonly
 ```
 
-## 4. Módulos
+## 5. Módulos
 
-### 4.1. Login y tenant selector
+### 5.1. Login y tenant selector
 
 Debe permitir iniciar sesión y seleccionar tenant si el usuario pertenece a varios.
 
-### 4.2. Dashboard
+### 5.2. Dashboard
 
 Debe mostrar:
 
@@ -113,7 +115,7 @@ Debe mostrar:
 - Servicios activos.
 - Profesionales activos.
 
-### 4.3. Organizaciones
+### 5.3. Organizaciones
 
 CRUD lógico:
 
@@ -122,7 +124,7 @@ CRUD lógico:
 - Editar.
 - Deshabilitar.
 
-### 4.4. Sedes
+### 5.4. Sedes
 
 Debe permitir configurar sedes físicas o virtuales.
 
@@ -134,11 +136,11 @@ Campos:
 - Referencia.
 - Instrucciones.
 
-### 4.5. Consultorios
+### 5.5. Consultorios
 
 Debe permitir crear consultorios asociados a sedes.
 
-### 4.6. Profesionales
+### 5.6. Profesionales
 
 Debe permitir:
 
@@ -148,11 +150,11 @@ Debe permitir:
 - Asociar especialidad.
 - Deshabilitar.
 
-### 4.7. Especialidades
+### 5.7. Especialidades
 
 Debe permitir crear y administrar especialidades.
 
-### 4.8. Servicios del profesional
+### 5.8. Servicios del profesional
 
 Debe permitir:
 
@@ -164,7 +166,7 @@ Debe permitir:
 - Asociar sede/consultorio.
 - Deshabilitar servicio.
 
-### 4.9. Precios y planes
+### 5.9. Precios y planes
 
 Debe permitir:
 
@@ -181,7 +183,7 @@ Debe soportar jerarquía:
 payer_type → payer → payer_plan → price
 ```
 
-### 4.10. Disponibilidad
+### 5.10. Disponibilidad
 
 Debe permitir:
 
@@ -193,7 +195,7 @@ Debe permitir:
 - Definir buffers.
 - Crear excepciones.
 
-### 4.11. Citas
+### 5.11. Citas
 
 Debe permitir:
 
@@ -205,7 +207,7 @@ Debe permitir:
 - Ver pago.
 - Ver confirmación de asistencia.
 
-### 4.12. Pacientes
+### 5.12. Pacientes
 
 Debe permitir:
 
@@ -216,7 +218,7 @@ Debe permitir:
 - Ver citas administrativas.
 - Deshabilitar.
 
-### 4.13. Pagos
+### 5.13. Pagos
 
 Debe permitir:
 
@@ -229,7 +231,7 @@ Debe permitir:
 - Marcar revisión bancaria.
 - Ver revisión vencida.
 
-### 4.14. Citas virtuales
+### 5.14. Citas virtuales
 
 Debe permitir:
 
@@ -240,7 +242,7 @@ Debe permitir:
 - Marcar link enviado.
 - Reenviar link.
 
-### 4.15. Recordatorios
+### 5.15. Recordatorios
 
 Debe permitir:
 
@@ -249,7 +251,7 @@ Debe permitir:
 - Ver no confirmados.
 - Ver respuestas negativas pendientes de segunda confirmación.
 
-### 4.16. Configuración del bot
+### 5.16. Configuración del bot
 
 Debe permitir:
 
