@@ -117,7 +117,7 @@ Entregables:
 
 ## Fase 4 — Agenda y citas
 
-Estado: backend implementado y validado.
+Estado: backend baseline implementado; creación de booking admin y snapshots validados en integración ligera. Validación completa de disponibilidad, generación de slots, confirmación, cancelación y reprogramación pendiente de pruebas específicas.
 
 Objetivo: implementar disponibilidad y reservas sin IA.
 

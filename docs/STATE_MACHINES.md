@@ -189,15 +189,28 @@ Si se requiere recuperar una cita terminal, debe crearse una nueva cita o un flu
 ### 4.1. Estados implementados/spec 007
 
 ```text
+pending
 evidence_required
 evidence_received
+under_review
 approved
 rejected
 expired
+cancelled
 simulated_approved
 ```
 
-### 4.2. Transiciones
+### 4.2. Inicialización por método
+
+```text
+method=transfer → evidence_required
+method=simulated → simulated_approved
+method=pay_on_site → pending
+```
+
+`under_review` y `cancelled` existen en el backend como estados implementados/reservados, pero no deben introducirse en flujos nuevos sin soporte de la spec activa o de un servicio de dominio explícito.
+
+### 4.3. Transiciones conservadoras
 
 ```text
 evidence_required → evidence_received
@@ -206,11 +219,15 @@ evidence_required → expired
 evidence_received → approved
 evidence_received → rejected
 evidence_received → expired
+
+pending → approved     # solo si lo permite servicio de dominio/spec explícita
+pending → expired      # solo si lo permite servicio de dominio/spec explícita
+pending → cancelled    # solo si lo permite servicio de dominio/spec explícita
 ```
 
 `simulated_approved` se produce únicamente para `method=simulated` y debe distinguirse de aprobación bancaria/manual real.
 
-### 4.3. Reglas
+### 4.4. Reglas
 
 1. Transferencia manual no pasa a `approved` sin revisión administrativa.
 2. Evidencia recibida no aprueba pago por sí sola.
@@ -218,18 +235,19 @@ evidence_received → expired
 4. Si falta evidencia, el intento puede pasar a `expired`; la cita libera slot solo según `release_slot_on_missing_evidence`.
 5. Revisión vencida no libera automáticamente salvo `release_slot_on_review_overdue=true`.
 6. Si `approved` y la cita requiere pago, la cita puede pasar a `confirmed` mediante servicios de dominio.
+7. `under_review` y `cancelled` son estados implementados/reservados y no deben usarse como estados activos de nuevos flujos sin spec vigente.
 
-### 4.4. Mapeo desde estados conceptuales anteriores
+### 4.5. Mapeo desde estados conceptuales anteriores
 
 | Conceptual anterior | Estado implementado/spec 007 |
 |---|---|
 | `pending_evidence` | `evidence_required` |
 | `evidence_uploaded` | `evidence_received` |
-| `pending_manual_review` | `evidence_received` + trabajo de revisión pendiente |
+| `pending_manual_review` | `evidence_received` + trabajo de revisión pendiente; `under_review` solo si una spec/servicio de dominio lo activa explícitamente |
 | `review_overdue` | señal/flag/consulta de revisión vencida, no estado runtime nuevo salvo spec futura |
 | `paid` | `approved` o `simulated_approved` según método |
 | `expired_no_evidence` | `expired` |
-| `pay_at_location` | `method=pay_on_site` con transición de booking según política |
+| `pay_at_location` | `method=pay_on_site` con estado inicial `pending` y transición de booking según política |
 | `failed` | `rejected` o `expired` según causa |
 
 No se deben inventar nuevos estados runtime fuera de esta lista sin una spec futura.

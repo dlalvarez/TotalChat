@@ -671,6 +671,7 @@ El baseline implementado de pagos es manual/simulado. No incluye Wompi, pasarela
 
 ```text
 id
+organization_id
 allow_transfer
 allow_simulated_payment
 allow_pay_on_site
@@ -678,6 +679,7 @@ evidence_deadline_minutes
 manual_review_deadline_minutes
 release_slot_on_missing_evidence
 release_slot_on_review_overdue
+status
 created_at
 updated_at
 ```
@@ -715,13 +717,21 @@ pay_on_site
 `status`:
 
 ```text
+pending
 evidence_required
 evidence_received
+under_review
 approved
 rejected
 expired
+cancelled
 simulated_approved
 ```
+
+Notas:
+
+- `pending` se usa actualmente para intentos `pay_on_site`.
+- `under_review` y `cancelled` están implementados/reservados para flujos futuros o acciones explícitas de dominio.
 
 ## 12.3. payment_evidence
 

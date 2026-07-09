@@ -803,42 +803,64 @@ Request:
 
 ```json
 {
+  "organization_id": "uuid",
   "allow_transfer": true,
   "allow_simulated_payment": true,
   "allow_pay_on_site": false,
   "evidence_deadline_minutes": 60,
   "manual_review_deadline_minutes": 1440,
   "release_slot_on_missing_evidence": true,
-  "release_slot_on_review_overdue": false
+  "release_slot_on_review_overdue": false,
+  "status": "active"
 }
 ```
 
+Reglas:
+
+- `organization_id` es obligatorio.
+- `status` puede ser `active` o `inactive` y por defecto es `active`.
+- Solo puede existir una fila `payment_settings` activa por organización.
+
 ### 15.2. GET `/api/admin/payment-settings`
+
+Filtros soportados:
+
+```text
+organization_id
+status
+```
 
 Response:
 
 ```json
 {
-  "data": {
-    "id": "uuid",
-    "allow_transfer": true,
-    "allow_simulated_payment": true,
-    "allow_pay_on_site": false,
-    "evidence_deadline_minutes": 60,
-    "manual_review_deadline_minutes": 1440,
-    "release_slot_on_missing_evidence": true,
-    "release_slot_on_review_overdue": false
-  }
+  "data": [
+    {
+      "id": "uuid",
+      "organization_id": "uuid",
+      "allow_transfer": true,
+      "allow_simulated_payment": true,
+      "allow_pay_on_site": false,
+      "evidence_deadline_minutes": 60,
+      "manual_review_deadline_minutes": 1440,
+      "release_slot_on_missing_evidence": true,
+      "release_slot_on_review_overdue": false,
+      "status": "active"
+    }
+  ]
 }
 ```
 
-### 15.3. PATCH `/api/admin/payment-settings`
+### 15.3. PATCH `/api/admin/payment-settings/{payment_settings_id}`
 
-Request: cualquiera de los campos configurables de `payment_settings`.
+Request: cualquiera de los campos configurables de `payment_settings` salvo su identificador.
 
 Reglas:
 
 - Cambiar configuración no reescribe historial de intentos de pago.
+- `organization_id` no debe usarse para mover una configuración histórica entre organizaciones.
+- `status` puede ser `active` o `inactive` y por defecto es `active` en creación.
+- Solo puede existir una fila `payment_settings` activa por organización.
 - `release_slot_on_review_overdue` debe permanecer `false` por defecto.
 
 ### 15.4. POST `/api/admin/payment-attempts`
@@ -887,13 +909,23 @@ pay_on_site
 `status` permitido:
 
 ```text
+pending
 evidence_required
 evidence_received
+under_review
 approved
 rejected
 expired
+cancelled
 simulated_approved
 ```
+
+Inicialización por método:
+
+- `method=transfer` inicia en `evidence_required`.
+- `method=simulated` inicia en `simulated_approved`.
+- `method=pay_on_site` inicia en `pending` en el baseline backend actual.
+- `under_review` y `cancelled` son estados implementados/reservados y no deben usarse en flujos nuevos salvo que la spec activa lo requiera.
 
 Response transferencia:
 
