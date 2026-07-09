@@ -65,7 +65,7 @@ Antes de aprobar un PR, verificar:
 ```text
 [ ] No confirma transferencias automáticamente por evidencia.
 [ ] La IA solo prevalida comprobantes.
-[ ] La aprobación manual exige confirmed_against_bank cuando aplica.
+[ ] La aprobación manual queda registrada por administrador; `confirmed_against_bank` solo bloquea si una spec futura de endurecimiento lo exige.
 [ ] Si no hay evidencia en plazo, libera slot según política.
 [ ] Si hay evidencia, protege slot.
 [ ] Review overdue no libera slot por defecto.

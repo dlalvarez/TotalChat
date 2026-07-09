@@ -361,7 +361,7 @@ n8n puede enviar recordatorios, alertas, encuestas y notificaciones.
 
 n8n no debe contener la lógica principal de reservas, pagos, disponibilidad, estado de citas o multi-tenancy.
 
-## 3. Reglas de no desviación
+### 2.26. Reglas de no desviación
 
 1. No convertir TotalChat en historia clínica.
 2. No implementar diagnóstico médico.
@@ -387,8 +387,14 @@ n8n no debe contener la lógica principal de reservas, pagos, disponibilidad, es
 22. No acoplar el código directamente a OpenAI.
 23. No usar Redis como fuente de verdad.
 24. No usar pgvector para datos transaccionales críticos.
+25. No crear un conector rígido exclusivo a Docplanner como parte del core.
+26. No hacer que Docplanner sea requisito para operar TotalChat.
+27. No mezclar agenda externa y reuniones virtuales en una sola abstracción rígida.
+28. No confirmar citas locales para tenants con agenda externa autoritativa sin validación/reserva externa.
+29. No reducir el modelo de precios jerárquico de TotalChat para ajustarlo a las limitaciones de Docplanner, Google Calendar o Microsoft.
+30. No delegar pagos, revisión manual de transferencias o políticas comerciales a proveedores de calendario.
 
-## 2.26. Integraciones externas de agenda y calendario
+### 2.27. Integraciones externas de agenda y calendario
 
 TotalChat debe tener motor interno de agenda y reservas, pero la arquitectura debe permitir configurar proveedores externos de agenda/calendario por tenant, organización o profesional.
 
@@ -403,7 +409,7 @@ Reglas:
 - Docplanner debe ser una implementación de `SchedulingProvider`, no el diseño completo.
 - Google Calendar y Microsoft Calendar deben ser adaptadores equivalentes en la misma capa.
 
-## 2.27. Separación entre agenda y reunión virtual
+### 2.28. Separación entre agenda y reunión virtual
 
 TotalChat debe separar proveedor de agenda de proveedor de reunión virtual.
 
@@ -419,17 +425,8 @@ Ejemplos:
 - Microsoft Teams puede ser `MeetingProvider`.
 - Link manual será `ManualMeetingProvider` en MVP.
 
-## 3. Reglas adicionales de no desviación sobre agendas externas
 
-25. No crear un conector rígido exclusivo a Docplanner como parte del core.
-26. No hacer que Docplanner sea requisito para operar TotalChat.
-27. No mezclar agenda externa y reuniones virtuales en una sola abstracción rígida.
-28. No confirmar citas locales para tenants con agenda externa autoritativa sin validación/reserva externa.
-29. No reducir el modelo de precios jerárquico de TotalChat para ajustarlo a las limitaciones de Docplanner, Google Calendar o Microsoft.
-30. No delegar pagos, revisión manual de transferencias o políticas comerciales a proveedores de calendario.
-
-
-### 2.26. Estados críticos gobernados por máquinas de estado
+### 2.29. Estados críticos gobernados por máquinas de estado
 
 Los estados de citas, pagos, evidencias, revisiones, confirmación de asistencia, reembolsos, citas virtuales e integraciones externas no deben modificarse libremente desde controladores o handlers.
 
@@ -443,7 +440,7 @@ Reglas:
 - No cancelar por respuesta negativa sin segunda confirmación.
 - No liberar slots protegidos por evidencia enviada salvo configuración explícita.
 
-### 2.27. TotalChat como plataforma paraguas y MediChat como primer vertical
+### 2.30. TotalChat como plataforma paraguas y MediChat como primer vertical
 
 TotalChat debe entenderse como plataforma paraguas y familia de soluciones, no como el nombre exclusivo del producto médico.
 
@@ -468,7 +465,7 @@ Reglas:
 - Nuevos verticales deben implementarse dentro de `solutions/`.
 - Funcionalidad común solo debe promoverse a `packages/` si es realmente reusable.
 
-### 2.28. Política de repositorio monorepo modular
+### 2.31. Política de repositorio monorepo modular
 
 TotalChat iniciará como monorepo modular.
 
@@ -495,7 +492,7 @@ Reglas:
 - Codex no debe mezclar lógica médica en core.
 - Separación futura en repos independientes solo debe hacerse cuando el core y los verticales estén maduros.
 
-### 2.29. Campañas, comunicados y mensajería masiva
+### 2.32. Campañas, comunicados y mensajería masiva
 
 TotalChat debe soportar campañas, comunicados y mensajería masiva como capacidad transversal de plataforma, reutilizable por todos los verticales.
 

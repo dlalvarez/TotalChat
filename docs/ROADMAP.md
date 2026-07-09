@@ -3,6 +3,8 @@
 
 ## Fase 0 — Gobierno documental y SDD
 
+Estado: implementada.
+
 Objetivo: preparar la base documental.
 
 Entregables:
@@ -17,7 +19,51 @@ Entregables:
 - MVP_001_SPEC.md.
 - SDD_SPECKIT_GUIDE.md.
 
+## Fase 0B — Estrategia de marca, repositorio y verticales
+
+Estado: implementada.
+
+Objetivo: documentar TotalChat como plataforma paraguas, MediChat como primer vertical MVP, verticales futuras y monorepo modular.
+
+Entregables:
+
+- BRAND_AND_PRODUCT_STRATEGY.md.
+- REPOSITORY_STRATEGY.md.
+- Decisiones de verticales oficiales.
+- Reglas de monorepo modular.
+- RestoChat, HotelChat, StayChat y StoreChat documentados como futuros, nunca antes del MVP MediChat.
+
+## Fase 0C — Precisión ejecutable para Codex
+
+Estado: implementada.
+
+Objetivo: agregar contratos, máquinas de estado, fixtures y checklist para reducir ambigüedad durante implementación.
+
+Entregables:
+
+- API_CONTRACTS.md.
+- STATE_MACHINES.md.
+- SCHEDULING_PROVIDER_RULES.md.
+- TEST_FIXTURES.md.
+- PR_REVIEW_CHECKLIST.md.
+
+## Fase 0D — Alineación documental post-backend Fase 5
+
+Estado: implementada por esta alineación documental.
+
+Objetivo: alinear documentación rectora después de la implementación backend de foundation, multitenancy, booking domain, endpoints admin de citas y pagos manuales/simulados.
+
+Entregables:
+
+- Numeración coherente en CONSTITUTION.md.
+- Roadmap ordenado cronológicamente.
+- Contratos API de pagos alineados con la API manual/simulada implementada.
+- Modelo de datos, políticas y máquinas de estado de pagos alineadas con Spec 007.
+- Wompi, WhatsApp, campañas, agenda externa y verticales no médicas preservadas como futuro.
+
 ## Fase 1 — Fundación técnica
+
+Estado: backend implementado y validado.
 
 Objetivo: crear base del proyecto.
 
@@ -36,6 +82,8 @@ Entregables:
 
 ## Fase 2 — Multi-tenancy
 
+Estado: backend implementado y validado con PostgreSQL schema-per-tenant.
+
 Objetivo: implementar schema por tenant.
 
 Entregables:
@@ -50,6 +98,8 @@ Entregables:
 - Tests de aislamiento.
 
 ## Fase 3 — Dominio de reservas
+
+Estado: backend implementado y validado.
 
 Objetivo: implementar modelo médico/reservas.
 
@@ -67,6 +117,8 @@ Entregables:
 
 ## Fase 4 — Agenda y citas
 
+Estado: backend baseline implementado; creación de booking admin y snapshots validados en integración ligera. Validación completa de disponibilidad, generación de slots, confirmación, cancelación y reprogramación pendiente de pruebas específicas.
+
 Objetivo: implementar disponibilidad y reservas sin IA.
 
 Entregables:
@@ -82,6 +134,8 @@ Entregables:
 
 ## Fase 5 — Pagos manuales/simulados
 
+Estado: backend implementado y validado con PostgreSQL schema-per-tenant. PR #26 corrigió el orden de transacciones tenant-scoped alrededor de `SET LOCAL search_path`.
+
 Objetivo: manejar pagos sin pasarela real.
 
 Entregables:
@@ -94,7 +148,7 @@ Entregables:
 - Pago simulado.
 - Pago en sitio configurable.
 - Vencimiento por no evidencia.
-- Revisión vencida sin liberar slot.
+- Revisión vencida sin liberar slot por defecto.
 
 ## Fase 6 — Consola administrativa MVP
 
@@ -167,7 +221,7 @@ Entregables:
 
 ## Fase 11 — Wompi sandbox
 
-Objetivo: pasarela real en pruebas.
+Objetivo: pasarela real futura en pruebas, solo después de pagos simulados/manuales.
 
 Entregables:
 
@@ -179,7 +233,7 @@ Entregables:
 
 ## Fase 12 — WhatsApp
 
-Objetivo: canal comercial futuro.
+Objetivo: canal comercial futuro, solo después de Telegram.
 
 Entregables:
 
@@ -190,7 +244,7 @@ Entregables:
 
 ## Fase 13 — n8n complementario
 
-Objetivo: automatizaciones externas.
+Objetivo: automatizaciones externas complementarias, no core.
 
 Entregables:
 
@@ -200,17 +254,9 @@ Entregables:
 - Alertas.
 - Encuestas.
 
-## Fase 14 — Restaurantes
+## Fase 14 — External Scheduling Provider Abstraction
 
-Solo después del MVP médico.
-
-## Fase 15 — Hoteles
-
-Solo después de análisis de brecha por reservas de rango de fechas.
-
-## Fase 12A — External Scheduling Provider Abstraction
-
-Objetivo: diseñar la capa genérica de proveedores externos de agenda/calendario y reuniones virtuales.
+Objetivo: diseñar la capa genérica futura de proveedores externos de agenda/calendario y reuniones virtuales.
 
 Entregables:
 
@@ -226,9 +272,9 @@ Entregables:
 - sync runs.
 - FakeSchedulingProvider para pruebas.
 
-## Fase 12B — Docplanner Scheduling Adapter
+## Fase 15 — Docplanner Scheduling Adapter
 
-Objetivo: implementar Docplanner/Doctoralia como adaptador de agenda para tenants que ya lo usan como autoridad.
+Objetivo: implementar Docplanner/Doctoralia como adaptador futuro de agenda para tenants que ya lo usan como autoridad.
 
 Entregables:
 
@@ -242,9 +288,9 @@ Entregables:
 - Callbacks o pull notifications.
 - Reconciliación básica.
 
-## Fase 12C — Google Calendar Scheduling Adapter
+## Fase 16 — Google Calendar Scheduling Adapter
 
-Objetivo: implementar Google Calendar como proveedor externo de agenda.
+Objetivo: implementar Google Calendar como proveedor externo futuro de agenda.
 
 Entregables:
 
@@ -257,111 +303,26 @@ Entregables:
 - Sincronización básica.
 - Posibilidad futura de Google Meet.
 
-## Fase 12D — Microsoft Calendar and Teams Adapter
+## Fase 17 — Microsoft Calendar and Teams Adapter
 
-Objetivo: implementar Microsoft 365 / Outlook Calendar y Microsoft Teams mediante proveedor de agenda y proveedor de reuniones.
+Objetivo: implementar Microsoft Calendar como proveedor externo futuro de agenda y Teams como proveedor futuro de reuniones virtuales.
 
-Entregables:
+## Fase 18 — Campañas, comunicados y mensajería masiva
 
-- MicrosoftCalendarSchedulingProvider.
-- MicrosoftTeamsMeetingProvider.
-- Microsoft Graph integration.
-- Creación de eventos.
-- Creación de reuniones Teams.
-- Cancelación/reprogramación.
-- Mapping de eventos.
-- Sincronización básica.
-
-
-## Fase 0B — Contratos, máquinas de estado, fixtures y checklist
-
-Objetivo:
-
-Cerrar la capa de precisión necesaria para que Codex implemente por fases con menos ambigüedad.
+Objetivo: implementar la capacidad transversal futura definida en Spec 015, con TotalChat como fuente de verdad y n8n solo complementario.
 
 Entregables:
 
-- `docs/API_CONTRACTS.md`
-- `docs/STATE_MACHINES.md`
-- `docs/SCHEDULING_PROVIDER_RULES.md`
-- `docs/TEST_FIXTURES.md`
-- `docs/PR_REVIEW_CHECKLIST.md`
+- Campañas desde consola admin.
+- Segmentación por audiencia.
+- Consentimiento y preferencias.
+- Entregas individuales auditadas.
+- ChannelProvider.
 
-Regla:
+## Fase 19 — RestoChat
 
-Esta fase no implementa código funcional de negocio. Su propósito es convertir el alcance conceptual en reglas verificables y contratos iniciales.
+Solo después del MVP MediChat.
 
-## Fase 0C — Estrategia de marca, verticales y repositorio
+## Fase 20 — HotelChat
 
-Objetivo:
-
-Formalizar TotalChat como plataforma paraguas y MediChat como primer producto vertical.
-
-Entregables:
-
-- `docs/BRAND_AND_PRODUCT_STRATEGY.md`
-- `docs/REPOSITORY_STRATEGY.md`
-- `docs/SOLUTION_ARCHITECTURE.md`
-- Actualización de constitución.
-- Actualización de arquitectura.
-- Actualización del modelo de datos con `solutions` y `tenant_solutions`.
-- Reglas para monorepo modular.
-- Reglas para separación futura de repos.
-
-Alcance:
-
-Esta fase no implementa nuevos verticales. Solo define nombres, límites y estructura.
-
-Verticales oficiales:
-
-```text
-MediChat
-RestoChat
-HotelChat
-StayChat
-StoreChat
-```
-
-## Spec 015 — Campaigns and Broadcast Messaging
-
-Objetivo:
-
-Implementar el módulo transversal de campañas, comunicados y mensajería masiva.
-
-Aplica a:
-
-```text
-MediChat inicialmente
-RestoChat futuro
-HotelChat futuro
-StayChat futuro
-StoreChat futuro
-```
-
-Entregables:
-
-- `docs/CAMPAIGNS_AND_BROADCASTS.md`
-- `packages/campaigns`
-- `CampaignService`
-- `AudienceResolver`
-- `MediChatAudienceResolver`
-- `CampaignDeliveryPlanner`
-- `CampaignDispatcher`
-- `CampaignScheduler`
-- endpoints admin
-- worker
-- módulo admin web
-- contact preferences
-- delivery tracking
-- métricas básicas
-- auditoría
-
-Fuera de alcance inicial:
-
-- WhatsApp productivo;
-- A/B testing;
-- journeys multietapa;
-- CRM avanzado;
-- email marketing;
-- SMS;
-- adjuntos.
+Solo después del MVP MediChat y análisis de brecha por reservas de rango de fechas.

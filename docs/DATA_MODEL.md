@@ -665,25 +665,29 @@ external
 
 # 12. Pagos
 
-## 12.1. tenant_payment_settings
+El baseline implementado de pagos es manual/simulado. No incluye Wompi, pasarelas, tarjetas ni conciliación bancaria automática.
+
+## 12.1. payment_settings
 
 ```text
 id
-allow_gateway_payment
-allow_manual_transfer
-allow_pay_at_location
-require_payment_before_confirmation
-auto_confirm_gateway_payments
-require_manual_review_for_transfers
-payment_evidence_due_minutes
-manual_review_due_policy
-manual_review_due_time
-manual_review_business_days_only
-auto_expire_if_no_evidence
-auto_expire_if_review_overdue
-refund_policy_days
-refund_policy_message
+organization_id
+allow_transfer
+allow_simulated_payment
+allow_pay_on_site
+evidence_deadline_minutes
+manual_review_deadline_minutes
+release_slot_on_missing_evidence
+release_slot_on_review_overdue
+status
+created_at
+updated_at
 ```
+
+Notas:
+
+- `release_slot_on_review_overdue` debe ser `false` por defecto.
+- Campos conceptuales anteriores como `allow_gateway_payment`, `auto_confirm_gateway_payments` o políticas de pasarela quedan reservados para una fase futura de Wompi/pasarela.
 
 ## 12.2. payment_attempts
 
@@ -691,14 +695,13 @@ refund_policy_message
 id
 booking_id
 method
-provider
-amount_expected
-amount_received nullable
+amount
 currency
 status
-external_reference nullable
-payment_url nullable
 expires_at nullable
+evidence_received_at nullable
+reviewed_at nullable
+reviewed_by_user_id nullable
 created_at
 updated_at
 ```
@@ -706,55 +709,55 @@ updated_at
 `method`:
 
 ```text
-gateway
-manual_transfer
-pay_at_location
+transfer
 simulated
+pay_on_site
 ```
 
 `status`:
 
 ```text
 pending
-pending_evidence
-evidence_uploaded
-pending_manual_review
-review_overdue
+evidence_required
+evidence_received
+under_review
 approved
 rejected
-paid
-failed
-expired_no_evidence
 expired
-pay_at_location
+cancelled
+simulated_approved
 ```
+
+Notas:
+
+- `pending` se usa actualmente para intentos `pay_on_site`.
+- `under_review` y `cancelled` están implementados/reservados para flujos futuros o acciones explícitas de dominio.
 
 ## 12.3. payment_evidence
 
 ```text
 id
 payment_attempt_id
-file_url
-file_type
-uploaded_by
+storage_object_key
+original_filename nullable
+content_type nullable
 uploaded_at
-ai_extracted_data
-ai_prevalidation_status
-ai_prevalidation_notes
+uploaded_channel nullable
+notes nullable
 ```
+
+La IA puede almacenar extracción/prevalidación en campos futuros o metadatos si una spec posterior lo define, pero esa prevalidación nunca aprueba el pago.
 
 ## 12.4. payment_reviews
 
 ```text
 id
 payment_attempt_id
-reviewed_by
-reviewed_at
 decision
-notes
-confirmed_against_bank
-previous_status
-new_status
+reviewer_user_id nullable
+reviewed_at
+notes nullable
+created_at
 ```
 
 `decision`:
@@ -762,8 +765,12 @@ new_status
 ```text
 approved
 rejected
-needs_more_evidence
 ```
+
+Notas:
+
+- `confirmed_against_bank` es un endurecimiento opcional/futuro para políticas de revisión bancaria más estrictas; no bloquea el MVP manual/simulado actual salvo que una spec futura lo agregue.
+- La auditoría de revisión vive en PostgreSQL dentro del schema del tenant.
 
 ## 12.5. refunds
 
