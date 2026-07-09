@@ -8,6 +8,11 @@ This specification documents the domain language, proposed state model, data mod
 
 This PR is documentation/specification only. It does not implement code, database migrations, API endpoints, frontend screens, channel behavior, payment gateways, Wompi, or automations.
 
+
+## 1.1. Implementation status
+
+Backend baseline for this specification has been implemented and lightly validated through PR #20–#26, including validation against real PostgreSQL schema-per-tenant. PR #26 fixed tenant-scoped transaction ordering around `SET LOCAL search_path`. This note records implementation status only and does not expand or change the business scope of Spec 007.
+
 ## 2. In scope
 
 This specification covers only the following payment baseline capabilities:

@@ -793,39 +793,27 @@ Request:
 }
 ```
 
-## 15. Pagos
+## 15. Pagos manuales/simulados
 
-### 15.1. GET `/api/admin/payment-settings`
+Estos contratos reflejan el baseline implementado para pagos manuales/simulados. No incluyen Wompi, pasarelas, tarjetas ni conciliación bancaria automática.
 
-### 15.2. PATCH `/api/admin/payment-settings`
+### 15.1. POST `/api/admin/payment-settings`
 
 Request:
 
 ```json
 {
-  "allow_gateway_payment": false,
-  "allow_manual_transfer": true,
-  "allow_pay_at_location": false,
-  "require_payment_before_confirmation": true,
-  "payment_evidence_due_minutes": 60,
-  "manual_review_due_policy": "next_business_day_noon",
-  "auto_expire_if_no_evidence": true,
-  "auto_expire_if_review_overdue": false,
-  "refund_policy_days": 5
+  "allow_transfer": true,
+  "allow_simulated_payment": true,
+  "allow_pay_on_site": false,
+  "evidence_deadline_minutes": 60,
+  "manual_review_deadline_minutes": 1440,
+  "release_slot_on_missing_evidence": true,
+  "release_slot_on_review_overdue": false
 }
 ```
 
-### 15.3. POST `/api/admin/bookings/{booking_id}/payment-attempts`
-
-Request transferencia:
-
-```json
-{
-  "method": "manual_transfer",
-  "amount_expected": 100000,
-  "currency": "COP"
-}
-```
+### 15.2. GET `/api/admin/payment-settings`
 
 Response:
 
@@ -833,59 +821,183 @@ Response:
 {
   "data": {
     "id": "uuid",
-    "method": "manual_transfer",
-    "status": "pending_evidence",
-    "evidence_due_at": "2026-07-05T18:00:00-05:00"
+    "allow_transfer": true,
+    "allow_simulated_payment": true,
+    "allow_pay_on_site": false,
+    "evidence_deadline_minutes": 60,
+    "manual_review_deadline_minutes": 1440,
+    "release_slot_on_missing_evidence": true,
+    "release_slot_on_review_overdue": false
   }
 }
 ```
 
-### 15.4. POST `/api/admin/payment-attempts/{payment_attempt_id}/evidence`
+### 15.3. PATCH `/api/admin/payment-settings`
+
+Request: cualquiera de los campos configurables de `payment_settings`.
+
+Reglas:
+
+- Cambiar configuración no reescribe historial de intentos de pago.
+- `release_slot_on_review_overdue` debe permanecer `false` por defecto.
+
+### 15.4. POST `/api/admin/payment-attempts`
+
+Request transferencia:
+
+```json
+{
+  "booking_id": "uuid",
+  "method": "transfer",
+  "amount": 100000,
+  "currency": "COP"
+}
+```
+
+Request pago simulado:
+
+```json
+{
+  "booking_id": "uuid",
+  "method": "simulated",
+  "amount": 100000,
+  "currency": "COP"
+}
+```
+
+Request pago en sitio:
+
+```json
+{
+  "booking_id": "uuid",
+  "method": "pay_on_site",
+  "amount": 100000,
+  "currency": "COP"
+}
+```
+
+`method` permitido:
+
+```text
+transfer
+simulated
+pay_on_site
+```
+
+`status` permitido:
+
+```text
+evidence_required
+evidence_received
+approved
+rejected
+expired
+simulated_approved
+```
+
+Response transferencia:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "booking_id": "uuid",
+    "method": "transfer",
+    "status": "evidence_required",
+    "amount": 100000,
+    "currency": "COP",
+    "expires_at": "2026-07-05T18:00:00-05:00"
+  }
+}
+```
+
+### 15.5. GET `/api/admin/payment-attempts`
+
+Filtros sugeridos:
+
+```text
+booking_id
+method
+status
+```
+
+Uso: revisión administrativa, auditoría y seguimiento de intentos.
+
+### 15.6. POST `/api/admin/payment-attempts/{payment_attempt_id}/evidence`
 
 Request conceptual:
 
 ```json
 {
-  "file_url": "s3://bucket/evidence.png",
-  "file_type": "image/png",
-  "uploaded_by": "patient"
+  "storage_object_key": "payment-evidence/tenant/attempt/evidence.png",
+  "original_filename": "evidence.png",
+  "content_type": "image/png",
+  "uploaded_channel": "admin",
+  "notes": "Comprobante enviado por el paciente"
 }
 ```
 
 Reglas:
 
-- Al cargar evidencia, booking pasa a `pending_manual_payment_review`.
+- Al registrar evidencia, el intento pasa a `evidence_received`.
+- La cita pasa a revisión manual de pago según las reglas del dominio de reservas.
 - El slot queda protegido.
-- IA puede prevalidar, pero no aprobar.
+- IA puede prevalidar o extraer datos, pero no aprobar.
 
-### 15.5. POST `/api/admin/payment-attempts/{payment_attempt_id}/reviews`
+### 15.7. POST `/api/admin/payment-attempts/{payment_attempt_id}/approve`
 
-Request aprobar:
-
-```json
-{
-  "decision": "approved",
-  "notes": "Pago verificado en cuenta bancaria.",
-  "confirmed_against_bank": true
-}
-```
-
-Request rechazar:
+Request:
 
 ```json
 {
-  "decision": "rejected",
-  "notes": "El comprobante no corresponde al valor esperado.",
-  "confirmed_against_bank": false
+  "notes": "Pago revisado y aprobado por administración."
 }
 ```
 
 Reglas:
 
-- `approved` requiere `confirmed_against_bank=true`.
-- Aprobación confirma pago.
-- Si pago requerido, puede confirmar cita.
-- Todo queda auditado.
+- Solo una acción administrativa puede aprobar una transferencia.
+- La aprobación pasa el intento a `approved`.
+- Si pago requerido, puede confirmar la cita mediante servicios de dominio.
+- La aprobación debe registrarse en `payment_reviews`.
+- La IA no puede invocar esta aprobación como decisión propia.
+
+### 15.8. POST `/api/admin/payment-attempts/{payment_attempt_id}/reject`
+
+Request:
+
+```json
+{
+  "notes": "El comprobante no corresponde al valor esperado."
+}
+```
+
+Reglas:
+
+- El rechazo pasa el intento a `rejected`.
+- El rechazo debe registrarse en `payment_reviews`.
+- Reintentos o cancelaciones posteriores deben pasar por servicios de dominio.
+
+### 15.9. POST `/api/internal/payment-attempts/{payment_attempt_id}/expire-missing-evidence`
+
+Uso: worker/scheduler interno expira un intento `transfer` que sigue sin evidencia después de `evidence_deadline_minutes`.
+
+Reglas:
+
+- Puede pasar el intento a `expired`.
+- Libera slot solo si `release_slot_on_missing_evidence=true`.
+- Debe protegerse con credenciales internas.
+
+### 15.10. POST `/api/internal/payment-attempts/{payment_attempt_id}/mark-review-overdue`
+
+Uso: worker/scheduler interno marca revisión vencida después de `manual_review_deadline_minutes`.
+
+Reglas:
+
+- No aprueba ni rechaza el pago.
+- No libera slot por defecto.
+- Libera slot solo si `release_slot_on_review_overdue=true`.
+- Debe generar señal de alerta/escalamiento si existe automatización complementaria.
 
 ## 16. Citas virtuales
 

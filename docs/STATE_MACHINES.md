@@ -186,60 +186,53 @@ Si se requiere recuperar una cita terminal, debe crearse una nueva cita o un flu
 
 ## 4. Máquina de estado de PaymentAttempt
 
-### 4.1. Estados
+### 4.1. Estados implementados/spec 007
 
 ```text
-pending
-pending_evidence
-evidence_uploaded
-pending_manual_review
-review_overdue
+evidence_required
+evidence_received
 approved
 rejected
-paid
-failed
-expired_no_evidence
 expired
-pay_at_location
+simulated_approved
 ```
 
 ### 4.2. Transiciones
 
 ```text
-pending → pending_evidence
-pending → pay_at_location
-pending → paid
-pending → failed
-pending → expired
+evidence_required → evidence_received
+evidence_required → expired
 
-pending_evidence → evidence_uploaded
-pending_evidence → expired_no_evidence
-pending_evidence → failed
-
-evidence_uploaded → pending_manual_review
-pending_manual_review → approved
-pending_manual_review → rejected
-pending_manual_review → review_overdue
-
-review_overdue → approved
-review_overdue → rejected
-review_overdue → pending_manual_review
-
-approved → paid
-rejected → pending_evidence
-rejected → expired
-pay_at_location → paid
-pay_at_location → failed
+evidence_received → approved
+evidence_received → rejected
+evidence_received → expired
 ```
+
+`simulated_approved` se produce únicamente para `method=simulated` y debe distinguirse de aprobación bancaria/manual real.
 
 ### 4.3. Reglas
 
-1. Transferencia manual no pasa a `paid` sin revisión aprobada.
-2. `approved` requiere `confirmed_against_bank=true`.
-3. IA no produce `approved`.
-4. Si `expired_no_evidence`, la cita asociada debe pasar a `expired_no_evidence`.
-5. Si `review_overdue`, la cita no se libera automáticamente salvo configuración explícita.
-6. Si `paid` y la cita requiere pago, la cita puede pasar a `confirmed`.
+1. Transferencia manual no pasa a `approved` sin revisión administrativa.
+2. Evidencia recibida no aprueba pago por sí sola.
+3. IA no produce `approved` ni `simulated_approved` como decisión propia.
+4. Si falta evidencia, el intento puede pasar a `expired`; la cita libera slot solo según `release_slot_on_missing_evidence`.
+5. Revisión vencida no libera automáticamente salvo `release_slot_on_review_overdue=true`.
+6. Si `approved` y la cita requiere pago, la cita puede pasar a `confirmed` mediante servicios de dominio.
+
+### 4.4. Mapeo desde estados conceptuales anteriores
+
+| Conceptual anterior | Estado implementado/spec 007 |
+|---|---|
+| `pending_evidence` | `evidence_required` |
+| `evidence_uploaded` | `evidence_received` |
+| `pending_manual_review` | `evidence_received` + trabajo de revisión pendiente |
+| `review_overdue` | señal/flag/consulta de revisión vencida, no estado runtime nuevo salvo spec futura |
+| `paid` | `approved` o `simulated_approved` según método |
+| `expired_no_evidence` | `expired` |
+| `pay_at_location` | `method=pay_on_site` con transición de booking según política |
+| `failed` | `rejected` o `expired` según causa |
+
+No se deben inventar nuevos estados runtime fuera de esta lista sin una spec futura.
 
 ## 5. Máquina de evidencia de pago
 
