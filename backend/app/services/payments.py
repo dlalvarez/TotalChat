@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import Booking, PaymentAttempt, PaymentSettings
+from app.models.tenant import Booking, PaymentAttempt, PaymentEvidence, PaymentSettings
 from app.services.errors import BusinessRuleViolation, DomainValidationError, ResourceNotFound
 from app.tenancy.context import TenantContext
 
 PAYMENT_ATTEMPT_METHODS = {"transfer", "simulated", "pay_on_site"}
+EVIDENCE_REGISTRATION_STATUSES = {"evidence_required"}
+
 PAYMENT_ATTEMPT_STATUSES = {
     "pending",
     "evidence_required",
@@ -88,3 +90,48 @@ class PaymentAttemptService:
         }
         if not allowed_by_method[method]:
             raise BusinessRuleViolation("Payment method is disabled by active payment settings.")
+
+
+
+class PaymentEvidenceService:
+    """Backend-owned transfer evidence registration rules for Spec 007 PR 23."""
+
+    def __init__(self, session: Session, tenant_context: TenantContext):
+        if tenant_context is None:
+            raise DomainValidationError("PaymentEvidenceService requires explicit TenantContext")
+        self.session = session
+        self.tenant_context = tenant_context
+
+    def register_evidence(
+        self,
+        *,
+        payment_attempt_id: UUID,
+        storage_object_key: str | None = None,
+        original_filename: str | None = None,
+        content_type: str | None = None,
+        uploaded_channel: str | None = None,
+        notes: str | None = None,
+    ) -> PaymentEvidence:
+        attempt = self.session.get(PaymentAttempt, payment_attempt_id)
+        if attempt is None:
+            raise ResourceNotFound("Payment attempt not found.")
+        if attempt.method != "transfer":
+            raise BusinessRuleViolation("Evidence can only be registered for transfer payment attempts.")
+        if attempt.status not in EVIDENCE_REGISTRATION_STATUSES:
+            raise BusinessRuleViolation("Payment attempt status does not allow evidence registration.")
+
+        received_at = datetime.now(timezone.utc)
+        evidence = PaymentEvidence(
+            payment_attempt_id=attempt.id,
+            storage_object_key=storage_object_key,
+            original_filename=original_filename,
+            content_type=content_type,
+            uploaded_at=received_at,
+            uploaded_channel=uploaded_channel,
+            notes=notes,
+        )
+        if attempt.evidence_received_at is None:
+            attempt.evidence_received_at = received_at
+        attempt.status = "evidence_received"
+        self.session.add(evidence)
+        return evidence
