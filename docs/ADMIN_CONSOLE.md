@@ -18,6 +18,47 @@ El bot no puede funcionar correctamente sin datos maestros.
 - React Hook Form.
 - Zod.
 
+## 3. Principios de UX/UI para la Consola Administrativa
+
+La consola administrativa de TotalChat/MediChat no debe ser una interfaz meramente técnica ni una simple exposición de endpoints del backend. Debe ser una herramienta profesional, agradable, clara y fácil de usar para usuarios administrativos reales de consultorios, profesionales de salud, clínicas y organizaciones.
+
+La consola debe ocultar la complejidad técnica del backend y presentar una experiencia operativa comprensible. Los identificadores internos como UUIDs pueden existir en la base de datos y en la API, pero no deben ser la forma normal en que el usuario interactúa con el sistema.
+
+### Reglas obligatorias
+
+1. La interfaz debe tener una estética profesional, moderna, limpia y sobria.
+2. Los colores deben transmitir confianza, seriedad y claridad operativa.
+3. La navegación debe ser clara, accesible y consistente.
+4. Los menús deben organizarse según la operación real del usuario, no según la estructura técnica interna.
+5. Los formularios no deben exigir que el usuario digite UUIDs para relacionar entidades.
+6. Toda relación entre tablas debe resolverse mediante controles amigables como select, dropdown, searchable select, autocomplete o selector asistido.
+7. Las listas deben mostrar nombres legibles, estados claros y acciones visibles.
+8. Los formularios deben tener labels claros, validación amigable, mensajes de error comprensibles y valores por defecto razonables.
+9. La consola debe usar componentes reutilizables para mantener consistencia visual y funcional.
+10. La experiencia debe priorizar facilidad de uso, reducción de errores y operación diaria fluida.
+
+### Ejemplos
+
+Cuando un formulario necesite seleccionar una organización, sede, consultorio, profesional, especialidad, servicio, pagador, plan o cita, la interfaz debe mostrar nombres legibles y opciones buscables.
+
+No se debe pedir al usuario algo como:
+
+```text
+organization_id = a975b09e-9e45-4ab2-afa4-e81e1e3c6178
+```
+
+La interfaz debe mostrar algo como:
+
+```text
+Organización: Clínica Vida
+```
+
+y resolver internamente el UUID correspondiente.
+
+### Criterio rector
+
+La consola administrativa debe sentirse como un producto SaaS profesional, no como una herramienta técnica interna. El usuario debe poder administrar su operación sin conocer detalles internos de base de datos, UUIDs, rutas API o nombres de tablas.
+
 ## 3. Autenticación
 
 Recomendación:
