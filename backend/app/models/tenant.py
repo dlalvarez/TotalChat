@@ -24,6 +24,7 @@ class Organization(TimestampMixin, Base):
     locations: Mapped[list["Location"]] = relationship(back_populates="organization")
     practitioner_services: Mapped[list["PractitionerService"]] = relationship(back_populates="organization")
     bookings: Mapped[list["Booking"]] = relationship(back_populates="organization")
+    payment_settings: Mapped[list["PaymentSettings"]] = relationship(back_populates="organization")
 
 
 class Location(TimestampMixin, Base):
@@ -266,3 +267,78 @@ class Booking(TimestampMixin, Base):
     admin_cancellation_reason: Mapped[str | None] = mapped_column(Text)
     admin_reschedule_reason: Mapped[str | None] = mapped_column(Text)
     organization: Mapped[Organization] = relationship(back_populates="bookings")
+    payment_attempts: Mapped[list["PaymentAttempt"]] = relationship(back_populates="booking")
+
+
+PAYMENT_METHOD_VALUES = ("transfer", "simulated", "pay_on_site")
+PAYMENT_ATTEMPT_STATUS_VALUES = (
+    "pending",
+    "evidence_required",
+    "evidence_received",
+    "under_review",
+    "approved",
+    "rejected",
+    "expired",
+    "cancelled",
+    "simulated_approved",
+)
+PAYMENT_REVIEW_DECISION_VALUES = ("approved", "rejected")
+
+
+class PaymentSettings(TimestampMixin, Base):
+    __tablename__ = "payment_settings"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    allow_transfer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    allow_simulated_payment: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    allow_pay_on_site: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    evidence_deadline_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
+    manual_review_deadline_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=1440, server_default="1440")
+    release_slot_on_missing_evidence: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    release_slot_on_review_overdue: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
+    organization: Mapped[Organization] = relationship(back_populates="payment_settings")
+
+
+class PaymentAttempt(TimestampMixin, Base):
+    __tablename__ = "payment_attempts"
+    __table_args__ = (Index("ix_payment_attempts_booking_id", "booking_id"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
+    method: Mapped[str] = mapped_column(String(32), nullable=False, comment="Expected values: transfer, simulated, pay_on_site")
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending", server_default="pending", comment="Expected values: pending, evidence_required, evidence_received, under_review, approved, rejected, expired, cancelled, simulated_approved")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evidence_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    booking: Mapped[Booking] = relationship(back_populates="payment_attempts")
+    evidence: Mapped[list["PaymentEvidence"]] = relationship(back_populates="payment_attempt")
+    reviews: Mapped[list["PaymentReview"]] = relationship(back_populates="payment_attempt")
+
+
+class PaymentEvidence(TimestampMixin, Base):
+    __tablename__ = "payment_evidence"
+    __table_args__ = (Index("ix_payment_evidence_payment_attempt_id", "payment_attempt_id"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    payment_attempt_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("payment_attempts.id"), nullable=False)
+    storage_object_key: Mapped[str | None] = mapped_column(Text)
+    original_filename: Mapped[str | None] = mapped_column(String(255))
+    content_type: Mapped[str | None] = mapped_column(String(120))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    uploaded_channel: Mapped[str | None] = mapped_column(String(50))
+    notes: Mapped[str | None] = mapped_column(Text)
+    payment_attempt: Mapped[PaymentAttempt] = relationship(back_populates="evidence")
+
+
+class PaymentReview(TimestampMixin, Base):
+    __tablename__ = "payment_reviews"
+    __table_args__ = (Index("ix_payment_reviews_payment_attempt_id", "payment_attempt_id"),)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    payment_attempt_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("payment_attempts.id"), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False, comment="Expected values: approved, rejected")
+    reviewer_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    notes: Mapped[str | None] = mapped_column(Text)
+    payment_attempt: Mapped[PaymentAttempt] = relationship(back_populates="reviews")

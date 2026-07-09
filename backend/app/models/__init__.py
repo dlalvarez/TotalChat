@@ -7,6 +7,10 @@ from app.models.tenant import (
     Organization,
     Patient,
     PatientContact,
+    PaymentAttempt,
+    PaymentEvidence,
+    PaymentReview,
+    PaymentSettings,
     PatientPayerProfile,
     Payer,
     PayerPlan,
@@ -25,4 +29,5 @@ __all__ = [
     "Organization", "Location", "Room", "Practitioner", "Specialty", "PractitionerSpecialty",
     "PractitionerService", "ServiceModality", "PayerType", "Payer", "PayerPlan",
     "PractitionerServicePrice", "Patient", "PatientContact", "PatientPayerProfile", "AvailabilityRule", "AvailabilityException", "Booking",
+    "PaymentSettings", "PaymentAttempt", "PaymentEvidence", "PaymentReview",
 ]

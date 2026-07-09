@@ -73,3 +73,23 @@ def test_booking_can_hold_minimum_patient_and_snapshot_values() -> None:
     )
     assert booking.service_name_snapshot == "Consulta psicológica"
     assert booking.price_snapshot == Decimal("120000.00")
+
+
+def test_payment_domain_models_are_registered_without_public_schema() -> None:
+    expected = {"payment_settings", "payment_attempts", "payment_evidence", "payment_reviews"}
+    assert expected.issubset(Base.metadata.tables.keys())
+    assert all(f"public.{table_name}" not in Base.metadata.tables for table_name in expected)
+
+
+def test_payment_domain_foreign_keys_and_defaults() -> None:
+    from app.models.tenant import PaymentAttempt, PaymentEvidence, PaymentReview, PaymentSettings
+
+    attempt_fks = {fk.column.table.name for fk in PaymentAttempt.__table__.columns["booking_id"].foreign_keys}
+    evidence_fks = {fk.column.table.name for fk in PaymentEvidence.__table__.columns["payment_attempt_id"].foreign_keys}
+    review_fks = {fk.column.table.name for fk in PaymentReview.__table__.columns["payment_attempt_id"].foreign_keys}
+
+    assert attempt_fks == {"bookings"}
+    assert evidence_fks == {"payment_attempts"}
+    assert review_fks == {"payment_attempts"}
+    assert PaymentSettings.__table__.columns["release_slot_on_review_overdue"].default.arg is False
+    assert str(PaymentSettings.__table__.columns["release_slot_on_review_overdue"].server_default.arg) == "false"
