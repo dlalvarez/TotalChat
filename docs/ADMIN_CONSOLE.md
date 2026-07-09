@@ -317,3 +317,11 @@ bloqueados por falta de contacto
 mensaje final
 usuario responsable
 ```
+
+## 6. Fase 6B.1 — Organizaciones y Sedes funcionales
+
+La Fase 6B.1 convierte Organizaciones y Sedes en los primeros módulos funcionales reales de la consola administrativa. Esta fase mantiene la autenticación como placeholder, pero establece el patrón reutilizable para los siguientes CRUD: cliente API frontend configurable por `VITE_TOTALCHAT_API_BASE_URL`, envío del header `X-TotalChat-Tenant-Id`, manejo amigable de errores, consultas y mutaciones con TanStack Query, y formularios con React Hook Form + Zod.
+
+Organizaciones y Sedes consumen los endpoints backend existentes bajo `/api/admin`. La creación de Sedes usa un selector de Organización con nombres legibles obtenido desde datos reales del backend; el UUID de la organización se conserva únicamente como valor interno enviado a la API.
+
+Los UUIDs de tenant, organización y otras relaciones siguen siendo identificadores internos. No deben solicitarse como entrada normal a usuarios administrativos.

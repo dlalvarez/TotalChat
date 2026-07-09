@@ -146,6 +146,9 @@ Antes de aprobar un PR, verificar:
 [ ] Maneja errores de API.
 [ ] No expone secretos.
 [ ] Usa términos consistentes con docs.
+[ ] Los CRUD no piden UUIDs al usuario para relaciones.
+[ ] Los campos relacionales usan selectores amigables con nombres legibles.
+[ ] Las listas muestran etiquetas humanas antes que identificadores internos.
 ```
 
 ## 13. Resultado de revisión

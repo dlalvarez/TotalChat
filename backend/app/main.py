@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 
 from app.api.admin import router as admin_router
@@ -17,6 +18,16 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description="Multi-tenant conversational SaaS platform API.",
     )
+
+    cors_origins = [origin.strip() for origin in settings.admin_cors_origins.split(',') if origin.strip()]
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=['*'],
+            allow_headers=['*'],
+        )
 
     app.add_exception_handler(DomainError, domain_error_handler)
     app.add_exception_handler(HTTPException, http_error_handler)

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { FieldWrapper, Input, Select } from '../../components/ui/Form';
+import { DEVELOPMENT_TENANTS } from '../../config/tenant';
 
 const schema = z.object({
   email: z.string().email('Ingresa un correo válido'),
@@ -13,14 +14,14 @@ const schema = z.object({
 
 type LoginForm = z.infer<typeof schema>;
 
-export function LoginPage({ onLogin }: { onLogin: () => void }) {
+export function LoginPage({ onLogin }: { onLogin: (tenantId: string) => void }) {
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginForm>({
     resolver: zodResolver(schema),
-    defaultValues: { email: 'admin@clinica-demo.test', tenant: 'clinica-demo' },
+    defaultValues: { email: 'admin@clinica-demo.test', tenant: DEVELOPMENT_TENANTS[0].id },
   });
 
   return (
@@ -45,7 +46,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
         <p className="mt-2 text-sm text-slate-500">
           Flujo placeholder preparado para email/password, JWT y selector de tenant futuro.
         </p>
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit(onLogin)}>
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit((values) => onLogin(values.tenant))}>
           <FieldWrapper label="Correo" error={errors.email?.message}>
             <Input {...register('email')} />
           </FieldWrapper>
@@ -54,8 +55,11 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           </FieldWrapper>
           <FieldWrapper label="Tenant" hint="Selector amigable; el identificador técnico queda interno.">
             <Select {...register('tenant')}>
-              <option value="clinica-demo">Clínica demo</option>
-              <option value="consultorio-norte">Consultorio Norte</option>
+              {DEVELOPMENT_TENANTS.map((tenant) => (
+                <option key={tenant.id} value={tenant.id}>
+                  {tenant.label} · {tenant.environmentNote}
+                </option>
+              ))}
             </Select>
           </FieldWrapper>
           <Button className="w-full" type="submit">
