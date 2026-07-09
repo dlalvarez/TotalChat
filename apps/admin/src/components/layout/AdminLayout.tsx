@@ -23,10 +23,12 @@ export function AdminLayout({
   children,
   active = 'Dashboard',
   onNavigate,
+  tenantLabel = 'Clínica demo',
 }: {
   children: ReactNode;
   active?: string;
   onNavigate: (item: string) => void;
+  tenantLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -70,7 +72,7 @@ export function AdminLayout({
         </nav>
 
         <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
-          <strong className="text-slate-700">Fase 6A:</strong> CRUD completo diferido para Fase 6B–6E.
+          <strong className="text-slate-700">Fase 6B.1:</strong> Organizaciones y Sedes funcionales; demás CRUD diferidos.
         </div>
       </aside>
 
@@ -83,7 +85,7 @@ export function AdminLayout({
               </Button>
               <div>
                 <p className="text-sm text-slate-500">Tenant activo</p>
-                <p className="font-semibold text-slate-950">Clínica demo · selector futuro</p>
+                <p className="font-semibold text-slate-950">{tenantLabel} · selector dev</p>
               </div>
             </div>
             <div className="hidden items-center gap-3 sm:flex">

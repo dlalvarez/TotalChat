@@ -7,6 +7,9 @@ import { EmptyState, ErrorState, LoadingState } from './components/ui/States';
 import { Button } from './components/ui/Button';
 import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { OrganizationsPage } from './features/organizations/OrganizationsPage';
+import { LocationsPage } from './features/locations/LocationsPage';
+import { DEFAULT_DEVELOPMENT_TENANT, DEVELOPMENT_TENANTS } from './config/tenant';
 
 function PlaceholderPage({ name }: { name: string }) {
   return (
@@ -18,7 +21,7 @@ function PlaceholderPage({ name }: { name: string }) {
         actions={<Button variant="secondary">Acción futura</Button>}
       />
       <SectionCard
-        title={`${name} · sin CRUD en Fase 6A`}
+        title={`${name} · sin CRUD en Fase 6B.1`}
         description="Este espacio valida shell, jerarquía visual y estados base sin modificar comportamiento backend."
       >
         <div className="grid gap-4 lg:grid-cols-3">
@@ -38,20 +41,27 @@ function PlaceholderPage({ name }: { name: string }) {
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [active, setActive] = useState('Dashboard');
+  const [tenant, setTenant] = useState(DEFAULT_DEVELOPMENT_TENANT);
   const queryClient = useMemo(() => new QueryClient(), []);
 
   if (!authenticated) {
     return (
       <QueryClientProvider client={queryClient}>
-        <LoginPage onLogin={() => setAuthenticated(true)} />
+        <LoginPage onLogin={(tenantId) => {
+          setTenant(DEVELOPMENT_TENANTS.find((candidate) => candidate.id === tenantId) ?? DEFAULT_DEVELOPMENT_TENANT);
+          setAuthenticated(true);
+        }} />
       </QueryClientProvider>
     );
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AdminLayout active={active} onNavigate={setActive}>
-        {active === 'Dashboard' ? <DashboardPage /> : <PlaceholderPage name={active} />}
+      <AdminLayout active={active} onNavigate={setActive} tenantLabel={tenant.label}>
+        {active === 'Dashboard' ? <DashboardPage /> : null}
+        {active === 'Organizaciones' ? <OrganizationsPage tenant={tenant} /> : null}
+        {active === 'Sedes' ? <LocationsPage tenant={tenant} /> : null}
+        {!['Dashboard', 'Organizaciones', 'Sedes'].includes(active) ? <PlaceholderPage name={active} /> : null}
       </AdminLayout>
     </QueryClientProvider>
   );
