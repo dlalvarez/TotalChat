@@ -55,6 +55,9 @@ def test_booking_domain_migration_creates_tables_in_tenant_schema_only() -> None
     assert "public.payment_attempts" not in sql
     assert "public.payment_evidence" not in sql
     assert "public.payment_reviews" not in sql
+    assert "public.ix_payment_attempts_booking_id" not in sql
+    assert "public.ix_payment_evidence_payment_attempt_id" not in sql
+    assert "public.ix_payment_reviews_payment_attempt_id" not in sql
 
 
 def test_booking_domain_migration_rejects_invalid_schema_name() -> None:
@@ -107,12 +110,21 @@ def test_manual_payments_migration_creates_tables_in_tenant_schema_only() -> Non
     assert 'FOREIGN KEY(organization_id) REFERENCES "tenant_alpha".organizations (id)' in sql
     assert 'FOREIGN KEY(booking_id) REFERENCES "tenant_alpha".bookings (id)' in sql
     assert 'FOREIGN KEY(payment_attempt_id) REFERENCES "tenant_alpha".payment_attempts (id)' in sql
+    assert "CREATE INDEX IF NOT EXISTS ix_payment_attempts_booking_id" in sql
+    assert 'ON "tenant_alpha".payment_attempts (booking_id)' in sql
+    assert "CREATE INDEX IF NOT EXISTS ix_payment_evidence_payment_attempt_id" in sql
+    assert 'ON "tenant_alpha".payment_evidence (payment_attempt_id)' in sql
+    assert "CREATE INDEX IF NOT EXISTS ix_payment_reviews_payment_attempt_id" in sql
+    assert 'ON "tenant_alpha".payment_reviews (payment_attempt_id)' in sql
     assert "release_slot_on_review_overdue BOOLEAN DEFAULT false NOT NULL" in sql
     assert "006_manual_simulated_payments" in sql
     assert "public.payment_settings" not in sql
     assert "public.payment_attempts" not in sql
     assert "public.payment_evidence" not in sql
     assert "public.payment_reviews" not in sql
+    assert "public.ix_payment_attempts_booking_id" not in sql
+    assert "public.ix_payment_evidence_payment_attempt_id" not in sql
+    assert "public.ix_payment_reviews_payment_attempt_id" not in sql
 
 
 def test_manual_payments_migration_rejects_invalid_schema_name() -> None:

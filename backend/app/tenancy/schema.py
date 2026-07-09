@@ -227,6 +227,14 @@ def apply_manual_payments_tenant_migration(connection: Connection, schema_name: 
     connection.execute(
         text(
             f'''
+            CREATE INDEX IF NOT EXISTS ix_payment_attempts_booking_id
+            ON "{schema_name}".payment_attempts (booking_id)
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
             CREATE TABLE IF NOT EXISTS "{schema_name}".payment_evidence (
                 id UUID NOT NULL,
                 payment_attempt_id UUID NOT NULL,
@@ -247,6 +255,14 @@ def apply_manual_payments_tenant_migration(connection: Connection, schema_name: 
     connection.execute(
         text(
             f'''
+            CREATE INDEX IF NOT EXISTS ix_payment_evidence_payment_attempt_id
+            ON "{schema_name}".payment_evidence (payment_attempt_id)
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
             CREATE TABLE IF NOT EXISTS "{schema_name}".payment_reviews (
                 id UUID NOT NULL,
                 payment_attempt_id UUID NOT NULL,
@@ -259,6 +275,14 @@ def apply_manual_payments_tenant_migration(connection: Connection, schema_name: 
                 PRIMARY KEY (id),
                 FOREIGN KEY(payment_attempt_id) REFERENCES "{schema_name}".payment_attempts (id)
             )
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            CREATE INDEX IF NOT EXISTS ix_payment_reviews_payment_attempt_id
+            ON "{schema_name}".payment_reviews (payment_attempt_id)
             '''
         )
     )
