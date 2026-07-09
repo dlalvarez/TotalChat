@@ -17,6 +17,7 @@ from app.models.tenant import (
     Patient,
     PatientPayerProfile,
     PaymentAttempt,
+    PaymentEvidence,
     PaymentSettings,
     Payer,
     PayerPlan,
@@ -30,7 +31,7 @@ from app.models.tenant import (
     Specialty,
 )
 from app.services.errors import BusinessRuleViolation, ConflictError, DomainValidationError, ResourceNotFound
-from app.services.payments import PAYMENT_ATTEMPT_METHODS, PAYMENT_ATTEMPT_STATUSES, PaymentAttemptService
+from app.services.payments import PAYMENT_ATTEMPT_METHODS, PAYMENT_ATTEMPT_STATUSES, PaymentAttemptService, PaymentEvidenceService
 from app.tenancy.context import TenantContext
 
 router = APIRouter(tags=["admin-resources"])
@@ -250,6 +251,16 @@ class CreatePaymentAttemptRequest(BaseModel):
         return value
 
 
+class RegisterPaymentEvidenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    storage_object_key: str | None = None
+    original_filename: str | None = None
+    content_type: str | None = None
+    uploaded_channel: str | None = None
+    notes: str | None = None
+
+
 class CreatePatientRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -346,6 +357,19 @@ def serialize_payment_attempt(attempt: PaymentAttempt) -> dict[str, object]:
         "evidence_received_at": attempt.evidence_received_at.isoformat() if attempt.evidence_received_at is not None else None,
         "reviewed_at": attempt.reviewed_at.isoformat() if attempt.reviewed_at is not None else None,
         "reviewed_by_user_id": str(attempt.reviewed_by_user_id) if attempt.reviewed_by_user_id is not None else None,
+    }
+
+
+def serialize_payment_evidence(evidence: PaymentEvidence) -> dict[str, object]:
+    return {
+        "id": str(evidence.id),
+        "payment_attempt_id": str(evidence.payment_attempt_id),
+        "storage_object_key": evidence.storage_object_key,
+        "original_filename": evidence.original_filename,
+        "content_type": evidence.content_type,
+        "uploaded_at": evidence.uploaded_at.isoformat(),
+        "uploaded_channel": evidence.uploaded_channel,
+        "notes": evidence.notes,
     }
 
 
@@ -974,6 +998,44 @@ def list_payment_attempts(
         stmt = stmt.where(PaymentAttempt.status == status)
     attempts = session.scalars(stmt.order_by(PaymentAttempt.created_at, PaymentAttempt.id)).all()
     return {"data": [serialize_payment_attempt(attempt) for attempt in attempts]}
+
+
+@router.post("/payment-attempts/{payment_attempt_id}/evidence")
+def register_payment_evidence(
+    payment_attempt_id: UUID,
+    payload: RegisterPaymentEvidenceRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    try:
+        evidence = PaymentEvidenceService(session, tenant_context).register_evidence(
+            payment_attempt_id=payment_attempt_id,
+            **payload.model_dump(),
+        )
+        session.commit()
+        session.refresh(evidence)
+        attempt = session.get(PaymentAttempt, payment_attempt_id)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": {"payment_attempt": serialize_payment_attempt(attempt), "evidence": serialize_payment_evidence(evidence)}}
+
+
+@router.get("/payment-attempts/{payment_attempt_id}/evidence")
+def list_payment_evidence(
+    payment_attempt_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if session.get(PaymentAttempt, payment_attempt_id) is None:
+        raise ResourceNotFound("Payment attempt not found.")
+    evidence_rows = session.scalars(
+        select(PaymentEvidence)
+        .where(PaymentEvidence.payment_attempt_id == payment_attempt_id)
+        .order_by(PaymentEvidence.uploaded_at, PaymentEvidence.id)
+    ).all()
+    return {"data": [serialize_payment_evidence(evidence) for evidence in evidence_rows]}
 
 
 @router.post("/payment-settings")
