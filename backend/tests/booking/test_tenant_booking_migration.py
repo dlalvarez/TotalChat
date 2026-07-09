@@ -8,6 +8,7 @@ from app.tenancy.schema import (
     apply_admin_reschedule_reason_tenant_migration,
     apply_booking_domain_tenant_migration,
     apply_patient_payer_profiles_tenant_migration,
+    apply_manual_payments_tenant_migration,
 )
 
 
@@ -45,6 +46,15 @@ def test_booking_domain_migration_creates_tables_in_tenant_schema_only() -> None
     assert '"public".patient_payer_profiles' not in sql
     assert "public.patient_payer_profiles" not in sql
     assert "005_patient_payer_profiles" in sql
+    assert sql.index("005_patient_payer_profiles") < sql.index("006_manual_simulated_payments")
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_settings' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_attempts' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_evidence' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_reviews' in sql
+    assert "public.payment_settings" not in sql
+    assert "public.payment_attempts" not in sql
+    assert "public.payment_evidence" not in sql
+    assert "public.payment_reviews" not in sql
 
 
 def test_booking_domain_migration_rejects_invalid_schema_name() -> None:
@@ -83,3 +93,28 @@ def test_patient_payer_profiles_migration_creates_table_in_tenant_schema_only() 
 def test_patient_payer_profiles_migration_rejects_invalid_schema_name() -> None:
     with pytest.raises(ValueError):
         apply_patient_payer_profiles_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
+
+
+def test_manual_payments_migration_creates_tables_in_tenant_schema_only() -> None:
+    connection = RecordingConnection()
+    apply_manual_payments_tenant_migration(connection, "tenant_alpha")  # type: ignore[arg-type]
+
+    sql = "\n".join(connection.statements)
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_settings' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_attempts' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_evidence' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".payment_reviews' in sql
+    assert 'FOREIGN KEY(organization_id) REFERENCES "tenant_alpha".organizations (id)' in sql
+    assert 'FOREIGN KEY(booking_id) REFERENCES "tenant_alpha".bookings (id)' in sql
+    assert 'FOREIGN KEY(payment_attempt_id) REFERENCES "tenant_alpha".payment_attempts (id)' in sql
+    assert "release_slot_on_review_overdue BOOLEAN DEFAULT false NOT NULL" in sql
+    assert "006_manual_simulated_payments" in sql
+    assert "public.payment_settings" not in sql
+    assert "public.payment_attempts" not in sql
+    assert "public.payment_evidence" not in sql
+    assert "public.payment_reviews" not in sql
+
+
+def test_manual_payments_migration_rejects_invalid_schema_name() -> None:
+    with pytest.raises(ValueError):
+        apply_manual_payments_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
