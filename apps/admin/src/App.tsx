@@ -9,6 +9,8 @@ import { LoginPage } from './features/auth/LoginPage';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { OrganizationsPage } from './features/organizations/OrganizationsPage';
 import { LocationsPage } from './features/locations/LocationsPage';
+import { RoomsPage } from './features/rooms/RoomsPage';
+import { PractitionersPage } from './features/practitioners/PractitionersPage';
 import { DEFAULT_DEVELOPMENT_TENANT, DEVELOPMENT_TENANTS } from './config/tenant';
 
 function PlaceholderPage({ name }: { name: string }) {
@@ -21,7 +23,7 @@ function PlaceholderPage({ name }: { name: string }) {
         actions={<Button variant="secondary">Acción futura</Button>}
       />
       <SectionCard
-        title={`${name} · sin CRUD en Fase 6B.1`}
+        title={`${name} · diferido a fases posteriores`}
         description="Este espacio valida shell, jerarquía visual y estados base sin modificar comportamiento backend."
       >
         <div className="grid gap-4 lg:grid-cols-3">
@@ -61,7 +63,9 @@ export default function App() {
         {active === 'Dashboard' ? <DashboardPage /> : null}
         {active === 'Organizaciones' ? <OrganizationsPage tenant={tenant} /> : null}
         {active === 'Sedes' ? <LocationsPage tenant={tenant} /> : null}
-        {!['Dashboard', 'Organizaciones', 'Sedes'].includes(active) ? <PlaceholderPage name={active} /> : null}
+        {active === 'Consultorios' ? <RoomsPage tenant={tenant} /> : null}
+        {active === 'Profesionales' ? <PractitionersPage tenant={tenant} /> : null}
+        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales'].includes(active) ? <PlaceholderPage name={active} /> : null}
       </AdminLayout>
     </QueryClientProvider>
   );

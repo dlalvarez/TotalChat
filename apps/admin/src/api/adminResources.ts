@@ -42,6 +42,40 @@ export type CreateLocationPayload = {
   is_virtual: boolean;
 };
 
+export type Room = {
+  id: string;
+  location_id: string;
+  name: string;
+  room_type: string | null;
+  capacity: number | null;
+  status: string;
+};
+
+export type CreateRoomPayload = {
+  location_id: string;
+  name: string;
+  room_type?: string | null;
+  capacity?: number | null;
+};
+
+export type Practitioner = {
+  id: string;
+  full_name: string;
+  professional_type: string | null;
+  professional_license: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string;
+};
+
+export type CreatePractitionerPayload = {
+  full_name: string;
+  professional_type?: string | null;
+  professional_license?: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
 export const adminResourcesApi = {
   listOrganizations: (tenantId: string) =>
     apiRequest<Organization[]>('/api/admin/organizations', { tenantId }),
@@ -54,6 +88,21 @@ export const adminResourcesApi = {
   listLocations: (tenantId: string) => apiRequest<Location[]>('/api/admin/locations', { tenantId }),
   createLocation: (tenantId: string, payload: CreateLocationPayload) =>
     apiRequest<Location>('/api/admin/locations', {
+      tenantId,
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  listRooms: (tenantId: string) => apiRequest<Room[]>('/api/admin/rooms', { tenantId }),
+  createRoom: (tenantId: string, payload: CreateRoomPayload) =>
+    apiRequest<Room>('/api/admin/rooms', {
+      tenantId,
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  listPractitioners: (tenantId: string) =>
+    apiRequest<Practitioner[]>('/api/admin/practitioners', { tenantId }),
+  createPractitioner: (tenantId: string, payload: CreatePractitionerPayload) =>
+    apiRequest<Practitioner>('/api/admin/practitioners', {
       tenantId,
       method: 'POST',
       body: JSON.stringify(payload),
