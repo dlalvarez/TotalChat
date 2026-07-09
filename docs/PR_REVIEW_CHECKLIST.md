@@ -72,6 +72,17 @@ Antes de aprobar un PR, verificar:
 [ ] Registra auditoría de revisión.
 ```
 
+## 6.1. Pagos manuales/simulados
+
+```text
+[ ] No implementa Wompi antes de la fase de pasarela aprobada.
+[ ] No permite que IA apruebe pagos.
+[ ] Evidencia recibida protege el slot.
+[ ] Review overdue no libera slot por defecto.
+[ ] Cambios de pago preservan el historial de auditoría.
+[ ] Cambios de estado de cita pasan por servicios de dominio.
+```
+
 ## 7. Recordatorios
 
 ```text
