@@ -7,12 +7,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import Booking, PaymentAttempt, PaymentEvidence, PaymentSettings
+from app.models.tenant import Booking, PaymentAttempt, PaymentEvidence, PaymentReview, PaymentSettings
 from app.services.errors import BusinessRuleViolation, DomainValidationError, ResourceNotFound
 from app.tenancy.context import TenantContext
 
 PAYMENT_ATTEMPT_METHODS = {"transfer", "simulated", "pay_on_site"}
 EVIDENCE_REGISTRATION_STATUSES = {"evidence_required"}
+PAYMENT_REVIEW_DECISIONS = {"approved", "rejected"}
+PAYMENT_REVIEW_ALLOWED_STATUSES = {"evidence_received"}
 
 PAYMENT_ATTEMPT_STATUSES = {
     "pending",
@@ -135,3 +137,73 @@ class PaymentEvidenceService:
         attempt.status = "evidence_received"
         self.session.add(evidence)
         return evidence
+
+
+class PaymentReviewService:
+    """Backend-owned manual administrative payment review rules for Spec 007 PR 24."""
+
+    def __init__(self, session: Session, tenant_context: TenantContext):
+        if tenant_context is None:
+            raise DomainValidationError("PaymentReviewService requires explicit TenantContext")
+        self.session = session
+        self.tenant_context = tenant_context
+
+    def approve_attempt(
+        self,
+        *,
+        payment_attempt_id: UUID,
+        reviewer_user_id: UUID | None = None,
+        notes: str | None = None,
+    ) -> PaymentReview:
+        return self._review_attempt(
+            payment_attempt_id=payment_attempt_id,
+            decision="approved",
+            reviewer_user_id=reviewer_user_id,
+            notes=notes,
+        )
+
+    def reject_attempt(
+        self,
+        *,
+        payment_attempt_id: UUID,
+        reviewer_user_id: UUID | None = None,
+        notes: str | None = None,
+    ) -> PaymentReview:
+        return self._review_attempt(
+            payment_attempt_id=payment_attempt_id,
+            decision="rejected",
+            reviewer_user_id=reviewer_user_id,
+            notes=notes,
+        )
+
+    def _review_attempt(
+        self,
+        *,
+        payment_attempt_id: UUID,
+        decision: str,
+        reviewer_user_id: UUID | None,
+        notes: str | None,
+    ) -> PaymentReview:
+        if decision not in PAYMENT_REVIEW_DECISIONS:
+            raise DomainValidationError("Payment review decision must be approved or rejected.")
+        attempt = self.session.get(PaymentAttempt, payment_attempt_id)
+        if attempt is None:
+            raise ResourceNotFound("Payment attempt not found.")
+        if attempt.method != "transfer":
+            raise BusinessRuleViolation("Manual review is only allowed for transfer payment attempts.")
+        if attempt.status not in PAYMENT_REVIEW_ALLOWED_STATUSES:
+            raise BusinessRuleViolation("Payment attempt status does not allow manual review.")
+
+        reviewed_at = datetime.now(timezone.utc)
+        review = PaymentReview(
+            payment_attempt_id=attempt.id,
+            decision=decision,
+            reviewer_user_id=reviewer_user_id,
+            reviewed_at=reviewed_at,
+            notes=notes,
+        )
+        attempt.status = decision
+        attempt.reviewed_at = reviewed_at
+        attempt.reviewed_by_user_id = reviewer_user_id
+        self.session.add(review)
+        return review
