@@ -16,6 +16,7 @@ from app.models.tenant import (
     Organization,
     Patient,
     PatientPayerProfile,
+    PaymentSettings,
     Payer,
     PayerPlan,
     PayerType,
@@ -182,6 +183,47 @@ class CreatePractitionerServicePriceRequest(BaseModel):
         return self
 
 
+class CreatePaymentSettingsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    organization_id: UUID
+    allow_transfer: bool = True
+    allow_simulated_payment: bool = True
+    allow_pay_on_site: bool = False
+    evidence_deadline_minutes: int = Field(default=60, gt=0)
+    manual_review_deadline_minutes: int = Field(default=1440, gt=0)
+    release_slot_on_missing_evidence: bool = True
+    release_slot_on_review_overdue: bool = False
+    status: str = "active"
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        if value not in {"active", "inactive"}:
+            raise ValueError("status must be active or inactive")
+        return value
+
+
+class PatchPaymentSettingsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    allow_transfer: bool | None = None
+    allow_simulated_payment: bool | None = None
+    allow_pay_on_site: bool | None = None
+    evidence_deadline_minutes: int | None = Field(default=None, gt=0)
+    manual_review_deadline_minutes: int | None = Field(default=None, gt=0)
+    release_slot_on_missing_evidence: bool | None = None
+    release_slot_on_review_overdue: bool | None = None
+    status: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"active", "inactive"}:
+            raise ValueError("status must be active or inactive")
+        return value
+
+
 class CreatePatientRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -248,6 +290,21 @@ def serialize_practitioner_service_price(price: PractitionerServicePrice) -> dic
         "valid_from": price.valid_from.isoformat(),
         "valid_to": price.valid_to.isoformat() if price.valid_to is not None else None,
         "status": price.status,
+    }
+
+
+def serialize_payment_settings(settings: PaymentSettings) -> dict[str, object]:
+    return {
+        "id": str(settings.id),
+        "organization_id": str(settings.organization_id),
+        "allow_transfer": settings.allow_transfer,
+        "allow_simulated_payment": settings.allow_simulated_payment,
+        "allow_pay_on_site": settings.allow_pay_on_site,
+        "evidence_deadline_minutes": settings.evidence_deadline_minutes,
+        "manual_review_deadline_minutes": settings.manual_review_deadline_minutes,
+        "release_slot_on_missing_evidence": settings.release_slot_on_missing_evidence,
+        "release_slot_on_review_overdue": settings.release_slot_on_review_overdue,
+        "status": settings.status,
     }
 
 
@@ -836,3 +893,86 @@ def list_practitioner_service_prices(
         stmt = stmt.where(PractitionerServicePrice.status == status)
     prices = session.scalars(stmt.order_by(PractitionerServicePrice.valid_from, PractitionerServicePrice.payer_plan_id, PractitionerServicePrice.id)).all()
     return {"data": [serialize_practitioner_service_price(price) for price in prices]}
+
+
+@router.post("/payment-settings")
+def create_payment_settings(
+    payload: CreatePaymentSettingsRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    if session.get(Organization, payload.organization_id) is None:
+        raise ResourceNotFound("Organization not found.")
+    if payload.status == "active":
+        existing_active = session.scalar(
+            select(PaymentSettings).where(
+                PaymentSettings.organization_id == payload.organization_id,
+                PaymentSettings.status == "active",
+            )
+        )
+        if existing_active is not None:
+            raise ConflictError("Active payment settings already exist for this organization.")
+    settings = PaymentSettings(**payload.model_dump())
+    try:
+        session.add(settings)
+        session.commit()
+        session.refresh(settings)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payment_settings(settings)}
+
+
+@router.get("/payment-settings")
+def list_payment_settings(
+    organization_id: UUID | None = None,
+    status: str | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if status is not None and status not in {"active", "inactive"}:
+        raise DomainValidationError("status must be active or inactive")
+    stmt = select(PaymentSettings)
+    if organization_id is not None:
+        if session.get(Organization, organization_id) is None:
+            raise ResourceNotFound("Organization not found.")
+        stmt = stmt.where(PaymentSettings.organization_id == organization_id)
+    if status is not None:
+        stmt = stmt.where(PaymentSettings.status == status)
+    settings = session.scalars(stmt.order_by(PaymentSettings.created_at, PaymentSettings.id)).all()
+    return {"data": [serialize_payment_settings(item) for item in settings]}
+
+
+@router.patch("/payment-settings/{payment_settings_id}")
+def patch_payment_settings(
+    payment_settings_id: UUID,
+    payload: PatchPaymentSettingsRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    settings = session.get(PaymentSettings, payment_settings_id)
+    if settings is None:
+        raise ResourceNotFound("Payment settings not found.")
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("status") == "active" and settings.status != "active":
+        existing_active = session.scalar(
+            select(PaymentSettings).where(
+                PaymentSettings.organization_id == settings.organization_id,
+                PaymentSettings.status == "active",
+                PaymentSettings.id != settings.id,
+            )
+        )
+        if existing_active is not None:
+            raise ConflictError("Active payment settings already exist for this organization.")
+    for field, value in changes.items():
+        setattr(settings, field, value)
+    try:
+        session.commit()
+        session.refresh(settings)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payment_settings(settings)}
