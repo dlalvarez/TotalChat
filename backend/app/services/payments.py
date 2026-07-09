@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.tenant import Booking, PaymentAttempt, PaymentEvidence, PaymentReview, PaymentSettings
+from app.services.booking import BookingTransitionService
 from app.services.errors import BusinessRuleViolation, DomainValidationError, ResourceNotFound
 from app.tenancy.context import TenantContext
 
@@ -207,3 +209,126 @@ class PaymentReviewService:
         attempt.reviewed_by_user_id = reviewer_user_id
         self.session.add(review)
         return review
+
+
+@dataclass(frozen=True, slots=True)
+class PaymentExpiryResult:
+    payment_attempt: PaymentAttempt
+    action: str
+    booking_action: str
+
+
+class PaymentExpiryService:
+    """Backend-owned expiry and review-overdue rules for Spec 007 PR 25."""
+
+    def __init__(self, session: Session, tenant_context: TenantContext):
+        if tenant_context is None:
+            raise DomainValidationError("PaymentExpiryService requires explicit TenantContext")
+        self.session = session
+        self.tenant_context = tenant_context
+        self.booking_transition_service = BookingTransitionService()
+
+    def expire_missing_evidence(
+        self,
+        *,
+        payment_attempt_id: UUID,
+        force: bool = False,
+        notes: str | None = None,
+    ) -> PaymentExpiryResult:
+        attempt = self._get_transfer_attempt(
+            payment_attempt_id=payment_attempt_id,
+            required_status="evidence_required",
+        )
+        now = datetime.now(timezone.utc)
+        expires_at = self._as_aware(attempt.expires_at)
+        if not force and (expires_at is None or expires_at > now):
+            raise BusinessRuleViolation("Payment attempt has not reached its missing-evidence expiry deadline.")
+
+        attempt.status = "expired"
+        settings = self._active_settings_for_attempt(attempt)
+        booking_action = self._apply_release_policy(
+            attempt=attempt,
+            should_release=bool(settings and settings.release_slot_on_missing_evidence),
+            reason=notes or "Payment attempt expired without evidence.",
+        )
+        return PaymentExpiryResult(
+            payment_attempt=attempt,
+            action="expired_missing_evidence",
+            booking_action=booking_action,
+        )
+
+    def mark_review_overdue(
+        self,
+        *,
+        payment_attempt_id: UUID,
+        force: bool = False,
+        notes: str | None = None,
+    ) -> PaymentExpiryResult:
+        attempt = self._get_transfer_attempt(
+            payment_attempt_id=payment_attempt_id,
+            required_status="evidence_received",
+        )
+        settings = self._active_settings_for_attempt(attempt)
+        if settings is None:
+            raise BusinessRuleViolation("Active payment settings are required to evaluate review overdue deadline.")
+        now = datetime.now(timezone.utc)
+        evidence_received_at = self._as_aware(attempt.evidence_received_at)
+        deadline_at = (
+            None
+            if evidence_received_at is None
+            else evidence_received_at + timedelta(minutes=settings.manual_review_deadline_minutes)
+        )
+        if not force and (deadline_at is None or now < deadline_at):
+            raise BusinessRuleViolation("Payment attempt has not reached its manual-review overdue deadline.")
+
+        booking_action = self._apply_release_policy(
+            attempt=attempt,
+            should_release=settings.release_slot_on_review_overdue,
+            reason=notes or "Payment attempt manual review is overdue.",
+        )
+        return PaymentExpiryResult(
+            payment_attempt=attempt,
+            action="marked_review_overdue",
+            booking_action=booking_action,
+        )
+
+    def _get_transfer_attempt(self, *, payment_attempt_id: UUID, required_status: str) -> PaymentAttempt:
+        attempt = self.session.get(PaymentAttempt, payment_attempt_id)
+        if attempt is None:
+            raise ResourceNotFound("Payment attempt not found.")
+        if attempt.method != "transfer":
+            raise BusinessRuleViolation("Action is only allowed for transfer payment attempts.")
+        if attempt.status != required_status:
+            raise BusinessRuleViolation("Payment attempt status does not allow this action.")
+        return attempt
+
+    def _active_settings_for_attempt(self, attempt: PaymentAttempt) -> PaymentSettings | None:
+        booking = attempt.booking or self.session.get(Booking, attempt.booking_id)
+        if booking is None:
+            raise ResourceNotFound("Booking not found.")
+        return self.session.scalar(
+            select(PaymentSettings).where(
+                PaymentSettings.organization_id == booking.organization_id,
+                PaymentSettings.status == "active",
+            )
+        )
+
+    def _apply_release_policy(self, *, attempt: PaymentAttempt, should_release: bool, reason: str) -> str:
+        if not should_release:
+            return "not_applied_policy_disabled"
+        booking = attempt.booking or self.session.get(Booking, attempt.booking_id)
+        if booking is None:
+            raise ResourceNotFound("Booking not found.")
+        try:
+            self.booking_transition_service.transition(booking, "expired_no_evidence")
+        except BusinessRuleViolation:
+            return "not_applied_no_safe_domain_transition"
+        return "released_via_booking_transition_service"
+
+    @staticmethod
+    def _as_aware(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
