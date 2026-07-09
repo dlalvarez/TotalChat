@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -16,6 +16,7 @@ from app.models.tenant import (
     Organization,
     Patient,
     PatientPayerProfile,
+    PaymentAttempt,
     PaymentSettings,
     Payer,
     PayerPlan,
@@ -29,6 +30,7 @@ from app.models.tenant import (
     Specialty,
 )
 from app.services.errors import BusinessRuleViolation, ConflictError, DomainValidationError, ResourceNotFound
+from app.services.payments import PAYMENT_ATTEMPT_METHODS, PAYMENT_ATTEMPT_STATUSES, PaymentAttemptService
 from app.tenancy.context import TenantContext
 
 router = APIRouter(tags=["admin-resources"])
@@ -224,6 +226,30 @@ class PatchPaymentSettingsRequest(BaseModel):
         return value
 
 
+class CreatePaymentAttemptRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    booking_id: UUID
+    method: str
+    amount: Decimal = Field(ge=0)
+    currency: str
+    expires_at: datetime | None = None
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, value: str) -> str:
+        if value not in PAYMENT_ATTEMPT_METHODS:
+            raise ValueError("method must be one of transfer, simulated, pay_on_site")
+        return value
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str) -> str:
+        if len(value) != 3 or not value.isalpha() or value.upper() != value:
+            raise ValueError("currency must be a 3-letter uppercase code")
+        return value
+
+
 class CreatePatientRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -305,6 +331,21 @@ def serialize_payment_settings(settings: PaymentSettings) -> dict[str, object]:
         "release_slot_on_missing_evidence": settings.release_slot_on_missing_evidence,
         "release_slot_on_review_overdue": settings.release_slot_on_review_overdue,
         "status": settings.status,
+    }
+
+
+def serialize_payment_attempt(attempt: PaymentAttempt) -> dict[str, object]:
+    return {
+        "id": str(attempt.id),
+        "booking_id": str(attempt.booking_id),
+        "method": attempt.method,
+        "amount": _serialize_amount(attempt.amount),
+        "currency": attempt.currency,
+        "status": attempt.status,
+        "expires_at": attempt.expires_at.isoformat() if attempt.expires_at is not None else None,
+        "evidence_received_at": attempt.evidence_received_at.isoformat() if attempt.evidence_received_at is not None else None,
+        "reviewed_at": attempt.reviewed_at.isoformat() if attempt.reviewed_at is not None else None,
+        "reviewed_by_user_id": str(attempt.reviewed_by_user_id) if attempt.reviewed_by_user_id is not None else None,
     }
 
 
@@ -893,6 +934,46 @@ def list_practitioner_service_prices(
         stmt = stmt.where(PractitionerServicePrice.status == status)
     prices = session.scalars(stmt.order_by(PractitionerServicePrice.valid_from, PractitionerServicePrice.payer_plan_id, PractitionerServicePrice.id)).all()
     return {"data": [serialize_practitioner_service_price(price) for price in prices]}
+
+
+@router.post("/payment-attempts")
+def create_payment_attempt(
+    payload: CreatePaymentAttemptRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    try:
+        attempt = PaymentAttemptService(session, tenant_context).create_attempt(**payload.model_dump())
+        session.commit()
+        session.refresh(attempt)
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payment_attempt(attempt)}
+
+
+@router.get("/payment-attempts")
+def list_payment_attempts(
+    booking_id: UUID | None = None,
+    method: str | None = None,
+    status: str | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if method is not None and method not in PAYMENT_ATTEMPT_METHODS:
+        raise DomainValidationError("method must be one of transfer, simulated, pay_on_site")
+    if status is not None and status not in PAYMENT_ATTEMPT_STATUSES:
+        raise DomainValidationError("Invalid payment attempt status.")
+    stmt = select(PaymentAttempt)
+    if booking_id is not None:
+        stmt = stmt.where(PaymentAttempt.booking_id == booking_id)
+    if method is not None:
+        stmt = stmt.where(PaymentAttempt.method == method)
+    if status is not None:
+        stmt = stmt.where(PaymentAttempt.status == status)
+    attempts = session.scalars(stmt.order_by(PaymentAttempt.created_at, PaymentAttempt.id)).all()
+    return {"data": [serialize_payment_attempt(attempt) for attempt in attempts]}
 
 
 @router.post("/payment-settings")
