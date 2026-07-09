@@ -18,6 +18,20 @@ El bot no puede funcionar correctamente sin datos maestros.
 - React Hook Form.
 - Zod.
 
+
+## 2.1. Fase 6A — Shell administrativo y base UX/UI
+
+La Fase 6A entrega la base reutilizable de la consola administrativa, no los CRUD completos. Su alcance incluye el shell visual, login placeholder, dashboard MVP, navegación principal, estados de interfaz y patrones de componentes para que las pantallas de Fase 6B–6E puedan construirse de forma consistente.
+
+Principios específicos de esta base:
+
+- La interfaz debe verse como un SaaS profesional para clínicas, consultorios y organizaciones de salud.
+- Los módulos de negocio que aún no corresponden a Fase 6A deben quedar como placeholders claros, deshabilitados u omitidos, sin implementar comportamiento funcional prematuro.
+- Los componentes reutilizables deben cubrir encabezados de página, tarjetas de sección, tablas, estados vacíos, estados de carga, estados de error, campos de formulario, botones de acción, badges, búsqueda y selectores.
+- Los campos relacionales deben preparar selectores por nombre o resumen humano: organización por nombre, profesional por nombre completo, plan por pagador/plan legible y cita por paciente/fecha/servicio.
+- Los UUIDs pueden viajar por API y estado interno, pero no deben ser solicitados como entrada normal a usuarios administrativos.
+- Las pantallas deben mostrar etiquetas humanas, estados comprensibles y acciones operativas claras.
+
 ## 3. Principios de UX/UI para la Consola Administrativa
 
 La consola administrativa de TotalChat/MediChat no debe ser una interfaz meramente técnica ni una simple exposición de endpoints del backend. Debe ser una herramienta profesional, agradable, clara y fácil de usar para usuarios administrativos reales de consultorios, profesionales de salud, clínicas y organizaciones.
