@@ -517,8 +517,9 @@ def create_patient(
     patient = Patient(**payload.model_dump())
     try:
         session.add(patient)
-        session.commit()
+        session.flush()
         session.refresh(patient)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -540,8 +541,9 @@ def create_patient_payer_profile(
     profile = PatientPayerProfile(patient_id=patient_id, **payload.model_dump())
     try:
         session.add(profile)
-        session.commit()
+        session.flush()
         session.refresh(profile)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -558,8 +560,9 @@ def create_organization(
     organization = Organization(**payload.model_dump())
     try:
         session.add(organization)
-        session.commit()
+        session.flush()
         session.refresh(organization)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -603,8 +606,9 @@ def patch_organization(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(organization, field, value)
     try:
-        session.commit()
+        session.flush()
         session.refresh(organization)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -625,8 +629,9 @@ def disable_organization(
         raise ResourceNotFound("Organization not found.")
     organization.status = "inactive"
     try:
-        session.commit()
+        session.flush()
         session.refresh(organization)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -645,8 +650,9 @@ def create_location(
     location = Location(**payload.model_dump())
     try:
         session.add(location)
-        session.commit()
+        session.flush()
         session.refresh(location)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -675,8 +681,9 @@ def create_room(
     room = Room(**payload.model_dump())
     try:
         session.add(room)
-        session.commit()
+        session.flush()
         session.refresh(room)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -703,8 +710,9 @@ def create_practitioner(
     practitioner = Practitioner(**payload.model_dump())
     try:
         session.add(practitioner)
-        session.commit()
+        session.flush()
         session.refresh(practitioner)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -735,8 +743,9 @@ def patch_practitioner(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(practitioner, field, value)
     try:
-        session.commit()
+        session.flush()
         session.refresh(practitioner)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -753,8 +762,9 @@ def create_specialty(
     specialty = Specialty(**payload.model_dump())
     try:
         session.add(specialty)
-        session.commit()
+        session.flush()
         session.refresh(specialty)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -789,8 +799,9 @@ def assign_practitioner_specialty(
         association = PractitionerSpecialty(practitioner_id=practitioner_id, specialty_id=payload.specialty_id)
         try:
             session.add(association)
-            session.commit()
+            session.flush()
             session.refresh(association)
+            session.commit()
         except Exception:
             session.rollback()
             raise
@@ -812,8 +823,9 @@ def create_practitioner_service(
     service = PractitionerService(**payload.model_dump())
     try:
         session.add(service)
-        session.commit()
+        session.flush()
         session.refresh(service)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -871,8 +883,9 @@ def create_service_modality(
     modality = ServiceModality(practitioner_service_id=service_id, **payload.model_dump())
     try:
         session.add(modality)
-        session.commit()
+        session.flush()
         session.refresh(modality)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -892,8 +905,9 @@ def create_payer_type(
     payer_type = PayerType(**payload.model_dump())
     try:
         session.add(payer_type)
-        session.commit()
+        session.flush()
         session.refresh(payer_type)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -912,8 +926,9 @@ def create_payer(
     payer = Payer(**payload.model_dump())
     try:
         session.add(payer)
-        session.commit()
+        session.flush()
         session.refresh(payer)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -932,8 +947,9 @@ def create_payer_plan(
     plan = PayerPlan(**payload.model_dump())
     try:
         session.add(plan)
-        session.commit()
+        session.flush()
         session.refresh(plan)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -954,8 +970,9 @@ def create_practitioner_service_price(
     price = PractitionerServicePrice(**payload.model_dump())
     try:
         session.add(price)
-        session.commit()
+        session.flush()
         session.refresh(price)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -987,8 +1004,9 @@ def create_payment_attempt(
 ) -> dict[str, dict[str, object]]:
     try:
         attempt = PaymentAttemptService(session, tenant_context).create_attempt(**payload.model_dump())
-        session.commit()
+        session.flush()
         session.refresh(attempt)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -1031,9 +1049,10 @@ def register_payment_evidence(
             payment_attempt_id=payment_attempt_id,
             **payload.model_dump(),
         )
-        session.commit()
+        session.flush()
         session.refresh(evidence)
         attempt = session.get(PaymentAttempt, payment_attempt_id)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -1069,9 +1088,10 @@ def approve_payment_attempt(
             payment_attempt_id=payment_attempt_id,
             **payload.model_dump(),
         )
-        session.commit()
+        session.flush()
         session.refresh(review)
         attempt = session.get(PaymentAttempt, payment_attempt_id)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -1090,9 +1110,10 @@ def reject_payment_attempt(
             payment_attempt_id=payment_attempt_id,
             **payload.model_dump(),
         )
-        session.commit()
+        session.flush()
         session.refresh(review)
         attempt = session.get(PaymentAttempt, payment_attempt_id)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -1139,8 +1160,9 @@ def create_payment_settings(
     settings = PaymentSettings(**payload.model_dump())
     try:
         session.add(settings)
-        session.commit()
+        session.flush()
         session.refresh(settings)
+        session.commit()
     except Exception:
         session.rollback()
         raise
@@ -1193,8 +1215,9 @@ def patch_payment_settings(
     for field, value in changes.items():
         setattr(settings, field, value)
     try:
-        session.commit()
+        session.flush()
         session.refresh(settings)
+        session.commit()
     except Exception:
         session.rollback()
         raise
