@@ -145,6 +145,7 @@ export const adminResourcesApi = {
   activateSpecialty: (tenantId: string, specialtyId: string) => adminResourcesApi.updateSpecialty(tenantId, specialtyId, { status: 'active' }),
 
   listPractitionerSpecialties: (tenantId: string, practitionerId: string) => apiRequest<PractitionerSpecialty[]>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId }),
+  syncPractitionerSpecialties: (tenantId: string, practitionerId: string, specialtyIds: string[]) => apiRequest<PractitionerSpecialty[]>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId, method: 'PUT', body: JSON.stringify({ specialty_ids: specialtyIds }) }),
   assignPractitionerSpecialty: (tenantId: string, practitionerId: string, specialtyId: string) => apiRequest<PractitionerSpecialty>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId, method: 'POST', body: JSON.stringify({ specialty_id: specialtyId }) }),
   disablePractitionerSpecialty: (tenantId: string, practitionerId: string, specialtyId: string) => apiRequest<PractitionerSpecialty>(`/api/admin/practitioners/${practitionerId}/specialties/${specialtyId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
 };

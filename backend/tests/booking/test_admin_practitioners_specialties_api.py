@@ -277,3 +277,129 @@ def test_inactive_specialty_cannot_be_newly_assigned(admin_session, tenant_conte
     finally:
         clear_overrides()
     assert response.status_code == 409
+
+
+def test_sync_practitioner_specialties_success_creates_reactivates_and_inactivates(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        pediatrics = create_specialty(client, tenant_context, "Pediatría")
+        nephrology = create_specialty(client, tenant_context, "Nefrología")
+        cardiology = create_specialty(client, tenant_context, "Cardiología")
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": cardiology["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties/{cardiology['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": pediatrics["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        response = client.put(
+            f"/api/admin/practitioners/{practitioner['id']}/specialties",
+            json={"specialty_ids": [nephrology["id"], cardiology["id"]]},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+        listed = client.get(f"/api/admin/practitioners/{practitioner['id']}/specialties", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert [item["specialty_name"] for item in response.json()["data"]] == ["Cardiología", "Nefrología"]
+    by_name = {item["specialty_name"]: item["status"] for item in listed.json()["data"]}
+    assert by_name == {"Cardiología": "active", "Nefrología": "active", "Pediatría": "inactive"}
+    assert len(admin_session.scalars(select(PractitionerSpecialty)).all()) == 3
+
+
+def test_sync_practitioner_specialties_empty_payload_removes_active_assignments(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        specialty = create_specialty(client, tenant_context, "Pediatría")
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": specialty["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        response = client.put(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_ids": []}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        active = client.get(f"/api/admin/practitioners/{practitioner['id']}/specialties?include_inactive=false", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"] == []
+    assert active.json()["data"] == []
+
+
+def test_sync_practitioner_specialties_rejects_duplicate_ids(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        specialty = create_specialty(client, tenant_context, "Pediatría")
+        response = client.put(
+            f"/api/admin/practitioners/{practitioner['id']}/specialties",
+            json={"specialty_ids": [specialty["id"], specialty["id"]]},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert response.status_code == 422
+    assert len(admin_session.scalars(select(PractitionerSpecialty)).all()) == 0
+
+
+def test_sync_practitioner_specialties_rejects_unknown_or_inactive_entities(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        inactive = create_specialty(client, tenant_context, "Pediatría")
+        client.post(f"/api/admin/specialties/{inactive['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        unknown_practitioner = client.put(
+            f"/api/admin/practitioners/{uuid4()}/specialties",
+            json={"specialty_ids": []},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+        unknown_specialty = client.put(
+            f"/api/admin/practitioners/{practitioner['id']}/specialties",
+            json={"specialty_ids": [str(uuid4())]},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+        inactive_specialty = client.put(
+            f"/api/admin/practitioners/{practitioner['id']}/specialties",
+            json={"specialty_ids": [inactive["id"]]},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert unknown_practitioner.status_code == 404
+    assert unknown_specialty.status_code == 404
+    assert inactive_specialty.status_code == 409
+    assert len(admin_session.scalars(select(PractitionerSpecialty)).all()) == 0
+
+
+def test_sync_practitioner_specialties_rolls_back_when_any_specialty_is_invalid(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        valid = create_specialty(client, tenant_context, "Pediatría")
+        response = client.put(
+            f"/api/admin/practitioners/{practitioner['id']}/specialties",
+            json={"specialty_ids": [valid["id"], str(uuid4())]},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert response.status_code == 404
+    assert len(admin_session.scalars(select(PractitionerSpecialty)).all()) == 0
+
+
+def test_list_include_inactive_false_and_inactive_master_remains_visible(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        pediatrics = create_specialty(client, tenant_context, "Pediatría")
+        nephrology = create_specialty(client, tenant_context, "Nefrología")
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": pediatrics["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": nephrology["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties/{nephrology['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        client.post(f"/api/admin/specialties/{pediatrics['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        active_only = client.get(f"/api/admin/practitioners/{practitioner['id']}/specialties?include_inactive=false", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert active_only.status_code == 200
+    assert len(active_only.json()["data"]) == 1
+    assert active_only.json()["data"][0]["specialty_name"] == "Pediatría"
+    assert active_only.json()["data"][0]["specialty_status"] == "inactive"

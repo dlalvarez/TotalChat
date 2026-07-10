@@ -227,6 +227,19 @@ class AssignPractitionerSpecialtyRequest(BaseModel):
     specialty_id: UUID
 
 
+class SyncPractitionerSpecialtiesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    specialty_ids: list[UUID] = Field(default_factory=list)
+
+    @field_validator("specialty_ids")
+    @classmethod
+    def reject_duplicates(cls, value: list[UUID]) -> list[UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("specialty_ids must not contain duplicates")
+        return value
+
+
 class CreatePayerTypeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1046,6 +1059,62 @@ def list_practitioner_specialties(
         stmt = stmt.where(PractitionerSpecialty.status == "active")
     associations = session.scalars(stmt).all()
     return {"data": [serialize_practitioner_specialty(association) for association in associations]}
+
+
+@router.put("/practitioners/{practitioner_id}/specialties")
+def sync_practitioner_specialties(
+    practitioner_id: UUID,
+    payload: SyncPractitionerSpecialtiesRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if session.get(Practitioner, practitioner_id) is None:
+        raise ResourceNotFound("Practitioner not found.")
+
+    desired_ids = set(payload.specialty_ids)
+    specialties_by_id: dict[UUID, Specialty] = {}
+    for specialty_id in desired_ids:
+        specialty = session.get(Specialty, specialty_id)
+        if specialty is None:
+            raise ResourceNotFound("Specialty not found.")
+        if specialty.status != "active":
+            raise BusinessRuleViolation("Inactive specialties cannot be assigned.")
+        specialties_by_id[specialty_id] = specialty
+
+    existing = session.scalars(
+        select(PractitionerSpecialty).where(PractitionerSpecialty.practitioner_id == practitioner_id)
+    ).all()
+    existing_by_id = {association.specialty_id: association for association in existing}
+
+    try:
+        for specialty_id in desired_ids:
+            association = existing_by_id.get(specialty_id)
+            if association is None:
+                association = PractitionerSpecialty(practitioner_id=practitioner_id, specialty_id=specialty_id)
+                association.specialty = specialties_by_id[specialty_id]
+                session.add(association)
+                existing_by_id[specialty_id] = association
+            else:
+                association.status = "active"
+
+        for specialty_id, association in existing_by_id.items():
+            if specialty_id not in desired_ids and association.status == "active":
+                association.status = "inactive"
+
+        session.flush()
+        result = session.scalars(
+            select(PractitionerSpecialty)
+            .where(PractitionerSpecialty.practitioner_id == practitioner_id, PractitionerSpecialty.status == "active")
+            .join(PractitionerSpecialty.specialty)
+            .order_by(Specialty.name, Specialty.id)
+        ).all()
+        serialized = [serialize_practitioner_specialty(association) for association in result]
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialized}
 
 
 @router.post("/practitioners/{practitioner_id}/specialties")
