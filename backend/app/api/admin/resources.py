@@ -86,6 +86,37 @@ class CreateRoomRequest(BaseModel):
     capacity: int | None = None
 
 
+class PatchLocationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    organization_id: UUID | None = None
+    name: str | None = None
+    address: str | None = None
+    city: str | None = None
+    neighborhood: str | None = None
+    reference: str | None = None
+    is_virtual: bool | None = None
+    status: str | None = None
+
+
+class DisableLocationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class PatchRoomRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    location_id: UUID | None = None
+    name: str | None = None
+    room_type: str | None = None
+    capacity: int | None = None
+    status: str | None = None
+
+
+class DisableRoomRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class CreatePractitionerRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -669,6 +700,54 @@ def list_locations(
     return {"data": [serialize_location(location) for location in locations]}
 
 
+@router.patch("/locations/{location_id}")
+def patch_location(
+    location_id: UUID,
+    payload: PatchLocationRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    location = session.get(Location, location_id)
+    if location is None:
+        raise ResourceNotFound("Location not found.")
+    if payload.organization_id is not None and session.get(Organization, payload.organization_id) is None:
+        raise ResourceNotFound("Organization not found.")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(location, field, value)
+    try:
+        session.flush()
+        session.refresh(location)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_location(location)}
+
+
+@router.post("/locations/{location_id}/disable")
+def disable_location(
+    location_id: UUID,
+    payload: DisableLocationRequest | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = payload
+    _ = tenant_context
+    location = session.get(Location, location_id)
+    if location is None:
+        raise ResourceNotFound("Location not found.")
+    location.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(location)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_location(location)}
+
+
 @router.post("/rooms")
 def create_room(
     payload: CreateRoomRequest,
@@ -698,6 +777,54 @@ def list_rooms(
     _ = tenant_context
     rooms = session.scalars(select(Room).order_by(Room.name, Room.id)).all()
     return {"data": [serialize_room(room) for room in rooms]}
+
+
+@router.patch("/rooms/{room_id}")
+def patch_room(
+    room_id: UUID,
+    payload: PatchRoomRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    room = session.get(Room, room_id)
+    if room is None:
+        raise ResourceNotFound("Room not found.")
+    if payload.location_id is not None and session.get(Location, payload.location_id) is None:
+        raise ResourceNotFound("Location not found.")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(room, field, value)
+    try:
+        session.flush()
+        session.refresh(room)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_room(room)}
+
+
+@router.post("/rooms/{room_id}/disable")
+def disable_room(
+    room_id: UUID,
+    payload: DisableRoomRequest | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = payload
+    _ = tenant_context
+    room = session.get(Room, room_id)
+    if room is None:
+        raise ResourceNotFound("Room not found.")
+    room.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(room)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_room(room)}
 
 
 @router.post("/practitioners")
