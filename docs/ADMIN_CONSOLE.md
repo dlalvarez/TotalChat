@@ -372,3 +372,10 @@ UX implementada:
 - Las relaciones existentes siguen visibles aunque la organización o el profesional queden inactivos, mostrando esa condición en los nombres/estados legibles.
 
 Servicios del profesional permanecen fuera de alcance hasta Fase 6B.6.
+
+
+## Fase 6B.6 — Servicios
+
+La página Servicios deja de ser placeholder y permite listar, crear, editar, inactivar y reactivar servicios del profesional. La creación selecciona organización activa por nombre y profesional filtrado por relación activa en Profesionales por organización. La edición muestra organización y profesional como contexto legible y no permite cambiar esa pareja; si hubo error, se inactiva y se crea un nuevo servicio. No se muestran UUIDs al usuario, no hay botón Eliminar y las acciones son Inactivar/Activar.
+
+Si una organización, profesional o relación se inactiva después de crear el servicio, el servicio histórico sigue visible con estados legibles. Esta fase excluye precios, modalidades, disponibilidad, pagos y especialidad por servicio.

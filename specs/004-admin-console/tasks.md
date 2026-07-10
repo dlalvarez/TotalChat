@@ -10,7 +10,9 @@
 - [x] CRUD profesionales.
 - [x] CRUD especialidades.
 - [x] Relación organización-profesional.
-- [ ] CRUD servicios.
+- [x] CRUD servicios.
+  - Depende de `organization_practitioners` activa.
+  - No incluye precios, modalidades ni disponibilidad.
 - [ ] CRUD tarifas.
 - [ ] Pantalla disponibilidad.
 - [ ] Pantalla citas.

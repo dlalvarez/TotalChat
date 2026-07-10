@@ -231,3 +231,13 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 - [ ] Relaciones existentes se conservan aunque padres queden inactivos.
 - [ ] No se implementa CRUD de Servicios en esta fase.
 - [ ] Se ejecuta `python3 scripts/check_sdd_scope.py` y pruebas relevantes.
+
+
+### Fase 6B.6 — Servicios del profesional
+
+- [ ] CRUD de servicios usa nombres legibles y no muestra UUIDs en UI.
+- [ ] Crear/reactivar valida organización activa, profesional activo y `organization_practitioners` activa.
+- [ ] Inactivar no borra físicamente ni modifica citas/precios futuros.
+- [ ] Duplicados se rechazan por organización + profesional + nombre normalizado.
+- [ ] No se implementan tarifas, modalidades ni disponibilidad en Servicios.
+- [ ] `python3 scripts/check_sdd_scope.py`, backend y frontend fueron ejecutados o documentan bloqueo.

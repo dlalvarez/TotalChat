@@ -1268,3 +1268,10 @@ Reglas:
 - Organizaciones o profesionales inactivos no pueden usarse para nuevas asociaciones activas.
 - Las relaciones existentes se conservan y pueden listarse aunque la organización o el profesional se inactive después.
 - Fase 6B.6 deberá validar que `PractitionerService.organization_id + practitioner_id` exista y esté activa en `organization_practitioners` antes de crear servicios.
+
+
+## Fase 6B.6 — PractitionerService operativo
+
+`practitioner_services` representa el servicio que presta un profesional dentro de una organización. Campos usados en esta fase: `id`, `organization_id`, `practitioner_id`, `name`, `description`, `duration_minutes`, `requires_payment`, `status`, `created_at`, `updated_at`.
+
+Reglas: crear o reactivar un servicio depende de que `organization_practitioners` exista y esté activa para la misma pareja `organization_id + practitioner_id`, y de que organización y profesional estén activos. Servicios existentes no se borran ni desaparecen si se inactivan sus padres o la relación. La validación de duplicados es de aplicación para nombre normalizado case-insensitive por organización y profesional. Servicios no incluye precios, modalidades ni disponibilidad todavía.
