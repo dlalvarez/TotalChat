@@ -1249,3 +1249,19 @@ Lista entregas.
 ### 21.8. GET `/api/admin/campaigns/{campaign_id}/metrics`
 
 Métricas.
+
+## Fase 6B.4 — Especialidades y consultorios
+
+Endpoints administrativos tenant-scoped agregados o completados:
+
+- `GET /api/admin/specialties`: lista especialidades con orden determinista.
+- `POST /api/admin/specialties`: crea una especialidad tenant-scoped, rechaza campos extra y nombres duplicados normalizados por espacios/case.
+- `GET /api/admin/specialties/{specialty_id}`: consulta una especialidad del tenant actual.
+- `PATCH /api/admin/specialties/{specialty_id}`: edita nombre, descripción o estado (`active`/`inactive`).
+- `POST /api/admin/specialties/{specialty_id}/disable`: inactiva reversiblemente la especialidad maestra.
+- `GET /api/admin/practitioners/{practitioner_id}/specialties`: lista relaciones profesional-especialidad e incluye identificador interno, nombre legible, estado de relación y estado de especialidad.
+- `POST /api/admin/practitioners/{practitioner_id}/specialties`: asigna o reactiva una especialidad activa sin duplicar la relación.
+- `PUT /api/admin/practitioners/{practitioner_id}/specialties`: sincroniza transaccionalmente el conjunto completo de especialidades activas; valida el profesional, rechaza IDs duplicados o especialidades inactivas/inexistentes, crea/reactiva relaciones necesarias e inactiva las retiradas sin borrado físico.
+- `POST /api/admin/practitioners/{practitioner_id}/specialties/{specialty_id}/disable`: retira reversiblemente una asignación.
+
+`room_type` en `POST/PATCH /api/admin/rooms` acepta únicamente: `consulta_general`, `procedimientos`, `terapia`, `diagnostico`, `virtual`, `otro` o `null` cuando el campo queda vacío para compatibilidad de datos existentes.

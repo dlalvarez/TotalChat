@@ -161,12 +161,13 @@ def test_create_room_under_location(admin_resource_session, tenant_context):
     admin_resource_session.add_all([org, loc]); admin_resource_session.flush()
     install_overrides(admin_resource_session, tenant_context)
     try:
-        response = TestClient(app).post("/api/admin/rooms", json={"location_id": str(loc.id), "name": "Consultorio 1", "room_type": "consultorio", "capacity": 2}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        response = TestClient(app).post("/api/admin/rooms", json={"location_id": str(loc.id), "name": "Consultorio 1", "room_type": "consulta_general", "capacity": 2}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
     finally:
         clear_overrides()
     assert response.status_code == 200
     assert response.json()["data"]["location_id"] == str(loc.id)
     assert response.json()["data"]["name"] == "Consultorio 1"
+    assert response.json()["data"]["room_type"] == "consulta_general"
 
 
 def test_list_rooms(admin_resource_session, tenant_context):
@@ -208,3 +209,72 @@ def test_missing_tenant_header_returns_authentication_required():
     response = TestClient(app).post("/api/admin/organizations", json=post_org_payload())
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+@pytest.mark.parametrize("room_type", ["consulta_general", "procedimientos", "terapia", "diagnostico", "virtual", "otro"])
+def test_room_accepts_allowed_room_types(admin_resource_session, tenant_context, room_type):
+    install_overrides(admin_resource_session, tenant_context)
+    client = TestClient(app)
+    try:
+        org = create_org(client, tenant_context)
+        loc = client.post("/api/admin/locations", json={"organization_id": org["id"], "name": "Sede"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)}).json()["data"]
+        response = client.post("/api/admin/rooms", json={"location_id": loc["id"], "name": "Consultorio", "room_type": room_type}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["room_type"] == room_type
+
+
+def test_room_rejects_invalid_room_type(admin_resource_session, tenant_context):
+    install_overrides(admin_resource_session, tenant_context)
+    client = TestClient(app)
+    try:
+        org = create_org(client, tenant_context)
+        loc = client.post("/api/admin/locations", json={"organization_id": org["id"], "name": "Sede"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)}).json()["data"]
+        response = client.post("/api/admin/rooms", json={"location_id": loc["id"], "name": "Consultorio", "room_type": "quirurgico"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code in {400, 422}
+
+
+def test_patch_room_type_valid_and_invalid(admin_resource_session, tenant_context):
+    org = Organization(name="Clínica Vida", organization_type="clinic")
+    loc = Location(organization=org, name="Sede Norte")
+    room = Room(location=loc, name="Consultorio 1", room_type="consulta_general")
+    admin_resource_session.add_all([org, loc, room])
+    admin_resource_session.flush()
+    install_overrides(admin_resource_session, tenant_context)
+    client = TestClient(app)
+    try:
+        valid = client.patch(
+            f"/api/admin/rooms/{room.id}",
+            json={"room_type": "procedimientos"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+        invalid = client.patch(
+            f"/api/admin/rooms/{room.id}",
+            json={"room_type": "consultorio"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert valid.status_code == 200
+    assert valid.json()["data"]["room_type"] == "procedimientos"
+    assert invalid.status_code in {400, 422}
+
+
+def test_list_rooms_preserves_unknown_historical_room_type(admin_resource_session, tenant_context):
+    org = Organization(name="Clínica Vida", organization_type="clinic")
+    loc = Location(organization=org, name="Sede Norte")
+    room = Room(location=loc, name="Histórico", room_type="consultorio")
+    admin_resource_session.add_all([org, loc, room])
+    admin_resource_session.flush()
+    install_overrides(admin_resource_session, tenant_context)
+    try:
+        response = TestClient(app).get(
+            "/api/admin/rooms",
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"][0]["room_type"] == "consultorio"

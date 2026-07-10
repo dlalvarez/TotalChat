@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.admin.dependencies import get_admin_tenant_context
@@ -36,6 +36,20 @@ from app.services.payments import PAYMENT_ATTEMPT_METHODS, PAYMENT_ATTEMPT_STATU
 from app.tenancy.context import TenantContext
 
 router = APIRouter(tags=["admin-resources"])
+
+ROOM_TYPES = {"consulta_general", "procedimientos", "terapia", "diagnostico", "virtual", "otro"}
+
+
+def _normalize_name(value: str) -> str:
+    return " ".join(value.strip().split())
+
+
+def _validate_room_type(value: str | None) -> str | None:
+    if value in (None, ""):
+        return None
+    if value not in ROOM_TYPES:
+        raise DomainValidationError("Tipo de consultorio no permitido.")
+    return value
 
 
 class CreateOrganizationRequest(BaseModel):
@@ -85,6 +99,11 @@ class CreateRoomRequest(BaseModel):
     room_type: str | None = None
     capacity: int | None = None
 
+    @field_validator("room_type")
+    @classmethod
+    def validate_room_type(cls, value: str | None) -> str | None:
+        return _validate_room_type(value)
+
 
 class PatchLocationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -111,6 +130,11 @@ class PatchRoomRequest(BaseModel):
     room_type: str | None = None
     capacity: int | None = None
     status: str | None = None
+
+    @field_validator("room_type")
+    @classmethod
+    def validate_room_type(cls, value: str | None) -> str | None:
+        return _validate_room_type(value)
 
 
 class DisableRoomRequest(BaseModel):
@@ -141,8 +165,41 @@ class PatchPractitionerRequest(BaseModel):
 class CreateSpecialtyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str
+    name: str = Field(min_length=1)
     description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+
+class PatchSpecialtyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"active", "inactive"}:
+            raise ValueError("status must be active or inactive")
+        return value
 
 
 class CreatePractitionerServiceRequest(BaseModel):
@@ -168,6 +225,19 @@ class AssignPractitionerSpecialtyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     specialty_id: UUID
+
+
+class SyncPractitionerSpecialtiesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    specialty_ids: list[UUID] = Field(default_factory=list)
+
+    @field_validator("specialty_ids")
+    @classmethod
+    def reject_duplicates(cls, value: list[UUID]) -> list[UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("specialty_ids must not contain duplicates")
+        return value
 
 
 class CreatePayerTypeRequest(BaseModel):
@@ -534,6 +604,8 @@ def serialize_practitioner_specialty(association: PractitionerSpecialty) -> dict
     return {
         "practitioner_id": str(association.practitioner_id),
         "specialty_id": str(association.specialty_id),
+        "specialty_name": association.specialty.name if association.specialty is not None else None,
+        "specialty_status": association.specialty.status if association.specialty is not None else None,
         "status": association.status,
     }
 
@@ -886,6 +958,9 @@ def create_specialty(
     session: Session = Depends(get_db_session),
 ) -> dict[str, dict[str, object]]:
     _ = tenant_context
+    existing = session.scalar(select(Specialty).where(func.lower(Specialty.name) == payload.name.lower()))
+    if existing is not None:
+        raise ConflictError("Specialty name already exists.")
     specialty = Specialty(**payload.model_dump())
     try:
         session.add(specialty)
@@ -908,6 +983,145 @@ def list_specialties(
     return {"data": [serialize_specialty(specialty) for specialty in specialties]}
 
 
+@router.get("/specialties/{specialty_id}")
+def get_specialty(
+    specialty_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    specialty = session.get(Specialty, specialty_id)
+    if specialty is None:
+        raise ResourceNotFound("Specialty not found.")
+    return {"data": serialize_specialty(specialty)}
+
+
+@router.patch("/specialties/{specialty_id}")
+def patch_specialty(
+    specialty_id: UUID,
+    payload: PatchSpecialtyRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    specialty = session.get(Specialty, specialty_id)
+    if specialty is None:
+        raise ResourceNotFound("Specialty not found.")
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data:
+        existing = session.scalar(select(Specialty).where(func.lower(Specialty.name) == data["name"].lower(), Specialty.id != specialty_id))
+        if existing is not None:
+            raise ConflictError("Specialty name already exists.")
+    for field, value in data.items():
+        setattr(specialty, field, value)
+    try:
+        session.flush()
+        session.refresh(specialty)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_specialty(specialty)}
+
+
+@router.post("/specialties/{specialty_id}/disable")
+def disable_specialty(
+    specialty_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    specialty = session.get(Specialty, specialty_id)
+    if specialty is None:
+        raise ResourceNotFound("Specialty not found.")
+    specialty.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(specialty)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_specialty(specialty)}
+
+@router.get("/practitioners/{practitioner_id}/specialties")
+def list_practitioner_specialties(
+    practitioner_id: UUID,
+    include_inactive: bool = True,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if session.get(Practitioner, practitioner_id) is None:
+        raise ResourceNotFound("Practitioner not found.")
+    stmt = select(PractitionerSpecialty).where(PractitionerSpecialty.practitioner_id == practitioner_id).join(PractitionerSpecialty.specialty).order_by(Specialty.name, Specialty.id)
+    if not include_inactive:
+        stmt = stmt.where(PractitionerSpecialty.status == "active")
+    associations = session.scalars(stmt).all()
+    return {"data": [serialize_practitioner_specialty(association) for association in associations]}
+
+
+@router.put("/practitioners/{practitioner_id}/specialties")
+def sync_practitioner_specialties(
+    practitioner_id: UUID,
+    payload: SyncPractitionerSpecialtiesRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if session.get(Practitioner, practitioner_id) is None:
+        raise ResourceNotFound("Practitioner not found.")
+
+    desired_ids = set(payload.specialty_ids)
+    existing = session.scalars(
+        select(PractitionerSpecialty).where(PractitionerSpecialty.practitioner_id == practitioner_id)
+    ).all()
+    existing_by_id = {association.specialty_id: association for association in existing}
+
+    specialties_by_id: dict[UUID, Specialty] = {}
+    for specialty_id in desired_ids:
+        specialty = session.get(Specialty, specialty_id)
+        if specialty is None:
+            raise ResourceNotFound("Specialty not found.")
+
+        existing_association = existing_by_id.get(specialty_id)
+        preserves_existing_active_relation = (
+            existing_association is not None and existing_association.status == "active"
+        )
+        if specialty.status != "active" and not preserves_existing_active_relation:
+            raise BusinessRuleViolation("Inactive specialties cannot be assigned.")
+        specialties_by_id[specialty_id] = specialty
+
+    try:
+        for specialty_id in desired_ids:
+            association = existing_by_id.get(specialty_id)
+            if association is None:
+                association = PractitionerSpecialty(practitioner_id=practitioner_id, specialty_id=specialty_id)
+                association.specialty = specialties_by_id[specialty_id]
+                session.add(association)
+                existing_by_id[specialty_id] = association
+            else:
+                association.status = "active"
+
+        for specialty_id, association in existing_by_id.items():
+            if specialty_id not in desired_ids and association.status == "active":
+                association.status = "inactive"
+
+        session.flush()
+        result = session.scalars(
+            select(PractitionerSpecialty)
+            .where(PractitionerSpecialty.practitioner_id == practitioner_id, PractitionerSpecialty.status == "active")
+            .join(PractitionerSpecialty.specialty)
+            .order_by(Specialty.name, Specialty.id)
+        ).all()
+        serialized = [serialize_practitioner_specialty(association) for association in result]
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialized}
+
+
 @router.post("/practitioners/{practitioner_id}/specialties")
 def assign_practitioner_specialty(
     practitioner_id: UUID,
@@ -918,8 +1132,11 @@ def assign_practitioner_specialty(
     _ = tenant_context
     if session.get(Practitioner, practitioner_id) is None:
         raise ResourceNotFound("Practitioner not found.")
-    if session.get(Specialty, payload.specialty_id) is None:
+    specialty = session.get(Specialty, payload.specialty_id)
+    if specialty is None:
         raise ResourceNotFound("Specialty not found.")
+    if specialty.status != "active":
+        raise BusinessRuleViolation("Inactive specialties cannot be assigned.")
 
     association = session.get(PractitionerSpecialty, {"practitioner_id": practitioner_id, "specialty_id": payload.specialty_id})
     if association is None:
@@ -932,6 +1149,37 @@ def assign_practitioner_specialty(
         except Exception:
             session.rollback()
             raise
+    elif association.status != "active":
+        association.status = "active"
+        try:
+            session.flush()
+            session.refresh(association)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+    return {"data": serialize_practitioner_specialty(association)}
+
+
+@router.post("/practitioners/{practitioner_id}/specialties/{specialty_id}/disable")
+def disable_practitioner_specialty(
+    practitioner_id: UUID,
+    specialty_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    association = session.get(PractitionerSpecialty, {"practitioner_id": practitioner_id, "specialty_id": specialty_id})
+    if association is None:
+        raise ResourceNotFound("Practitioner specialty not found.")
+    association.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(association)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     return {"data": serialize_practitioner_specialty(association)}
 
 

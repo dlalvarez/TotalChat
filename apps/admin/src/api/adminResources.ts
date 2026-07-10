@@ -46,6 +46,17 @@ export type UpsertLocationPayload = {
 };
 export type CreateLocationPayload = Required<Pick<UpsertLocationPayload, 'organization_id' | 'name' | 'is_virtual'>> & Omit<UpsertLocationPayload, 'organization_id' | 'name' | 'is_virtual' | 'status'>;
 
+export const ROOM_TYPE_OPTIONS = [
+  { value: 'consulta_general', label: 'Consulta general' },
+  { value: 'procedimientos', label: 'Procedimientos' },
+  { value: 'terapia', label: 'Terapia' },
+  { value: 'diagnostico', label: 'Diagnóstico' },
+  { value: 'virtual', label: 'Virtual' },
+  { value: 'otro', label: 'Otro' },
+] as const;
+export type RoomType = (typeof ROOM_TYPE_OPTIONS)[number]['value'];
+export const roomTypeLabel = (value: string | null | undefined) => ROOM_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value ?? 'Sin tipo';
+
 export type Room = {
   id: string;
   location_id: string;
@@ -63,6 +74,24 @@ export type UpsertRoomPayload = {
   status?: string;
 };
 export type CreateRoomPayload = Required<Pick<UpsertRoomPayload, 'location_id' | 'name'>> & Omit<UpsertRoomPayload, 'location_id' | 'name' | 'status'>;
+
+export type Specialty = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+};
+
+export type UpsertSpecialtyPayload = { name?: string; description?: string | null; status?: string };
+export type CreateSpecialtyPayload = Required<Pick<UpsertSpecialtyPayload, 'name'>> & Omit<UpsertSpecialtyPayload, 'name' | 'status'>;
+
+export type PractitionerSpecialty = {
+  practitioner_id: string;
+  specialty_id: string;
+  specialty_name: string | null;
+  specialty_status: string | null;
+  status: string;
+};
 
 export type Practitioner = {
   id: string;
@@ -108,4 +137,15 @@ export const adminResourcesApi = {
   updatePractitioner: (tenantId: string, practitionerId: string, payload: UpsertPractitionerPayload) => apiRequest<Practitioner>(`/api/admin/practitioners/${practitionerId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
   disablePractitioner: (tenantId: string, practitionerId: string) => adminResourcesApi.updatePractitioner(tenantId, practitionerId, { status: 'inactive' }),
   activatePractitioner: (tenantId: string, practitionerId: string) => adminResourcesApi.updatePractitioner(tenantId, practitionerId, { status: 'active' }),
+
+  listSpecialties: (tenantId: string) => apiRequest<Specialty[]>('/api/admin/specialties', { tenantId }),
+  createSpecialty: (tenantId: string, payload: CreateSpecialtyPayload) => apiRequest<Specialty>('/api/admin/specialties', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+  updateSpecialty: (tenantId: string, specialtyId: string, payload: UpsertSpecialtyPayload) => apiRequest<Specialty>(`/api/admin/specialties/${specialtyId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
+  disableSpecialty: (tenantId: string, specialtyId: string) => apiRequest<Specialty>(`/api/admin/specialties/${specialtyId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  activateSpecialty: (tenantId: string, specialtyId: string) => adminResourcesApi.updateSpecialty(tenantId, specialtyId, { status: 'active' }),
+
+  listPractitionerSpecialties: (tenantId: string, practitionerId: string) => apiRequest<PractitionerSpecialty[]>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId }),
+  syncPractitionerSpecialties: (tenantId: string, practitionerId: string, specialtyIds: string[]) => apiRequest<PractitionerSpecialty[]>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId, method: 'PUT', body: JSON.stringify({ specialty_ids: specialtyIds }) }),
+  assignPractitionerSpecialty: (tenantId: string, practitionerId: string, specialtyId: string) => apiRequest<PractitionerSpecialty>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId, method: 'POST', body: JSON.stringify({ specialty_id: specialtyId }) }),
+  disablePractitionerSpecialty: (tenantId: string, practitionerId: string, specialtyId: string) => apiRequest<PractitionerSpecialty>(`/api/admin/practitioners/${practitionerId}/specialties/${specialtyId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
 };
