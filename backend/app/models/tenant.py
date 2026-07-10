@@ -22,6 +22,7 @@ class Organization(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
 
     locations: Mapped[list["Location"]] = relationship(back_populates="organization")
+    practitioners: Mapped[list["OrganizationPractitioner"]] = relationship(back_populates="organization")
     practitioner_services: Mapped[list["PractitionerService"]] = relationship(back_populates="organization")
     bookings: Mapped[list["Booking"]] = relationship(back_populates="organization")
     payment_settings: Mapped[list["PaymentSettings"]] = relationship(back_populates="organization")
@@ -63,7 +64,24 @@ class Practitioner(TimestampMixin, Base):
     phone: Mapped[str | None] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
     specialties: Mapped[list["PractitionerSpecialty"]] = relationship(back_populates="practitioner")
+    organizations: Mapped[list["OrganizationPractitioner"]] = relationship(back_populates="practitioner")
     services: Mapped[list["PractitionerService"]] = relationship(back_populates="practitioner")
+
+
+class OrganizationPractitioner(TimestampMixin, Base):
+    __tablename__ = "organization_practitioners"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "practitioner_id", name="uq_organization_practitioner"),
+        Index("ix_organization_practitioners_organization_id", "organization_id"),
+        Index("ix_organization_practitioners_practitioner_id", "practitioner_id"),
+        Index("ix_organization_practitioners_status", "status"),
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), primary_key=True)
+    practitioner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("practitioners.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="member", server_default="member")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
+    organization: Mapped[Organization] = relationship(back_populates="practitioners")
+    practitioner: Mapped[Practitioner] = relationship(back_populates="organizations")
 
 
 class Specialty(Base):

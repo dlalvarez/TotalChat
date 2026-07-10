@@ -1,14 +1,15 @@
 # Tasks 004 — Admin Console
 
-- [ ] Crear app frontend.
+- [x] Crear app frontend.
 - [ ] Crear login.
-- [ ] Crear layout.
+- [x] Crear layout.
 - [ ] Crear dashboard.
-- [ ] CRUD organizaciones.
-- [ ] CRUD sedes.
-- [ ] CRUD consultorios.
-- [ ] CRUD profesionales.
-- [ ] CRUD especialidades.
+- [x] CRUD organizaciones.
+- [x] CRUD sedes.
+- [x] CRUD consultorios.
+- [x] CRUD profesionales.
+- [x] CRUD especialidades.
+- [x] Relación organización-profesional.
 - [ ] CRUD servicios.
 - [ ] CRUD tarifas.
 - [ ] Pantalla disponibilidad.

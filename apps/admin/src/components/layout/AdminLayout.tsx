@@ -10,6 +10,7 @@ const nav = [
   'Consultorios',
   'Profesionales',
   'Especialidades',
+  'Profesionales por organización',
   'Servicios',
   'Precios',
   'Pagadores y planes',
@@ -72,7 +73,7 @@ export function AdminLayout({
         </nav>
 
         <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
-          <strong className="text-slate-700">Fase 6B.2:</strong> Dashboard, Organizaciones, Sedes, Consultorios y Profesionales funcionales; demás módulos diferidos.
+          <strong className="text-slate-700">Fase 6B.5:</strong> relación Organización–Profesional funcional; Servicios sigue diferido.
         </div>
       </aside>
 

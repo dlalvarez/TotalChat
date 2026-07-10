@@ -24,6 +24,7 @@ from app.models.tenant import (
     PayerPlan,
     PayerType,
     Practitioner,
+    OrganizationPractitioner,
     PractitionerService,
     PractitionerServicePrice,
     PractitionerSpecialty,
@@ -38,6 +39,8 @@ from app.tenancy.context import TenantContext
 router = APIRouter(tags=["admin-resources"])
 
 ROOM_TYPES = {"consulta_general", "procedimientos", "terapia", "diagnostico", "virtual", "otro"}
+ORGANIZATION_PRACTITIONER_ROLES = {"primary", "member", "external"}
+RELATION_STATUSES = {"active", "inactive"}
 
 
 def _normalize_name(value: str) -> str:
@@ -198,6 +201,42 @@ class PatchSpecialtyRequest(BaseModel):
     @classmethod
     def validate_status(cls, value: str | None) -> str | None:
         if value is not None and value not in {"active", "inactive"}:
+            raise ValueError("status must be active or inactive")
+        return value
+
+
+class CreateOrganizationPractitionerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    organization_id: UUID
+    practitioner_id: UUID
+    role: str = "member"
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        if value not in ORGANIZATION_PRACTITIONER_ROLES:
+            raise ValueError("role must be primary, member or external")
+        return value
+
+
+class PatchOrganizationPractitionerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: str | None = None
+    status: str | None = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str | None) -> str | None:
+        if value is not None and value not in ORGANIZATION_PRACTITIONER_ROLES:
+            raise ValueError("role must be primary, member or external")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
             raise ValueError("status must be active or inactive")
         return value
 
@@ -597,6 +636,19 @@ def serialize_service_modality(modality: ServiceModality) -> dict[str, object]:
         "location_id": str(modality.location_id) if modality.location_id is not None else None,
         "room_id": str(modality.room_id) if modality.room_id is not None else None,
         "status": modality.status,
+    }
+
+
+def serialize_organization_practitioner(association: OrganizationPractitioner) -> dict[str, object]:
+    return {
+        "organization_id": str(association.organization_id),
+        "organization_name": association.organization.name if association.organization is not None else None,
+        "organization_status": association.organization.status if association.organization is not None else None,
+        "practitioner_id": str(association.practitioner_id),
+        "practitioner_name": association.practitioner.full_name if association.practitioner is not None else None,
+        "practitioner_status": association.practitioner.status if association.practitioner is not None else None,
+        "role": association.role,
+        "status": association.status,
     }
 
 
@@ -1181,6 +1233,126 @@ def disable_practitioner_specialty(
         session.rollback()
         raise
     return {"data": serialize_practitioner_specialty(association)}
+
+
+@router.get("/organization-practitioners")
+def list_organization_practitioners(
+    organization_id: UUID | None = None,
+    practitioner_id: UUID | None = None,
+    status: str | None = None,
+    include_inactive: bool = True,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    stmt = select(OrganizationPractitioner).join(OrganizationPractitioner.organization).join(OrganizationPractitioner.practitioner)
+    if organization_id is not None:
+        stmt = stmt.where(OrganizationPractitioner.organization_id == organization_id)
+    if practitioner_id is not None:
+        stmt = stmt.where(OrganizationPractitioner.practitioner_id == practitioner_id)
+    if status is not None:
+        stmt = stmt.where(OrganizationPractitioner.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(OrganizationPractitioner.status == "active")
+    stmt = stmt.order_by(Organization.name, Practitioner.full_name, OrganizationPractitioner.organization_id, OrganizationPractitioner.practitioner_id)
+    associations = session.scalars(stmt).all()
+    return {"data": [serialize_organization_practitioner(association) for association in associations]}
+
+
+@router.post("/organization-practitioners")
+def create_organization_practitioner(
+    payload: CreateOrganizationPractitionerRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    organization = session.get(Organization, payload.organization_id)
+    if organization is None:
+        raise ResourceNotFound("Organization not found.")
+    practitioner = session.get(Practitioner, payload.practitioner_id)
+    if practitioner is None:
+        raise ResourceNotFound("Practitioner not found.")
+    association = session.get(OrganizationPractitioner, {"organization_id": payload.organization_id, "practitioner_id": payload.practitioner_id})
+    if association is None and organization.status != "active":
+        raise BusinessRuleViolation("Inactive organizations cannot be assigned to new practitioner relationships.")
+    if association is None and practitioner.status != "active":
+        raise BusinessRuleViolation("Inactive practitioners cannot be assigned to new organization relationships.")
+    if association is None:
+        association = OrganizationPractitioner(organization_id=payload.organization_id, practitioner_id=payload.practitioner_id, role=payload.role, status="active")
+        association.organization = organization
+        association.practitioner = practitioner
+        session.add(association)
+    elif association.status != "active":
+        if organization.status != "active":
+            raise BusinessRuleViolation("Inactive organizations cannot be reactivated for practitioner relationships.")
+        if practitioner.status != "active":
+            raise BusinessRuleViolation("Inactive practitioners cannot be reactivated for organization relationships.")
+        association.status = "active"
+        association.role = payload.role
+    else:
+        association.role = payload.role
+    try:
+        session.flush()
+        session.refresh(association)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_organization_practitioner(association)}
+
+
+@router.patch("/organizations/{organization_id}/practitioners/{practitioner_id}")
+def patch_organization_practitioner(
+    organization_id: UUID,
+    practitioner_id: UUID,
+    payload: PatchOrganizationPractitionerRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    association = session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+    if association is None:
+        raise ResourceNotFound("Organization practitioner relationship not found.")
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("status") == "active":
+        if association.organization is not None and association.organization.status != "active":
+            raise BusinessRuleViolation("Inactive organizations cannot be reactivated for practitioner relationships.")
+        if association.practitioner is not None and association.practitioner.status != "active":
+            raise BusinessRuleViolation("Inactive practitioners cannot be reactivated for organization relationships.")
+    for field, value in data.items():
+        setattr(association, field, value)
+    try:
+        session.flush()
+        session.refresh(association)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_organization_practitioner(association)}
+
+
+@router.post("/organizations/{organization_id}/practitioners/{practitioner_id}/disable")
+def disable_organization_practitioner(
+    organization_id: UUID,
+    practitioner_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    association = session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+    if association is None:
+        raise ResourceNotFound("Organization practitioner relationship not found.")
+    association.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(association)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_organization_practitioner(association)}
 
 
 @router.post("/practitioner-services")

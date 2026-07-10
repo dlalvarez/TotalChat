@@ -1243,3 +1243,28 @@ Los mensajes de marketing requieren `allow_marketing=true`.
 `specialties` continúa siendo tenant-scoped y conserva `status` para activación/inactivación reversible. `practitioner_specialties` continúa normalizado con unicidad por `(practitioner_id, specialty_id)` y `status` para retirar/restaurar asignaciones sin crear duplicados ni eliminar la especialidad maestra.
 
 `rooms.room_type` permanece como columna textual para preservar datos históricos, pero nuevas escrituras administrativas validan el catálogo fijo inicial: `consulta_general`, `procedimientos`, `terapia`, `diagnostico`, `virtual`, `otro`. La fase no introduce CRUD de tipos de consultorio ni relaciona el tipo con servicios, precios o disponibilidad.
+
+## 5.2.1. Fase 6B.5 — relación organización-profesional
+
+`organization_practitioners` materializa la relación muchos-a-muchos entre organizaciones y profesionales dentro del schema tenant antes del CRUD de Servicios del profesional.
+
+Campos implementados:
+
+```text
+organization_id -> organizations.id
+practitioner_id -> practitioners.id
+role
+status
+created_at
+updated_at
+```
+
+Reglas:
+
+- `organization_id + practitioner_id` es único y no se crean duplicados.
+- `status` usa borrado lógico: `active` / `inactive`.
+- `role` usa catálogo fijo inicial: `primary`, `member`, `external`; el default es `member`.
+- No hay borrado físico ni autorización basada en `role` en esta fase.
+- Organizaciones o profesionales inactivos no pueden usarse para nuevas asociaciones activas.
+- Las relaciones existentes se conservan y pueden listarse aunque la organización o el profesional se inactive después.
+- Fase 6B.6 deberá validar que `PractitionerService.organization_id + practitioner_id` exista y esté activa en `organization_practitioners` antes de crear servicios.

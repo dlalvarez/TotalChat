@@ -356,3 +356,19 @@ La consola administrativa incorpora el módulo funcional **Especialidades** con 
 Los profesionales pueden tener cero, una o múltiples especialidades. La asignación se gestiona desde el formulario de profesionales mediante búsqueda por nombre y chips; las especialidades inactivas ya asignadas se muestran con indicación visual, pero no se ofrecen como nuevas opciones.
 
 El campo **Tipo de consultorio** deja de ser texto libre en creación y edición. La interfaz usa el catálogo fijo: `consulta_general` (Consulta general), `procedimientos` (Procedimientos), `terapia` (Terapia), `diagnostico` (Diagnóstico), `virtual` (Virtual) y `otro` (Otro). Los valores históricos desconocidos se preservan al listar; nuevas escrituras deben usar valores del catálogo.
+
+## Fase 6B.5 — Profesionales por organización
+
+La consola administrativa agrega una pantalla `Profesionales por organización` para gestionar la relación organización-profesional antes del CRUD de Servicios.
+
+UX implementada:
+
+- Listado con Organización, Profesional, Rol, Estado y Acciones.
+- Asociación mediante selectores por nombre; los UUIDs quedan internos y no se muestran al usuario.
+- Solo organizaciones y profesionales activos se ofrecen para nuevas relaciones.
+- Rol con catálogo fijo y etiquetas: Principal (`primary`), Miembro (`member`) y Externo (`external`).
+- El nombre legible de la pareja abre edición del rol; no hay botón separado `Editar`.
+- Acciones reversibles `Activar` / `Inactivar`; no hay eliminación física.
+- Las relaciones existentes siguen visibles aunque la organización o el profesional queden inactivos, mostrando esa condición en los nombres/estados legibles.
+
+Servicios del profesional permanecen fuera de alcance hasta Fase 6B.6.
