@@ -149,7 +149,9 @@ Antes de aprobar un PR, verificar:
 [ ] Los CRUD no piden UUIDs al usuario para relaciones.
 [ ] Los campos relacionales usan selectores amigables con nombres legibles.
 [ ] Las listas muestran etiquetas humanas antes que identificadores internos.
+[ ] Las tablas admin funcionales usan nombres legibles como punto de entrada para editar registros.
 [ ] Los módulos admin funcionales que superan la línea base de solo creación soportan editar e inactivar.
+[ ] La inactivación es reversible salvo que una spec futura indique explícitamente lo contrario.
 [ ] La inactivación no ejecuta deletes físicos salvo autorización explícita de una spec futura.
 ```
 

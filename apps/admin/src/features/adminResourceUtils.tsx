@@ -6,11 +6,36 @@ export function StatusBadge({ status, feminine = false }: { status: string; femi
   return <Badge tone={active ? 'success' : 'neutral'}>{active ? (feminine ? 'Activa' : 'Activo') : (feminine ? 'Inactiva' : 'Inactivo')}</Badge>;
 }
 
-export function RowActions({ onEdit, onDisable, disabled }: { onEdit: () => void; onDisable: () => void; disabled?: boolean }) {
+export function NameEditButton({ name, onEdit }: { name: string; onEdit: () => void }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={onEdit}>Editar</Button>
-      <Button type="button" variant="danger" className="px-3 py-1.5" disabled={disabled} onClick={onDisable}>Inactivar</Button>
-    </div>
+    <Button type="button" variant="ghost" className="h-auto justify-start px-0 py-0 text-left font-semibold text-brand-700 hover:bg-transparent hover:text-brand-800" onClick={onEdit}>
+      {name}
+    </Button>
+  );
+}
+
+export function StatusAction({ status, entityName, onActivate, onInactivate, disabled }: { status: string; entityName: string; onActivate: () => void; onInactivate: () => void; disabled?: boolean }) {
+  const active = status === 'active';
+  const label = active ? 'Inactivar' : 'Activar';
+  const message = active ? `¿Inactivar ${entityName}? No se eliminará físicamente.` : `¿Activar ${entityName} nuevamente?`;
+
+  return (
+    <Button
+      type="button"
+      variant={active ? 'danger' : 'secondary'}
+      className="px-3 py-1.5"
+      disabled={disabled}
+      onClick={() => {
+        if (window.confirm(message)) {
+          if (active) {
+            onInactivate();
+          } else {
+            onActivate();
+          }
+        }
+      }}
+    >
+      {label}
+    </Button>
   );
 }

@@ -49,9 +49,11 @@ La Fase 6B.2 agrega los módulos funcionales de Consultorios y Profesionales sig
 
 La Fase 6B.3 completa la línea base operativa de los módulos funcionales existentes: Organizaciones, Sedes, Consultorios y Profesionales. Estos módulos ahora deben soportar edición de datos administrativos y acciones de deshabilitar/inactivar cuando el backend lo permite o mediante endpoints estrechos consistentes con el estilo admin existente.
 
+- La edición de organizaciones, sedes, consultorios y profesionales inicia desde el nombre legible de cada registro en la tabla, no desde UUIDs ni botones técnicos separados.
 - La eliminación física se evita intencionalmente para proteger auditoría, historial operativo y relaciones futuras.
 - La inactivación/deshabilitación es la opción preferida para datos maestros como organizaciones, sedes, consultorios y profesionales.
-- Los UUIDs continúan siendo internos: las relaciones se gestionan con selectores legibles por nombre.
+- La inactivación es reversible desde la tabla mediante la acción Activar para registros inactivos.
+- Los UUIDs continúan siendo internos: las relaciones se gestionan con selectores legibles por nombre y las tablas muestran nombres humanos como punto de entrada.
 - En Consultorios, el campo “Tipo de consultorio” debe explicar ejemplos como Consulta general, Procedimientos, Terapia, Diagnóstico, Virtual u Otro.
 - En Consultorios, el campo “Capacidad” debe aclarar que para un consultorio individual normalmente se usa 1 y que puede quedar vacío cuando no aplica.
 

@@ -11,7 +11,7 @@ import { FieldWrapper, Input, Select } from '../../components/ui/Form';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/States';
 import { adminResourcesApi, type Organization } from '../../api/adminResources';
 import type { AdminTenant } from '../../config/tenant';
-import { RowActions, StatusBadge } from '../adminResourceUtils';
+import { NameEditButton, StatusAction, StatusBadge } from '../adminResourceUtils';
 import { emptyToNull } from '../adminResourceFormat';
 
 const schema = z.object({
@@ -36,15 +36,15 @@ export function OrganizationsPage({ tenant }: { tenant: AdminTenant }) {
   const payload = (values: FormValues) => ({ name: values.name.trim(), organization_type: values.organization_type, legal_name: emptyToNull(values.legal_name), tax_id: emptyToNull(values.tax_id), email: emptyToNull(values.email), phone: emptyToNull(values.phone) });
   const closeForm = () => { setEditing(null); setShowForm(false); form.reset(defaults()); };
   const save = useMutation({ mutationFn: (values: FormValues) => editing ? adminResourcesApi.updateOrganization(tenant.id, editing.id, payload(values)) : adminResourcesApi.createOrganization(tenant.id, payload(values)), onSuccess: async () => { setFeedback(editing ? 'Organización actualizada correctamente.' : 'Organización creada correctamente.'); closeForm(); await queryClient.invalidateQueries({ queryKey }); } });
-  const disable = useMutation({ mutationFn: (org: Organization) => adminResourcesApi.disableOrganization(tenant.id, org.id), onSuccess: async () => { setFeedback('Organización inactivada correctamente.'); await queryClient.invalidateQueries({ queryKey }); } });
+  const statusAction = useMutation({ mutationFn: (org: Organization) => org.status === 'active' ? adminResourcesApi.disableOrganization(tenant.id, org.id) : adminResourcesApi.activateOrganization(tenant.id, org.id), onSuccess: async (_updated, org) => { setFeedback(org.status === 'active' ? 'Organización inactivada correctamente.' : 'Organización activada correctamente.'); await queryClient.invalidateQueries({ queryKey }); } });
   const startEdit = (org: Organization) => { setEditing(org); form.reset(defaults(org)); setShowForm(true); };
 
   return <>
     <PageHeader eyebrow="Fase 6B.3 · edición e inactivación" title="Organizaciones" description="Gestiona organizaciones del tenant activo sin exponer identificadores técnicos." actions={<Button onClick={() => showForm ? closeForm() : setShowForm(true)}>{showForm ? 'Cerrar formulario' : 'Crear organización'}</Button>} />
     {feedback ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{feedback}</div> : null}
     {save.isError ? <div className="mb-4"><ErrorState description={(save.error as Error).message} /></div> : null}
-    {disable.isError ? <div className="mb-4"><ErrorState description={(disable.error as Error).message} /></div> : null}
-    {showForm ? <SectionCard title={editing ? `Editar ${editing.name}` : 'Nueva organización'} description="Actualiza datos básicos. El estado se controla con la acción Inactivar."><form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
+    {statusAction.isError ? <div className="mb-4"><ErrorState description={(statusAction.error as Error).message} /></div> : null}
+    {showForm ? <SectionCard title={editing ? `Editar ${editing.name}` : 'Nueva organización'} description="Actualiza datos básicos. El estado se controla desde la tabla con Activar/Inactivar."><form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
       <FieldWrapper label="Nombre" error={form.formState.errors.name?.message}><Input placeholder="Clínica Vida" {...form.register('name')} /></FieldWrapper>
       <FieldWrapper label="Tipo" error={form.formState.errors.organization_type?.message}><Select {...form.register('organization_type')}><option value="clinic">Clínica</option><option value="medical_center">Centro médico</option><option value="private_practice">Consultorio privado</option></Select></FieldWrapper>
       <FieldWrapper label="Razón social" error={form.formState.errors.legal_name?.message}><Input {...form.register('legal_name')} /></FieldWrapper>
@@ -55,7 +55,7 @@ export function OrganizationsPage({ tenant }: { tenant: AdminTenant }) {
     </form></SectionCard> : null}
     <div className="mt-6"><SectionCard title="Listado de organizaciones" description={`Tenant activo: ${tenant.label}`}>
       {organizations.isLoading ? <LoadingState label="Cargando organizaciones…" /> : null}{organizations.isError ? <ErrorState description={(organizations.error as Error).message} /> : null}{organizations.isSuccess && organizations.data.length === 0 ? <EmptyState title="Sin organizaciones" description="Crea la primera organización para comenzar a configurar sedes." /> : null}
-      {organizations.isSuccess && organizations.data.length > 0 ? <DataTableShell columns={['Nombre', 'Tipo', 'Contacto', 'Estado', 'Acciones']} rows={organizations.data.map((org) => [<strong>{org.name}</strong>, org.organization_type, org.email ?? org.phone ?? 'Sin contacto', <StatusBadge status={org.status} feminine />, <RowActions disabled={org.status !== 'active' || disable.isPending} onEdit={() => startEdit(org)} onDisable={() => { if (window.confirm(`¿Inactivar la organización ${org.name}? No se eliminará físicamente.`)) disable.mutate(org); }} />])} /> : null}
+      {organizations.isSuccess && organizations.data.length > 0 ? <DataTableShell columns={['Nombre', 'Tipo', 'Contacto', 'Estado', 'Acciones']} rows={organizations.data.map((org) => [<NameEditButton name={org.name} onEdit={() => startEdit(org)} />, org.organization_type, org.email ?? org.phone ?? 'Sin contacto', <StatusBadge status={org.status} feminine />, <StatusAction status={org.status} entityName={org.name} disabled={statusAction.isPending} onInactivate={() => statusAction.mutate(org)} onActivate={() => statusAction.mutate(org)} />])} /> : null}
     </SectionCard></div>
   </>;
 }
