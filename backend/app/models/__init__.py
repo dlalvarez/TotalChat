@@ -16,6 +16,7 @@ from app.models.tenant import (
     PayerPlan,
     PayerType,
     Practitioner,
+    OrganizationPractitioner,
     PractitionerService,
     PractitionerServicePrice,
     PractitionerSpecialty,
@@ -26,7 +27,7 @@ from app.models.tenant import (
 
 __all__ = [
     "Tenant", "TenantChannel", "User", "UserTenant",
-    "Organization", "Location", "Room", "Practitioner", "Specialty", "PractitionerSpecialty",
+    "Organization", "Location", "Room", "Practitioner", "OrganizationPractitioner", "Specialty", "PractitionerSpecialty",
     "PractitionerService", "ServiceModality", "PayerType", "Payer", "PayerPlan",
     "PractitionerServicePrice", "Patient", "PatientContact", "PatientPayerProfile", "AvailabilityRule", "AvailabilityException", "Booking",
     "PaymentSettings", "PaymentAttempt", "PaymentEvidence", "PaymentReview",

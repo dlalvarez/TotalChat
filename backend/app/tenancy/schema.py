@@ -91,6 +91,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     apply_admin_reschedule_reason_tenant_migration(connection, schema_name)
     apply_patient_payer_profiles_tenant_migration(connection, schema_name)
     apply_manual_payments_tenant_migration(connection, schema_name)
+    apply_organization_practitioners_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -291,6 +292,43 @@ def apply_manual_payments_tenant_migration(connection: Connection, schema_name: 
             f'''
             INSERT INTO "{schema_name}".tenant_schema_migrations (version)
             VALUES ('006_manual_simulated_payments')
+            ON CONFLICT (version) DO NOTHING
+            '''
+        )
+    )
+
+
+def apply_organization_practitioners_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Add organization-practitioner relationships to existing tenant schemas."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+
+    connection.execute(
+        text(
+            f'''
+            CREATE TABLE IF NOT EXISTS "{schema_name}".organization_practitioners (
+                organization_id UUID NOT NULL,
+                practitioner_id UUID NOT NULL,
+                role VARCHAR(32) DEFAULT 'member' NOT NULL,
+                status VARCHAR(32) DEFAULT 'active' NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                PRIMARY KEY (organization_id, practitioner_id),
+                CONSTRAINT uq_organization_practitioner UNIQUE (organization_id, practitioner_id),
+                FOREIGN KEY(organization_id) REFERENCES "{schema_name}".organizations (id),
+                FOREIGN KEY(practitioner_id) REFERENCES "{schema_name}".practitioners (id)
+            )
+            '''
+        )
+    )
+    connection.execute(text(f'CREATE INDEX IF NOT EXISTS ix_organization_practitioners_organization_id ON "{schema_name}".organization_practitioners (organization_id)'))
+    connection.execute(text(f'CREATE INDEX IF NOT EXISTS ix_organization_practitioners_practitioner_id ON "{schema_name}".organization_practitioners (practitioner_id)'))
+    connection.execute(text(f'CREATE INDEX IF NOT EXISTS ix_organization_practitioners_status ON "{schema_name}".organization_practitioners (status)'))
+    connection.execute(
+        text(
+            f'''
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('007_organization_practitioners')
             ON CONFLICT (version) DO NOTHING
             '''
         )

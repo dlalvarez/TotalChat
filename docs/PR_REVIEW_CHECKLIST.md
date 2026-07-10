@@ -219,3 +219,15 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 - [ ] Especialidades inactivas no se ofrecen para nuevas asignaciones, pero se muestran si ya estaban asignadas.
 - [ ] `room_type` usa select con catálogo fijo y el backend rechaza valores fuera de catálogo.
 - [ ] No se implementaron servicios, precios, disponibilidad, citas, pacientes, pagos ni catálogo global de especialidades.
+
+## Checklist Fase 6B.5 — Relación organización-profesional
+
+- [ ] `organization_practitioners` existe por tenant con única `organization_id + practitioner_id`.
+- [ ] API lista relaciones con nombres legibles y sin `schema_name`.
+- [ ] API crea/reactiva sin duplicar y valida padres activos.
+- [ ] API permite cambiar solo `role`/`status` y no cambia IDs de la pareja.
+- [ ] Consola no muestra UUIDs, no muestra botón `Editar` separado y no ofrece eliminar.
+- [ ] Consola solo ofrece organizaciones/profesionales activos para nuevas asociaciones.
+- [ ] Relaciones existentes se conservan aunque padres queden inactivos.
+- [ ] No se implementa CRUD de Servicios en esta fase.
+- [ ] Se ejecuta `python3 scripts/check_sdd_scope.py` y pruebas relevantes.

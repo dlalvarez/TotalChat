@@ -1265,3 +1265,35 @@ Endpoints administrativos tenant-scoped agregados o completados:
 - `POST /api/admin/practitioners/{practitioner_id}/specialties/{specialty_id}/disable`: retira reversiblemente una asignación.
 
 `room_type` en `POST/PATCH /api/admin/rooms` acepta únicamente: `consulta_general`, `procedimientos`, `terapia`, `diagnostico`, `virtual`, `otro` o `null` cuando el campo queda vacío para compatibilidad de datos existentes.
+
+## Fase 6B.5 — Organization practitioners admin API
+
+Endpoints tenant-scoped bajo `/api/admin`:
+
+- `GET /api/admin/organization-practitioners`
+  - Filtros opcionales: `organization_id`, `practitioner_id`, `status`, `include_inactive`.
+  - Devuelve nombres y estados legibles de organización y profesional; no devuelve `schema_name`.
+- `POST /api/admin/organization-practitioners`
+  - Payload: `organization_id`, `practitioner_id`, `role` opcional (`member` por defecto).
+  - Crea activa, reactiva si estaba inactiva y evita duplicados.
+  - Rechaza padres inexistentes o inactivos para nuevas relaciones.
+- `PATCH /api/admin/organizations/{organization_id}/practitioners/{practitioner_id}`
+  - Permite cambiar `role` y `status`.
+  - No permite cambiar IDs de la pareja.
+- `POST /api/admin/organizations/{organization_id}/practitioners/{practitioner_id}/disable`
+  - Inactiva la relación sin borrar físicamente ni tocar organización, profesional, especialidades o servicios.
+
+Respuesta de relación:
+
+```json
+{
+  "organization_id": "uuid",
+  "organization_name": "Clínica Vida",
+  "organization_status": "active",
+  "practitioner_id": "uuid",
+  "practitioner_name": "Dra. Ana Pérez",
+  "practitioner_status": "active",
+  "role": "member",
+  "status": "active"
+}
+```
