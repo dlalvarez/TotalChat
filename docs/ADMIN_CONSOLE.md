@@ -44,6 +44,18 @@ La Fase 6B.2 agrega los módulos funcionales de Consultorios y Profesionales sig
 - La asignación de especialidades, servicios, precios, disponibilidad y citas permanece diferida para fases posteriores.
 - Los UUIDs continúan siendo identificadores internos: pueden viajar por API y estado de la aplicación, pero no se solicitan como entrada normal del usuario.
 
+
+## 2.4. Fase 6B.3 — Edición e inactivación de módulos base
+
+La Fase 6B.3 completa la línea base operativa de los módulos funcionales existentes: Organizaciones, Sedes, Consultorios y Profesionales. Estos módulos ahora deben soportar edición de datos administrativos y acciones de deshabilitar/inactivar cuando el backend lo permite o mediante endpoints estrechos consistentes con el estilo admin existente.
+
+- La edición se inicia desde el nombre legible de cada registro en la tabla, no desde un botón separado de Editar.
+- La eliminación física se evita intencionalmente para proteger auditoría, historial operativo y relaciones futuras.
+- La inactivación/deshabilitación es reversible mediante una acción Activar para datos maestros como organizaciones, sedes, consultorios y profesionales.
+- Los UUIDs continúan siendo internos: las relaciones se gestionan con selectores legibles por nombre.
+- En Consultorios, el campo “Tipo de consultorio” debe explicar ejemplos como Consulta general, Procedimientos, Terapia, Diagnóstico, Virtual u Otro.
+- En Consultorios, el campo “Capacidad” debe aclarar que para un consultorio individual normalmente se usa 1 y que puede quedar vacío cuando no aplica.
+
 ## 3. Principios de UX/UI para la Consola Administrativa
 
 La consola administrativa de TotalChat/MediChat no debe ser una interfaz meramente técnica ni una simple exposición de endpoints del backend. Debe ser una herramienta profesional, agradable, clara y fácil de usar para usuarios administrativos reales de consultorios, profesionales de salud, clínicas y organizaciones.
