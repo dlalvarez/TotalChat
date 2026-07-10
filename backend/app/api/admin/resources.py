@@ -1073,19 +1073,24 @@ def sync_practitioner_specialties(
         raise ResourceNotFound("Practitioner not found.")
 
     desired_ids = set(payload.specialty_ids)
+    existing = session.scalars(
+        select(PractitionerSpecialty).where(PractitionerSpecialty.practitioner_id == practitioner_id)
+    ).all()
+    existing_by_id = {association.specialty_id: association for association in existing}
+
     specialties_by_id: dict[UUID, Specialty] = {}
     for specialty_id in desired_ids:
         specialty = session.get(Specialty, specialty_id)
         if specialty is None:
             raise ResourceNotFound("Specialty not found.")
-        if specialty.status != "active":
+
+        existing_association = existing_by_id.get(specialty_id)
+        preserves_existing_active_relation = (
+            existing_association is not None and existing_association.status == "active"
+        )
+        if specialty.status != "active" and not preserves_existing_active_relation:
             raise BusinessRuleViolation("Inactive specialties cannot be assigned.")
         specialties_by_id[specialty_id] = specialty
-
-    existing = session.scalars(
-        select(PractitionerSpecialty).where(PractitionerSpecialty.practitioner_id == practitioner_id)
-    ).all()
-    existing_by_id = {association.specialty_id: association for association in existing}
 
     try:
         for specialty_id in desired_ids:
