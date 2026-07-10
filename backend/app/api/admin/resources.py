@@ -651,14 +651,16 @@ def serialize_specialty(specialty: Specialty) -> dict[str, object]:
 
 
 def serialize_practitioner_service(service: PractitionerService, association: OrganizationPractitioner | None = None) -> dict[str, object]:
+    organization = association.organization if association is not None else service.organization
+    practitioner = association.practitioner if association is not None else service.practitioner
     return {
         "id": str(service.id),
         "organization_id": str(service.organization_id),
-        "organization_name": service.organization.name if service.organization is not None else None,
-        "organization_status": service.organization.status if service.organization is not None else None,
+        "organization_name": organization.name if organization is not None else None,
+        "organization_status": organization.status if organization is not None else None,
         "practitioner_id": str(service.practitioner_id),
-        "practitioner_name": service.practitioner.full_name if service.practitioner is not None else None,
-        "practitioner_status": service.practitioner.status if service.practitioner is not None else None,
+        "practitioner_name": practitioner.full_name if practitioner is not None else None,
+        "practitioner_status": practitioner.status if practitioner is not None else None,
         "organization_practitioner_status": association.status if association is not None else None,
         "name": service.name,
         "description": service.description,
@@ -1415,6 +1417,8 @@ def _validate_active_service_parents(session: Session, organization_id: UUID, pr
         raise BusinessRuleViolation("Practitioner must be actively associated to the organization before services can be configured.")
     if association.status != "active":
         raise BusinessRuleViolation("Inactive organization-practitioner relationships cannot have active services.")
+    association.organization = organization
+    association.practitioner = practitioner
     return association
 
 

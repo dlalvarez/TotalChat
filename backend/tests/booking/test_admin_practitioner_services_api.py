@@ -89,6 +89,25 @@ def test_create_practitioner_service_successfully(admin_session, tenant_context,
     assert "schema_name" not in data
 
 
+def test_create_practitioner_service_returns_readable_names_without_lazy_loading_error(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    install_overrides(admin_session, tenant_context)
+    try:
+        response = TestClient(app).post(
+            "/api/admin/practitioner-services",
+            json=service_payload(org, practitioner, "Consulta pediátrica"),
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["organization_name"] == "Clínica Vida"
+    assert data["practitioner_name"] == "Dra. Ana Pérez"
+    assert data["organization_practitioner_status"] == "active"
+
+
 def test_list_practitioner_services_with_deterministic_ordering(admin_session, tenant_context, base_data):
     org, practitioner, *_ = base_data
     install_overrides(admin_session, tenant_context)
