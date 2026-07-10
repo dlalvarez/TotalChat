@@ -12,15 +12,161 @@ import { FieldWrapper, Input, Select } from '../../components/ui/Form';
 import { EmptyState, ErrorState, LoadingState } from '../../components/ui/States';
 import { adminResourcesApi, type Location } from '../../api/adminResources';
 import type { AdminTenant } from '../../config/tenant';
-import { NameEditButton, StatusAction, StatusBadge } from '../adminResourceUtils';
 import { emptyToNull } from '../adminResourceFormat';
-const schema = z.object({ organization_id: z.string().min(1, 'Selecciona una organización'), name: z.string().min(1, 'El nombre de la sede es obligatorio'), address: z.string().optional(), city: z.string().optional(), neighborhood: z.string().optional(), reference: z.string().optional(), is_virtual: z.boolean().default(false) });
-type FormValues = z.infer<typeof schema>; const defaults = (l?: Location): FormValues => ({ organization_id: l?.organization_id ?? '', name: l?.name ?? '', address: l?.address ?? '', city: l?.city ?? '', neighborhood: l?.neighborhood ?? '', reference: l?.reference ?? '', is_virtual: l?.is_virtual ?? false });
+import { NameEditButton, StatusAction, StatusBadge } from '../adminResourceUtils';
+
+const schema = z.object({
+  organization_id: z.string().min(1, 'Selecciona una organización'),
+  name: z.string().min(1, 'El nombre de la sede es obligatorio'),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  neighborhood: z.string().optional(),
+  reference: z.string().optional(),
+  is_virtual: z.boolean().default(false),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+function formDefaults(location?: Location): FormValues {
+  return {
+    organization_id: location?.organization_id ?? '',
+    name: location?.name ?? '',
+    address: location?.address ?? '',
+    city: location?.city ?? '',
+    neighborhood: location?.neighborhood ?? '',
+    reference: location?.reference ?? '',
+    is_virtual: location?.is_virtual ?? false,
+  };
+}
+
+function toPayload(values: FormValues) {
+  return {
+    organization_id: values.organization_id,
+    name: values.name.trim(),
+    address: emptyToNull(values.address),
+    city: emptyToNull(values.city),
+    neighborhood: emptyToNull(values.neighborhood),
+    reference: emptyToNull(values.reference),
+    is_virtual: values.is_virtual,
+  };
+}
+
 export function LocationsPage({ tenant }: { tenant: AdminTenant }) {
- const [showForm,setShowForm]=useState(false),[editing,setEditing]=useState<Location|null>(null),[feedback,setFeedback]=useState<string|null>(null); const qc=useQueryClient(); const locationsKey=useMemo(()=>['locations',tenant.id],[tenant.id]); const organizationsKey=useMemo(()=>['organizations',tenant.id],[tenant.id]);
- const locations=useQuery({queryKey:locationsKey,queryFn:()=>adminResourcesApi.listLocations(tenant.id)}); const organizations=useQuery({queryKey:organizationsKey,queryFn:()=>adminResourcesApi.listOrganizations(tenant.id)}); const organizationNames=new Map((organizations.data??[]).map(o=>[o.id,o.name])); const form=useForm<FormValues>({resolver:zodResolver(schema),defaultValues:defaults()});
- const payload=(v:FormValues)=>({organization_id:v.organization_id,name:v.name.trim(),address:emptyToNull(v.address),city:emptyToNull(v.city),neighborhood:emptyToNull(v.neighborhood),reference:emptyToNull(v.reference),is_virtual:v.is_virtual}); const closeForm=()=>{setEditing(null);setShowForm(false);form.reset(defaults());}; const save=useMutation({mutationFn:(v:FormValues)=>editing?adminResourcesApi.updateLocation(tenant.id,editing.id,payload(v)):adminResourcesApi.createLocation(tenant.id,payload(v)),onSuccess:async()=>{setFeedback(editing?'Sede actualizada correctamente.':'Sede creada correctamente.');closeForm();await qc.invalidateQueries({queryKey:locationsKey});}}); const disable=useMutation({mutationFn:(l:Location)=>l.status==='active'?adminResourcesApi.disableLocation(tenant.id,l.id):adminResourcesApi.activateLocation(tenant.id,l.id),onSuccess:async(l)=>{setFeedback(l.status==='active'?'Sede activada correctamente.':'Sede inactivada correctamente.');await qc.invalidateQueries({queryKey:locationsKey});}}); const startEdit=(l:Location)=>{setEditing(l);form.reset(defaults(l));setShowForm(true);};
- return <><PageHeader eyebrow="Fase 6B.3 · edición e inactivación" title="Sedes" description="Gestiona sedes físicas o virtuales mediante datos legibles." actions={<Button onClick={()=>showForm?closeForm():setShowForm(true)}>{showForm?'Cerrar formulario':'Crear sede'}</Button>}/>{feedback?<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{feedback}</div>:null}{save.isError?<div className="mb-4"><ErrorState description={(save.error as Error).message}/></div>:null}{disable.isError?<div className="mb-4"><ErrorState description={(disable.error as Error).message}/></div>:null}
- {showForm?<SectionCard title={editing?`Editar ${editing.name}`:'Nueva sede'} description="Selecciona la organización por nombre; el UUID queda interno."><form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(v=>save.mutate(v))}><FieldWrapper label="Organización" hint="Selector amigable; el identificador técnico queda interno." error={form.formState.errors.organization_id?.message}><Select {...form.register('organization_id')} disabled={organizations.isLoading||(organizations.data?.length??0)===0}><option value="">Selecciona una organización</option>{(organizations.data??[]).map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</Select></FieldWrapper><FieldWrapper label="Nombre de la sede" error={form.formState.errors.name?.message}><Input placeholder="Sede Norte" {...form.register('name')}/></FieldWrapper><FieldWrapper label="Dirección" error={form.formState.errors.address?.message}><Input {...form.register('address')}/></FieldWrapper><FieldWrapper label="Ciudad" error={form.formState.errors.city?.message}><Input {...form.register('city')}/></FieldWrapper><FieldWrapper label="Barrio / zona" error={form.formState.errors.neighborhood?.message}><Input {...form.register('neighborhood')}/></FieldWrapper><FieldWrapper label="Referencia" error={form.formState.errors.reference?.message}><Input {...form.register('reference')}/></FieldWrapper><label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 md:col-span-2"><input type="checkbox" className="h-4 w-4 rounded border-slate-300" {...form.register('is_virtual')}/> Es una sede virtual</label><div className="flex gap-2 md:col-span-2"><Button type="submit" disabled={save.isPending||(organizations.data?.length??0)===0}>{save.isPending?'Guardando…':'Guardar cambios'}</Button>{editing?<Button type="button" variant="secondary" onClick={closeForm}>Cancelar</Button>:null}</div></form></SectionCard>:null}
- <div className="mt-6"><SectionCard title="Listado de sedes" description={`Tenant activo: ${tenant.label}`}>{locations.isLoading?<LoadingState label="Cargando sedes…"/>:null}{locations.isError?<ErrorState description={(locations.error as Error).message}/>:null}{locations.isSuccess&&locations.data.length===0?<EmptyState title="Sin sedes" description="Crea la primera sede usando una organización existente."/>:null}{locations.isSuccess&&locations.data.length>0?<DataTableShell columns={['Sede','Organización','Ubicación','Tipo','Estado','Acciones']} rows={locations.data.map(l=>[<NameEditButton onClick={()=>startEdit(l)}>{l.name}</NameEditButton>,organizationNames.get(l.organization_id)??'Organización no disponible',[l.city,l.address].filter(Boolean).join(' · ')||'Sin ubicación',<Badge tone={l.is_virtual?'info':'neutral'}>{l.is_virtual?'Virtual':'Presencial'}</Badge>,<StatusBadge status={l.status} feminine/>,<StatusAction status={l.status} pending={disable.isPending} onDeactivate={()=>{if(window.confirm(`¿Inactivar la sede ${l.name}? No se eliminará físicamente.`))disable.mutate(l);}} onActivate={()=>{if(window.confirm(`¿Activar ${l.name} nuevamente?`))disable.mutate(l);}}/>])}/>:null}</SectionCard></div></>;
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Location | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const locationsKey = useMemo(() => ['locations', tenant.id], [tenant.id]);
+  const organizationsKey = useMemo(() => ['organizations', tenant.id], [tenant.id]);
+
+  const locations = useQuery({ queryKey: locationsKey, queryFn: () => adminResourcesApi.listLocations(tenant.id) });
+  const organizations = useQuery({ queryKey: organizationsKey, queryFn: () => adminResourcesApi.listOrganizations(tenant.id) });
+  const organizationNames = new Map((organizations.data ?? []).map((organization) => [organization.id, organization.name]));
+  const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: formDefaults() });
+
+  const closeForm = () => {
+    setEditing(null);
+    setShowForm(false);
+    form.reset(formDefaults());
+  };
+
+  const save = useMutation({
+    mutationFn: (values: FormValues) =>
+      editing
+        ? adminResourcesApi.updateLocation(tenant.id, editing.id, toPayload(values))
+        : adminResourcesApi.createLocation(tenant.id, toPayload(values)),
+    onSuccess: async () => {
+      setFeedback(editing ? 'Sede actualizada correctamente.' : 'Sede creada correctamente.');
+      closeForm();
+      await queryClient.invalidateQueries({ queryKey: locationsKey });
+    },
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: (location: Location) =>
+      location.status === 'active'
+        ? adminResourcesApi.disableLocation(tenant.id, location.id)
+        : adminResourcesApi.activateLocation(tenant.id, location.id),
+    onSuccess: async (location) => {
+      setFeedback(location.status === 'active' ? 'Sede activada correctamente.' : 'Sede inactivada correctamente.');
+      await queryClient.invalidateQueries({ queryKey: locationsKey });
+    },
+  });
+
+  const startEdit = (location: Location) => {
+    setEditing(location);
+    form.reset(formDefaults(location));
+    setShowForm(true);
+  };
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Fase 6B.3 · edición e inactivación"
+        title="Sedes"
+        description="Gestiona sedes físicas o virtuales mediante datos legibles."
+        actions={<Button onClick={() => (showForm ? closeForm() : setShowForm(true))}>{showForm ? 'Cerrar formulario' : 'Crear sede'}</Button>}
+      />
+
+      {feedback ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{feedback}</div> : null}
+      {save.isError ? <div className="mb-4"><ErrorState description={(save.error as Error).message} /></div> : null}
+      {toggleStatus.isError ? <div className="mb-4"><ErrorState description={(toggleStatus.error as Error).message} /></div> : null}
+
+      {showForm ? (
+        <SectionCard title={editing ? `Editar ${editing.name}` : 'Nueva sede'} description="Selecciona la organización por nombre; el UUID queda interno.">
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
+            <FieldWrapper label="Organización" hint="Selector amigable; el identificador técnico queda interno." error={form.formState.errors.organization_id?.message}>
+              <Select {...form.register('organization_id')} disabled={organizations.isLoading || (organizations.data?.length ?? 0) === 0}>
+                <option value="">Selecciona una organización</option>
+                {(organizations.data ?? []).map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+              </Select>
+            </FieldWrapper>
+            <FieldWrapper label="Nombre de la sede" error={form.formState.errors.name?.message}><Input placeholder="Sede Norte" {...form.register('name')} /></FieldWrapper>
+            <FieldWrapper label="Dirección" error={form.formState.errors.address?.message}><Input {...form.register('address')} /></FieldWrapper>
+            <FieldWrapper label="Ciudad" error={form.formState.errors.city?.message}><Input {...form.register('city')} /></FieldWrapper>
+            <FieldWrapper label="Barrio / zona" error={form.formState.errors.neighborhood?.message}><Input {...form.register('neighborhood')} /></FieldWrapper>
+            <FieldWrapper label="Referencia" error={form.formState.errors.reference?.message}><Input {...form.register('reference')} /></FieldWrapper>
+            <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 md:col-span-2">
+              <input type="checkbox" className="h-4 w-4 rounded border-slate-300" {...form.register('is_virtual')} />
+              Es una sede virtual
+            </label>
+            <div className="flex gap-2 md:col-span-2">
+              <Button type="submit" disabled={save.isPending || (organizations.data?.length ?? 0) === 0}>{save.isPending ? 'Guardando…' : 'Guardar cambios'}</Button>
+              {editing ? <Button type="button" variant="secondary" onClick={closeForm}>Cancelar</Button> : null}
+            </div>
+          </form>
+        </SectionCard>
+      ) : null}
+
+      <div className="mt-6">
+        <SectionCard title="Listado de sedes" description={`Tenant activo: ${tenant.label}`}>
+          {locations.isLoading ? <LoadingState label="Cargando sedes…" /> : null}
+          {locations.isError ? <ErrorState description={(locations.error as Error).message} /> : null}
+          {locations.isSuccess && locations.data.length === 0 ? <EmptyState title="Sin sedes" description="Crea la primera sede usando una organización existente." /> : null}
+          {locations.isSuccess && locations.data.length > 0 ? (
+            <DataTableShell
+              columns={['Sede', 'Organización', 'Ubicación', 'Tipo', 'Estado', 'Acciones']}
+              rows={locations.data.map((location) => [
+                <NameEditButton onClick={() => startEdit(location)}>{location.name}</NameEditButton>,
+                organizationNames.get(location.organization_id) ?? 'Organización no disponible',
+                [location.city, location.address].filter(Boolean).join(' · ') || 'Sin ubicación',
+                <Badge tone={location.is_virtual ? 'info' : 'neutral'}>{location.is_virtual ? 'Virtual' : 'Presencial'}</Badge>,
+                <StatusBadge status={location.status} feminine />,
+                <StatusAction
+                  status={location.status}
+                  pending={toggleStatus.isPending}
+                  onDeactivate={() => {
+                    if (window.confirm(`¿Inactivar la sede ${location.name}? No se eliminará físicamente.`)) toggleStatus.mutate(location);
+                  }}
+                  onActivate={() => {
+                    if (window.confirm(`¿Activar ${location.name} nuevamente?`)) toggleStatus.mutate(location);
+                  }}
+                />,
+              ])}
+            />
+          ) : null}
+        </SectionCard>
+      </div>
+    </>
+  );
 }
