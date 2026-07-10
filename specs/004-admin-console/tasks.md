@@ -18,7 +18,3 @@
 - [ ] Pantalla citas.
 - [ ] Pantalla pagos.
 - [ ] Pantalla links virtuales.
-
-- [x] CRUD servicios.
-  - Depende de `organization_practitioners` activa.
-  - No incluye precios, modalidades ni disponibilidad.
