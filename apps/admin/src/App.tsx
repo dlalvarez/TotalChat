@@ -13,6 +13,7 @@ import { RoomsPage } from './features/rooms/RoomsPage';
 import { PractitionersPage } from './features/practitioners/PractitionersPage';
 import { SpecialtiesPage } from './features/specialties/SpecialtiesPage';
 import { OrganizationPractitionersPage } from './features/organizationPractitioners/OrganizationPractitionersPage';
+import { PractitionerServicesPage } from './features/practitionerServices/PractitionerServicesPage';
 import { DEFAULT_DEVELOPMENT_TENANT, DEVELOPMENT_TENANTS } from './config/tenant';
 
 function PlaceholderPage({ name }: { name: string }) {
@@ -69,7 +70,8 @@ export default function App() {
         {active === 'Profesionales' ? <PractitionersPage tenant={tenant} /> : null}
         {active === 'Especialidades' ? <SpecialtiesPage tenant={tenant} /> : null}
         {active === 'Profesionales por organización' ? <OrganizationPractitionersPage tenant={tenant} /> : null}
-        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales', 'Especialidades', 'Profesionales por organización'].includes(active) ? <PlaceholderPage name={active} /> : null}
+        {active === 'Servicios' ? <PractitionerServicesPage tenant={tenant} /> : null}
+        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales', 'Especialidades', 'Profesionales por organización', 'Servicios'].includes(active) ? <PlaceholderPage name={active} /> : null}
       </AdminLayout>
     </QueryClientProvider>
   );

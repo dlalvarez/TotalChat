@@ -1297,3 +1297,12 @@ Respuesta de relación:
   "status": "active"
 }
 ```
+
+
+### Fase 6B.6 — CRUD administrativo de servicios del profesional
+
+`PractitionerService` se administra con `GET /api/admin/practitioner-services`, `POST /api/admin/practitioner-services`, `GET /api/admin/practitioner-services/{service_id}`, `PATCH /api/admin/practitioner-services/{service_id}` y `POST /api/admin/practitioner-services/{service_id}/disable`. Crear y reactivar servicios exige organización activa, profesional activo y relación `organization_practitioners` activa para la pareja `organization_id + practitioner_id`. El listado conserva servicios históricos aunque los padres o la relación estén inactivos, e incluye nombres y estados legibles. No expone `schema_name`.
+
+Campos de creación: `organization_id`, `practitioner_id`, `name`, `description`, `duration_minutes`, `requires_payment`. Edición solo permite `name`, `description`, `duration_minutes`, `requires_payment`, `status`; no permite cambiar organización ni profesional. La duplicidad se valida en aplicación por organización + profesional + nombre normalizado case-insensitive; no resuelve carreras concurrentes extremas.
+
+Servicios no incluye precios todavía. Servicios no incluye modalidades todavía en la consola administrativa. Servicios no incluye disponibilidad todavía.

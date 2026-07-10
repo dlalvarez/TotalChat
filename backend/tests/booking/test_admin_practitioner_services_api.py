@@ -8,10 +8,10 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.admin.dependencies import get_admin_tenant_context, get_db_session
 from app.main import app
-from app.models.tenant import Location, Organization, Practitioner, PractitionerService, Room, ServiceModality
+from app.models.tenant import Location, Organization, OrganizationPractitioner, Practitioner, PractitionerService, Room, ServiceModality
 from app.tenancy.context import TenantContext
 
-TENANT_TABLES = [Organization.__table__, Practitioner.__table__, Location.__table__, Room.__table__, PractitionerService.__table__, ServiceModality.__table__]
+TENANT_TABLES = [Organization.__table__, Practitioner.__table__, OrganizationPractitioner.__table__, Location.__table__, Room.__table__, PractitionerService.__table__, ServiceModality.__table__]
 
 
 @pytest.fixture()
@@ -49,6 +49,8 @@ def base_data(admin_session):
     room = Room(location=loc, name="Consultorio 1")
     other_room = Room(location=other_loc, name="Consultorio 2")
     admin_session.add_all([org, practitioner, loc, other_loc, room, other_room])
+    admin_session.flush()
+    admin_session.add(OrganizationPractitioner(organization_id=org.id, practitioner_id=practitioner.id))
     admin_session.flush()
     return org, practitioner, loc, room, other_loc, other_room
 
@@ -137,6 +139,79 @@ def test_create_practitioner_service_non_positive_duration_returns_validation_er
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
+
+
+def test_get_patch_disable_and_reactivate_practitioner_service(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        service = create_service(client, tenant_context, org, practitioner, "Consulta pediátrica")
+        get_response = client.get(f"/api/admin/practitioner-services/{service['id']}", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        patch_response = client.patch(f"/api/admin/practitioner-services/{service['id']}", json={"name": "Consulta pediátrica integral", "description": "Control", "duration_minutes": 30, "requires_payment": False}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        disable_response = client.post(f"/api/admin/practitioner-services/{service['id']}/disable", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        reactivate_response = client.patch(f"/api/admin/practitioner-services/{service['id']}", json={"status": "active"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert get_response.status_code == 200
+    assert get_response.json()["data"]["organization_name"] == "Clínica Vida"
+    assert get_response.json()["data"]["practitioner_name"] == "Dra. Ana Pérez"
+    assert get_response.json()["data"]["organization_practitioner_status"] == "active"
+    assert patch_response.status_code == 200
+    assert patch_response.json()["data"]["duration_minutes"] == 30
+    assert patch_response.json()["data"]["requires_payment"] is False
+    assert disable_response.status_code == 200
+    assert disable_response.json()["data"]["status"] == "inactive"
+    assert reactivate_response.status_code == 200
+    assert reactivate_response.json()["data"]["status"] == "active"
+
+
+def test_practitioner_service_rejects_inactive_or_missing_relationship(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    association = admin_session.get(OrganizationPractitioner, {"organization_id": org.id, "practitioner_id": practitioner.id})
+    association.status = "inactive"
+    admin_session.flush()
+    install_overrides(admin_session, tenant_context)
+    try:
+        response = TestClient(app).post("/api/admin/practitioner-services", json=service_payload(org, practitioner), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+
+
+def test_practitioner_service_rejects_duplicate_normalized_name(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        create_service(client, tenant_context, org, practitioner, "Consulta pediátrica")
+        response = client.post("/api/admin/practitioner-services", json=service_payload(org, practitioner, "  CONSULTA   PEDIÁTRICA  "), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "CONFLICT"
+
+
+def test_practitioner_service_history_remains_listed_with_inactive_parents(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    service = PractitionerService(organization_id=org.id, practitioner_id=practitioner.id, name="Consulta histórica", duration_minutes=30)
+    admin_session.add(service)
+    admin_session.flush()
+    org.status = "inactive"
+    practitioner.status = "inactive"
+    admin_session.get(OrganizationPractitioner, {"organization_id": org.id, "practitioner_id": practitioner.id}).status = "inactive"
+    admin_session.flush()
+    install_overrides(admin_session, tenant_context)
+    try:
+        response = TestClient(app).get("/api/admin/practitioner-services", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    data = response.json()["data"][0]
+    assert data["organization_status"] == "inactive"
+    assert data["practitioner_status"] == "inactive"
+    assert data["organization_practitioner_status"] == "inactive"
 
 def test_create_in_person_modality_successfully(admin_session, tenant_context, base_data):
     org, practitioner, loc, room, *_ = base_data

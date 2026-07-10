@@ -251,6 +251,41 @@ class CreatePractitionerServiceRequest(BaseModel):
     duration_minutes: int = Field(gt=0)
     requires_payment: bool = True
 
+    @field_validator("name")
+    @classmethod
+    def normalize_non_empty_name(cls, value: str) -> str:
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name must not be empty")
+        return normalized
+
+
+class PatchPractitionerServiceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    duration_minutes: int | None = Field(default=None, gt=0)
+    requires_payment: bool | None = None
+    status: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_non_empty_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name must not be empty")
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
+            raise ValueError("status must be active or inactive")
+        return value
+
 
 class CreateServiceModalityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -615,11 +650,16 @@ def serialize_specialty(specialty: Specialty) -> dict[str, object]:
     }
 
 
-def serialize_practitioner_service(service: PractitionerService) -> dict[str, object]:
+def serialize_practitioner_service(service: PractitionerService, association: OrganizationPractitioner | None = None) -> dict[str, object]:
     return {
         "id": str(service.id),
         "organization_id": str(service.organization_id),
+        "organization_name": service.organization.name if service.organization is not None else None,
+        "organization_status": service.organization.status if service.organization is not None else None,
         "practitioner_id": str(service.practitioner_id),
+        "practitioner_name": service.practitioner.full_name if service.practitioner is not None else None,
+        "practitioner_status": service.practitioner.status if service.practitioner is not None else None,
+        "organization_practitioner_status": association.status if association is not None else None,
         "name": service.name,
         "description": service.description,
         "duration_minutes": service.duration_minutes,
@@ -1355,6 +1395,40 @@ def disable_organization_practitioner(
     return {"data": serialize_organization_practitioner(association)}
 
 
+def _get_organization_practitioner(session: Session, organization_id: UUID, practitioner_id: UUID) -> OrganizationPractitioner | None:
+    return session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+
+
+def _validate_active_service_parents(session: Session, organization_id: UUID, practitioner_id: UUID) -> OrganizationPractitioner:
+    organization = session.get(Organization, organization_id)
+    if organization is None:
+        raise ResourceNotFound("Organization not found.")
+    practitioner = session.get(Practitioner, practitioner_id)
+    if practitioner is None:
+        raise ResourceNotFound("Practitioner not found.")
+    if organization.status != "active":
+        raise BusinessRuleViolation("Inactive organizations cannot have active practitioner services.")
+    if practitioner.status != "active":
+        raise BusinessRuleViolation("Inactive practitioners cannot have active practitioner services.")
+    association = _get_organization_practitioner(session, organization_id, practitioner_id)
+    if association is None:
+        raise BusinessRuleViolation("Practitioner must be actively associated to the organization before services can be configured.")
+    if association.status != "active":
+        raise BusinessRuleViolation("Inactive organization-practitioner relationships cannot have active services.")
+    return association
+
+
+def _find_duplicate_practitioner_service(session: Session, organization_id: UUID, practitioner_id: UUID, name: str, exclude_id: UUID | None = None) -> PractitionerService | None:
+    stmt = select(PractitionerService).where(
+        PractitionerService.organization_id == organization_id,
+        PractitionerService.practitioner_id == practitioner_id,
+        func.lower(PractitionerService.name) == name.lower(),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(PractitionerService.id != exclude_id)
+    return session.scalar(stmt)
+
+
 @router.post("/practitioner-services")
 def create_practitioner_service(
     payload: CreatePractitionerServiceRequest,
@@ -1362,11 +1436,9 @@ def create_practitioner_service(
     session: Session = Depends(get_db_session),
 ) -> dict[str, dict[str, object]]:
     _ = tenant_context
-    if session.get(Organization, payload.organization_id) is None:
-        raise ResourceNotFound("Organization not found.")
-    if session.get(Practitioner, payload.practitioner_id) is None:
-        raise ResourceNotFound("Practitioner not found.")
-
+    association = _validate_active_service_parents(session, payload.organization_id, payload.practitioner_id)
+    if _find_duplicate_practitioner_service(session, payload.organization_id, payload.practitioner_id, payload.name) is not None:
+        raise ConflictError("Practitioner service name already exists for this organization and practitioner.")
     service = PractitionerService(**payload.model_dump())
     try:
         session.add(service)
@@ -1376,7 +1448,7 @@ def create_practitioner_service(
     except Exception:
         session.rollback()
         raise
-    return {"data": serialize_practitioner_service(service)}
+    return {"data": serialize_practitioner_service(service, association)}
 
 
 @router.get("/practitioner-services")
@@ -1384,19 +1456,88 @@ def list_practitioner_services(
     organization_id: UUID | None = None,
     practitioner_id: UUID | None = None,
     status: str | None = None,
+    include_inactive: bool = True,
     tenant_context: TenantContext = Depends(get_admin_tenant_context),
     session: Session = Depends(get_db_session),
 ) -> dict[str, list[dict[str, object]]]:
     _ = tenant_context
-    stmt = select(PractitionerService)
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    stmt = select(PractitionerService).join(PractitionerService.organization).join(PractitionerService.practitioner)
     if organization_id is not None:
         stmt = stmt.where(PractitionerService.organization_id == organization_id)
     if practitioner_id is not None:
         stmt = stmt.where(PractitionerService.practitioner_id == practitioner_id)
     if status is not None:
         stmt = stmt.where(PractitionerService.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(PractitionerService.status == "active")
     services = session.scalars(stmt.order_by(PractitionerService.name, PractitionerService.id)).all()
-    return {"data": [serialize_practitioner_service(service) for service in services]}
+    return {"data": [serialize_practitioner_service(service, _get_organization_practitioner(session, service.organization_id, service.practitioner_id)) for service in services]}
+
+
+@router.get("/practitioner-services/{service_id}")
+def get_practitioner_service(
+    service_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    service = session.get(PractitionerService, service_id)
+    if service is None:
+        raise ResourceNotFound("Practitioner service not found.")
+    return {"data": serialize_practitioner_service(service, _get_organization_practitioner(session, service.organization_id, service.practitioner_id))}
+
+
+@router.patch("/practitioner-services/{service_id}")
+def patch_practitioner_service(
+    service_id: UUID,
+    payload: PatchPractitionerServiceRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    service = session.get(PractitionerService, service_id)
+    if service is None:
+        raise ResourceNotFound("Practitioner service not found.")
+    data = payload.model_dump(exclude_unset=True)
+    association = _get_organization_practitioner(session, service.organization_id, service.practitioner_id)
+    if data.get("status") == "active":
+        association = _validate_active_service_parents(session, service.organization_id, service.practitioner_id)
+    if "name" in data and _find_duplicate_practitioner_service(session, service.organization_id, service.practitioner_id, data["name"], exclude_id=service_id) is not None:
+        raise ConflictError("Practitioner service name already exists for this organization and practitioner.")
+    for field, value in data.items():
+        setattr(service, field, value)
+    try:
+        session.flush()
+        session.refresh(service)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_practitioner_service(service, association)}
+
+
+@router.post("/practitioner-services/{service_id}/disable")
+def disable_practitioner_service(
+    service_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    service = session.get(PractitionerService, service_id)
+    if service is None:
+        raise ResourceNotFound("Practitioner service not found.")
+    service.status = "inactive"
+    association = _get_organization_practitioner(session, service.organization_id, service.practitioner_id)
+    try:
+        session.flush()
+        session.refresh(service)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_practitioner_service(service, association)}
 
 
 @router.post("/practitioner-services/{service_id}/modalities")
