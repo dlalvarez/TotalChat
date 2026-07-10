@@ -160,6 +160,49 @@ def test_create_practitioner_service_non_positive_duration_returns_validation_er
 
 
 
+def test_patch_practitioner_service_returns_readable_names_without_lazy_loading_error(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        service = create_service(client, tenant_context, org, practitioner, "Consulta pediátrica")
+        response = client.patch(
+            f"/api/admin/practitioner-services/{service['id']}",
+            json={"description": "Nueva descripción"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["organization_name"] == "Clínica Vida"
+    assert data["practitioner_name"] == "Dra. Ana Pérez"
+    assert data["organization_practitioner_status"] == "active"
+    assert data["description"] == "Nueva descripción"
+
+
+def test_disable_practitioner_service_returns_readable_names_without_lazy_loading_error(admin_session, tenant_context, base_data):
+    org, practitioner, *_ = base_data
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        service = create_service(client, tenant_context, org, practitioner, "Consulta pediátrica")
+        response = client.post(
+            f"/api/admin/practitioner-services/{service['id']}/disable",
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["organization_name"] == "Clínica Vida"
+    assert data["practitioner_name"] == "Dra. Ana Pérez"
+    assert data["organization_practitioner_status"] == "active"
+    assert data["status"] == "inactive"
+
+
 def test_get_patch_disable_and_reactivate_practitioner_service(admin_session, tenant_context, base_data):
     org, practitioner, *_ = base_data
     install_overrides(admin_session, tenant_context)

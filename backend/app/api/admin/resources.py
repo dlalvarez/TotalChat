@@ -1398,7 +1398,12 @@ def disable_organization_practitioner(
 
 
 def _get_organization_practitioner(session: Session, organization_id: UUID, practitioner_id: UUID) -> OrganizationPractitioner | None:
-    return session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+    association = session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+    if association is None:
+        return None
+    association.organization = session.get(Organization, organization_id)
+    association.practitioner = session.get(Practitioner, practitioner_id)
+    return association
 
 
 def _validate_active_service_parents(session: Session, organization_id: UUID, practitioner_id: UUID) -> OrganizationPractitioner:
