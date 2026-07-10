@@ -124,3 +124,66 @@ def test_missing_tenant_header_returns_authentication_required():
     response = TestClient(app).get("/api/admin/organization-practitioners")
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+
+def _create_inactive_relation_with_parent_status(admin_session, org_status="active", practitioner_status="active"):
+    org = create_org(admin_session)
+    practitioner = create_practitioner(admin_session)
+    relation = OrganizationPractitioner(organization=org, practitioner=practitioner, role="member", status="inactive")
+    admin_session.add(relation)
+    admin_session.flush()
+    org.status = org_status
+    practitioner.status = practitioner_status
+    admin_session.flush()
+    return org, practitioner, relation
+
+
+def test_patch_rejects_reactivation_when_organization_is_inactive(admin_session, tenant_context):
+    org, practitioner, relation = _create_inactive_relation_with_parent_status(admin_session, org_status="inactive")
+    install_overrides(admin_session, tenant_context)
+    try:
+        response = TestClient(app).patch(
+            f"/api/admin/organizations/{org.id}/practitioners/{practitioner.id}",
+            json={"status": "active"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    admin_session.refresh(relation)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert relation.status == "inactive"
+
+
+def test_patch_rejects_reactivation_when_practitioner_is_inactive(admin_session, tenant_context):
+    org, practitioner, relation = _create_inactive_relation_with_parent_status(admin_session, practitioner_status="inactive")
+    install_overrides(admin_session, tenant_context)
+    try:
+        response = TestClient(app).patch(
+            f"/api/admin/organizations/{org.id}/practitioners/{practitioner.id}",
+            json={"status": "active"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    admin_session.refresh(relation)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert relation.status == "inactive"
+
+
+def test_patch_rejects_schema_name(admin_session, tenant_context):
+    org, practitioner, relation = _create_inactive_relation_with_parent_status(admin_session)
+    install_overrides(admin_session, tenant_context)
+    try:
+        response = TestClient(app).patch(
+            f"/api/admin/organizations/{org.id}/practitioners/{practitioner.id}",
+            json={"status": "active", "schema_name": "tenant_evil"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+    admin_session.refresh(relation)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert relation.status == "inactive"

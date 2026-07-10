@@ -1315,7 +1315,13 @@ def patch_organization_practitioner(
     association = session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
     if association is None:
         raise ResourceNotFound("Organization practitioner relationship not found.")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("status") == "active":
+        if association.organization is not None and association.organization.status != "active":
+            raise BusinessRuleViolation("Inactive organizations cannot be reactivated for practitioner relationships.")
+        if association.practitioner is not None and association.practitioner.status != "active":
+            raise BusinessRuleViolation("Inactive practitioners cannot be reactivated for organization relationships.")
+    for field, value in data.items():
         setattr(association, field, value)
     try:
         session.flush()
