@@ -1237,3 +1237,9 @@ updated_at
 Regla:
 
 Los mensajes de marketing requieren `allow_marketing=true`.
+
+## Nota Fase 6B.4 — Especialidades y `room_type`
+
+`specialties` continúa siendo tenant-scoped y conserva `status` para activación/inactivación reversible. `practitioner_specialties` continúa normalizado con unicidad por `(practitioner_id, specialty_id)` y `status` para retirar/restaurar asignaciones sin crear duplicados ni eliminar la especialidad maestra.
+
+`rooms.room_type` permanece como columna textual para preservar datos históricos, pero nuevas escrituras administrativas validan el catálogo fijo inicial: `consulta_general`, `procedimientos`, `terapia`, `diagnostico`, `virtual`, `otro`. La fase no introduce CRUD de tipos de consultorio ni relaciona el tipo con servicios, precios o disponibilidad.

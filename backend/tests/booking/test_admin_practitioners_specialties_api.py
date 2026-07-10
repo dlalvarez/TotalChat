@@ -172,7 +172,11 @@ def test_assign_specialty_to_practitioner(admin_session, tenant_context):
     finally:
         clear_overrides()
     assert response.status_code == 200
-    assert response.json()["data"] == {"practitioner_id": practitioner["id"], "specialty_id": specialty["id"], "status": "active"}
+    data = response.json()["data"]
+    assert data["practitioner_id"] == practitioner["id"]
+    assert data["specialty_id"] == specialty["id"]
+    assert data["specialty_name"] == "Psicología"
+    assert data["status"] == "active"
 
 
 def test_assign_specialty_to_unknown_practitioner_returns_resource_not_found(admin_session, tenant_context):
@@ -221,3 +225,55 @@ def test_missing_tenant_header_returns_authentication_required_for_practitioner_
     response = getattr(TestClient(app), method)(path, json=json)
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+def test_patch_disable_activate_specialty_and_duplicate_name(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        specialty = create_specialty(client, tenant_context, "  Pediatría  ")
+        patched = client.patch(f"/api/admin/specialties/{specialty['id']}", json={"name": "Pediatría clínica"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        disabled = client.post(f"/api/admin/specialties/{specialty['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        activated = client.patch(f"/api/admin/specialties/{specialty['id']}", json={"status": "active"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        duplicate = client.post("/api/admin/specialties", json=specialty_payload("Pediatría clínica"), headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert patched.status_code == 200
+    assert patched.json()["data"]["name"] == "Pediatría clínica"
+    assert disabled.json()["data"]["status"] == "inactive"
+    assert activated.json()["data"]["status"] == "active"
+    assert duplicate.status_code == 409
+
+
+def test_list_disable_and_restore_practitioner_specialty(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        pediatrics = create_specialty(client, tenant_context, "Pediatría")
+        nephrology = create_specialty(client, tenant_context, "Nefrología")
+        for specialty in (pediatrics, nephrology):
+            response = client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": specialty["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+            assert response.status_code == 200
+        listed = client.get(f"/api/admin/practitioners/{practitioner['id']}/specialties", headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        disabled = client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties/{nephrology['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        restored = client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": nephrology["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert listed.status_code == 200
+    assert [item["specialty_name"] for item in listed.json()["data"]] == ["Nefrología", "Pediatría"]
+    assert disabled.json()["data"]["status"] == "inactive"
+    assert restored.json()["data"]["status"] == "active"
+    assert len(admin_session.scalars(select(PractitionerSpecialty)).all()) == 2
+
+
+def test_inactive_specialty_cannot_be_newly_assigned(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        practitioner = create_practitioner(client, tenant_context)
+        specialty = create_specialty(client, tenant_context, "Pediatría")
+        client.post(f"/api/admin/specialties/{specialty['id']}/disable", json={}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+        response = client.post(f"/api/admin/practitioners/{practitioner['id']}/specialties", json={"specialty_id": specialty["id"]}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 409

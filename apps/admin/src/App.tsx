@@ -11,6 +11,7 @@ import { OrganizationsPage } from './features/organizations/OrganizationsPage';
 import { LocationsPage } from './features/locations/LocationsPage';
 import { RoomsPage } from './features/rooms/RoomsPage';
 import { PractitionersPage } from './features/practitioners/PractitionersPage';
+import { SpecialtiesPage } from './features/specialties/SpecialtiesPage';
 import { DEFAULT_DEVELOPMENT_TENANT, DEVELOPMENT_TENANTS } from './config/tenant';
 
 function PlaceholderPage({ name }: { name: string }) {
@@ -65,7 +66,8 @@ export default function App() {
         {active === 'Sedes' ? <LocationsPage tenant={tenant} /> : null}
         {active === 'Consultorios' ? <RoomsPage tenant={tenant} /> : null}
         {active === 'Profesionales' ? <PractitionersPage tenant={tenant} /> : null}
-        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales'].includes(active) ? <PlaceholderPage name={active} /> : null}
+        {active === 'Especialidades' ? <SpecialtiesPage tenant={tenant} /> : null}
+        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales', 'Especialidades'].includes(active) ? <PlaceholderPage name={active} /> : null}
       </AdminLayout>
     </QueryClientProvider>
   );

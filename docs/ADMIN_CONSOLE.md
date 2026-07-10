@@ -348,3 +348,11 @@ La Fase 6B.1 convierte Organizaciones y Sedes en los primeros módulos funcional
 Organizaciones y Sedes consumen los endpoints backend existentes bajo `/api/admin`. La creación de Sedes usa un selector de Organización con nombres legibles obtenido desde datos reales del backend; el UUID de la organización se conserva únicamente como valor interno enviado a la API.
 
 Los UUIDs de tenant, organización y otras relaciones siguen siendo identificadores internos. No deben solicitarse como entrada normal a usuarios administrativos.
+
+## Fase 6B.4 — Especialidades y tipos de consultorio
+
+La consola administrativa incorpora el módulo funcional **Especialidades** con el mismo patrón aprobado para datos maestros: el nombre legible abre la edición, no existe botón separado `Editar`, no hay eliminación física y la acción del extremo derecho alterna entre `Inactivar` y `Activar` según el estado.
+
+Los profesionales pueden tener cero, una o múltiples especialidades. La asignación se gestiona desde el formulario de profesionales mediante búsqueda por nombre y chips; las especialidades inactivas ya asignadas se muestran con indicación visual, pero no se ofrecen como nuevas opciones.
+
+El campo **Tipo de consultorio** deja de ser texto libre en creación y edición. La interfaz usa el catálogo fijo: `consulta_general` (Consulta general), `procedimientos` (Procedimientos), `terapia` (Terapia), `diagnostico` (Diagnóstico), `virtual` (Virtual) y `otro` (Otro). Los valores históricos desconocidos se preservan al listar; nuevas escrituras deben usar valores del catálogo.

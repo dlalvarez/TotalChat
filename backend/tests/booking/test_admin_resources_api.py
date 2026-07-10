@@ -208,3 +208,28 @@ def test_missing_tenant_header_returns_authentication_required():
     response = TestClient(app).post("/api/admin/organizations", json=post_org_payload())
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+@pytest.mark.parametrize("room_type", ["consulta_general", "procedimientos", "terapia", "diagnostico", "virtual", "otro"])
+def test_room_accepts_allowed_room_types(admin_resource_session, tenant_context, room_type):
+    install_overrides(admin_resource_session, tenant_context)
+    client = TestClient(app)
+    try:
+        org = create_org(client, tenant_context)
+        loc = client.post("/api/admin/locations", json={"organization_id": org["id"], "name": "Sede"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)}).json()["data"]
+        response = client.post("/api/admin/rooms", json={"location_id": loc["id"], "name": "Consultorio", "room_type": room_type}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code == 200
+    assert response.json()["data"]["room_type"] == room_type
+
+
+def test_room_rejects_invalid_room_type(admin_resource_session, tenant_context):
+    install_overrides(admin_resource_session, tenant_context)
+    client = TestClient(app)
+    try:
+        org = create_org(client, tenant_context)
+        loc = client.post("/api/admin/locations", json={"organization_id": org["id"], "name": "Sede"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)}).json()["data"]
+        response = client.post("/api/admin/rooms", json={"location_id": loc["id"], "name": "Consultorio", "room_type": "quirurgico"}, headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)})
+    finally:
+        clear_overrides()
+    assert response.status_code in {400, 422}

@@ -210,3 +210,12 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 [ ] The PR does not use SQLite as an architectural alternative to PostgreSQL.
 [ ] Tests relying on PostgreSQL-specific behavior are not asserted using SQLite only.
 ```
+
+## Checklist específico Fase 6B.4
+
+- [ ] Especialidades usa nombre como entrada a edición, sin botón `Editar` ni acción `Eliminar`.
+- [ ] Inactivar/reactivar especialidad no elimina relaciones existentes.
+- [ ] Profesionales permiten múltiples especialidades con chips y nombres legibles.
+- [ ] Especialidades inactivas no se ofrecen para nuevas asignaciones, pero se muestran si ya estaban asignadas.
+- [ ] `room_type` usa select con catálogo fijo y el backend rechaza valores fuera de catálogo.
+- [ ] No se implementaron servicios, precios, disponibilidad, citas, pacientes, pagos ni catálogo global de especialidades.
