@@ -268,12 +268,12 @@ def create_availability_exception(
     try:
         session.add(exception)
         session.flush()
-        session.refresh(exception)
+        data = serialize_availability_exception(exception, session)
         session.commit()
     except Exception:
         session.rollback()
         raise
-    return {"data": serialize_availability_exception(exception, session)}
+    return {"data": data}
 
 
 @router.get("/availability-exceptions")
