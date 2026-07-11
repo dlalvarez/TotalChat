@@ -250,8 +250,10 @@ def test_payer_rules_visibility_and_safe_parent_serialization(admin_session, ten
     assert duplicate.status_code == 409
     assert patched.json()["data"]["payer_type_name"] == "Particular"
     assert disabled.json()["data"]["payer_type_code"] == "particular"
-    assert create_under_inactive.status_code == 400
-    assert reactivate_blocked.status_code == 400
+    assert create_under_inactive.status_code == 409
+    assert create_under_inactive.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert reactivate_blocked.status_code == 409
+    assert reactivate_blocked.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
     assert missing.status_code == 404
     assert any(item["id"] == payer_id and item["payer_type_status"] == "inactive" for item in listed.json()["data"])
 
@@ -280,8 +282,11 @@ def test_payer_plan_rules_visibility_and_safe_parent_serialization(admin_session
     assert duplicate.status_code == 409
     assert patched.json()["data"]["payer_type_code"] == "particular"
     assert disabled.json()["data"]["status"] == "inactive"
-    assert create_under_inactive_payer.status_code == 400
-    assert reactivate_blocked.status_code == 400
-    assert create_under_inactive_type.status_code == 400
+    assert create_under_inactive_payer.status_code == 409
+    assert create_under_inactive_payer.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert reactivate_blocked.status_code == 409
+    assert reactivate_blocked.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert create_under_inactive_type.status_code == 409
+    assert create_under_inactive_type.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
     assert missing.status_code == 404
     assert any(item["id"] == plan_id and item["payer_type_status"] == "inactive" for item in listed.json()["data"])
