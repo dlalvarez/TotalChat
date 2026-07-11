@@ -145,6 +145,37 @@ export type PayerPlan = { id: string; payer_id: string; payer_name: string | nul
 export type UpsertPayerPlanPayload = { name?: string; description?: string | null; status?: string };
 export type CreatePayerPlanPayload = { payer_id: string; name: string; description?: string | null };
 
+
+export type PractitionerServicePrice = {
+  id: string;
+  practitioner_service_id: string;
+  practitioner_service_name: string | null;
+  practitioner_service_status: string | null;
+  organization_id: string | null;
+  organization_name: string | null;
+  organization_status: string | null;
+  practitioner_id: string | null;
+  practitioner_name: string | null;
+  practitioner_status: string | null;
+  payer_plan_id: string;
+  payer_plan_name: string | null;
+  payer_plan_status: string | null;
+  payer_id: string | null;
+  payer_name: string | null;
+  payer_status: string | null;
+  payer_type_id: string | null;
+  payer_type_name: string | null;
+  payer_type_code: string | null;
+  payer_type_status: string | null;
+  price: number;
+  currency: string;
+  valid_from: string;
+  valid_to: string | null;
+  status: string;
+};
+export type CreatePractitionerServicePricePayload = { practitioner_service_id: string; payer_plan_id: string; price: number; currency: 'COP'; valid_from: string; valid_to?: string | null };
+export type UpsertPractitionerServicePricePayload = { price?: number; currency?: string; valid_from?: string; valid_to?: string | null; status?: string };
+
 export type Practitioner = {
   id: string;
   full_name: string;
@@ -214,6 +245,12 @@ export const adminResourcesApi = {
   updatePractitionerService: (tenantId: string, serviceId: string, payload: UpsertPractitionerServicePayload) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
   disablePractitionerService: (tenantId: string, serviceId: string) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
   activatePractitionerService: (tenantId: string, serviceId: string) => adminResourcesApi.updatePractitionerService(tenantId, serviceId, { status: 'active' }),
+
+  listPractitionerServicePrices: (tenantId: string) => apiRequest<PractitionerServicePrice[]>('/api/admin/practitioner-service-prices', { tenantId }),
+  createPractitionerServicePrice: (tenantId: string, payload: CreatePractitionerServicePricePayload) => apiRequest<PractitionerServicePrice>('/api/admin/practitioner-service-prices', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+  updatePractitionerServicePrice: (tenantId: string, priceId: string, payload: UpsertPractitionerServicePricePayload) => apiRequest<PractitionerServicePrice>(`/api/admin/practitioner-service-prices/${priceId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
+  disablePractitionerServicePrice: (tenantId: string, priceId: string) => apiRequest<PractitionerServicePrice>(`/api/admin/practitioner-service-prices/${priceId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  activatePractitionerServicePrice: (tenantId: string, priceId: string) => adminResourcesApi.updatePractitionerServicePrice(tenantId, priceId, { status: 'active' }),
 
   listPractitioners: (tenantId: string) => apiRequest<Practitioner[]>('/api/admin/practitioners', { tenantId }),
   createPractitioner: (tenantId: string, payload: CreatePractitionerPayload) => apiRequest<Practitioner>('/api/admin/practitioners', { tenantId, method: 'POST', body: JSON.stringify(payload) }),

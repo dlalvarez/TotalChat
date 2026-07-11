@@ -1280,3 +1280,11 @@ Reglas: crear o reactivar un servicio depende de que `organization_practitioners
 ## Fase 6B.7 — Base comercial de pagadores y planes
 
 `payer_types`, `payers` y `payer_plans` forman la jerarquía comercial previa a tarifas. `payer_types.code` se normaliza; `payers.name` es único por tipo con comparación normalizada/case-insensitive; `payer_plans.name` es único por pagador con comparación normalizada/case-insensitive. La activación de hijos depende de padres activos, sin borrado físico ni configuración de precios en esta fase.
+
+## Fase 6B.8 — PractitionerServicePrice
+
+`practitioner_service_prices` representa una tarifa manual para la combinación **PractitionerService + PayerPlan**. Usa los campos existentes `id`, `practitioner_service_id`, `payer_plan_id`, `price`, `currency`, `valid_from`, `valid_to` y `status`.
+
+Se mantiene la unicidad por `practitioner_service_id + payer_plan_id + valid_from`. Adicionalmente, la aplicación valida que no existan dos precios **activos** del mismo servicio y plan con vigencias solapadas; `valid_to = null` significa rango abierto. Los históricos inactivos pueden permanecer aunque se solapen.
+
+TotalChat / MediChat asume una moneda operativa única por tenant. Para Fase 6B.8 no se crean `tenant_settings` ni `organization_settings`; COP es el default técnico temporal de consola. No hay multi-moneda por precio, tasas de cambio ni conversión.

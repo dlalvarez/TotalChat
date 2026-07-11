@@ -1311,3 +1311,18 @@ Servicios no incluye precios todavía. Servicios no incluye modalidades todavía
 ## Fase 6B.7 — Admin pagadores y planes
 
 La superficie `/api/admin` expone CRUD lógico para `payer-types`, `payers` y `payer-plans`. Los endpoints listan históricos por defecto, soportan filtros `status`/`include_inactive` y devuelven nombres legibles de relaciones para evitar que la consola muestre UUIDs. Esta fase excluye precios y tarifas.
+
+## Fase 6B.8 — Admin service prices
+
+Endpoints bajo `/api/admin`:
+
+- `GET /practitioner-service-prices`: listado general con filtros opcionales `organization_id`, `practitioner_id`, `practitioner_service_id`, `payer_type_id`, `payer_id`, `payer_plan_id`, `status`, `include_inactive`.
+- `GET /practitioner-service-prices/{price_id}`: detalle de precio.
+- `POST /practitioner-service-prices`: crea precio activo por defecto con `practitioner_service_id`, `payer_plan_id`, `price`, `currency`, `valid_from`, `valid_to`.
+- `PATCH /practitioner-service-prices/{price_id}`: permite `price`, `currency`, `valid_from`, `valid_to`, `status`; no permite cambiar servicio ni plan.
+- `POST /practitioner-service-prices/{price_id}/disable`: inactiva sin borrado físico.
+- `GET /practitioner-services/{service_id}/prices`: se mantiene por compatibilidad y devuelve datos legibles enriquecidos.
+
+Las respuestas incluyen nombres y estados legibles para servicio, organización, profesional, plan, pagador y tipo de pagador. Crear o reactivar requiere servicio, plan, pagador y tipo activos. No se permiten precios negativos, moneda distinta a código ISO de 3 letras mayúsculas, `valid_to < valid_from`, duplicado por servicio + plan + `valid_from`, ni solapamiento entre vigencias activas del mismo servicio y plan. `valid_to = null` representa vigencia abierta.
+
+La API conserva el campo `currency`, pero la consola de Fase 6B.8 envía COP automáticamente y no permite editar moneda. La moneda operativa por tenant y `default_currency` quedan para una fase futura de Configuración; no se implementa multi-moneda ni conversión.

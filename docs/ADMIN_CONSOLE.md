@@ -385,3 +385,13 @@ Si una organización, profesional o relación se inactiva después de crear el s
 La consola incorpora la página **Pagadores y planes** para administrar exclusivamente la base comercial `Tipo de pagador → Pagador → Plan`. La pantalla se divide en tres secciones: tipos de pagador, pagadores y planes. Los nombres legibles abren edición, la acción derecha permite `Inactivar` / `Activar`, los selectores muestran nombres y los UUIDs permanecen internos.
 
 Reglas implementadas: los pagadores solo se crean o reactivan bajo tipos activos; los planes solo se crean o reactivan bajo pagadores activos cuyo tipo también esté activo; los históricos permanecen visibles si un padre queda inactivo. Esta fase no configura precios, tarifas, disponibilidad, citas ni pagos.
+
+## Fase 6B.8 — Precios / tarifas
+
+La opción **Precios** de la consola deja de ser placeholder y administra tarifas manuales bajo el modelo **Servicio del profesional + Plan del pagador = Precio**. El menú administrativo ordena primero **Servicios**, luego **Pagadores y planes**, luego **Precios**, y mantiene diferidas **Disponibilidad**, **Citas**, **Pagos** y **Configuración**.
+
+La pantalla permite listar, crear, editar, inactivar y reactivar precios con nombres legibles de organización, profesional, servicio, tipo de pagador, pagador y plan. No expone UUIDs ni `schema_name` al usuario final. En edición quedan bloqueados servicio, plan y moneda; si se eligió mal servicio o plan, se debe inactivar el precio y crear uno nuevo.
+
+### Moneda operativa
+
+TotalChat / MediChat maneja una moneda operativa única por tenant. La multi-moneda dentro de un mismo tenant queda fuera del MVP. Como todavía no existe configuración formal de tenant, en esta fase la consola usa **COP** como default técnico temporal, muestra COP como contexto y envía `currency = "COP"` al crear precios. No hay selector de moneda por tenant, organización ni precio; tampoco tasas de cambio ni conversión.

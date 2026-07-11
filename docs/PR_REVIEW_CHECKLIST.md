@@ -253,3 +253,12 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 - [ ] Serializers cargan relaciones explícitamente para respuestas create/update/disable.
 - [ ] No se implementan precios, tarifas, disponibilidad, citas ni pagos.
 - [ ] `python3 scripts/check_sdd_scope.py`, backend y frontend fueron ejecutados o documentan bloqueo.
+
+## Fase 6B.8 — Checklist específico de precios
+
+- [ ] La pantalla Precios no es placeholder y no muestra UUIDs ni `schema_name`.
+- [ ] El menú muestra Pagadores y planes antes de Precios.
+- [ ] La UI usa COP como moneda operativa temporal sin selector editable.
+- [ ] No se implementan pagos, citas, disponibilidad, facturación ni multi-moneda.
+- [ ] Crear/reactivar valida servicio, plan, pagador y tipo activos.
+- [ ] No hay solapamientos entre vigencias activas para el mismo servicio y plan.

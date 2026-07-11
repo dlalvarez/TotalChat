@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.admin.dependencies import get_admin_tenant_context
@@ -484,6 +484,32 @@ class CreatePractitionerServicePriceRequest(BaseModel):
         return self
 
 
+class PatchPractitionerServicePriceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    price: Decimal | None = Field(default=None, ge=0)
+    currency: str | None = None
+    valid_from: date | None = None
+    valid_to: date | None = None
+    status: str | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if len(value) != 3 or not value.isalpha() or value.upper() != value:
+            raise ValueError("currency must be a 3-letter uppercase code")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
+            raise ValueError("status must be active or inactive")
+        return value
+
+
 class CreatePaymentSettingsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -635,10 +661,33 @@ def serialize_payer_plan(plan: PayerPlan) -> dict[str, object]:
 
 
 def serialize_practitioner_service_price(price: PractitionerServicePrice) -> dict[str, object]:
+    service = price.practitioner_service
+    organization = service.organization if service is not None else None
+    practitioner = service.practitioner if service is not None else None
+    plan = price.payer_plan
+    payer = plan.payer if plan is not None else None
+    payer_type = payer.payer_type if payer is not None else None
     return {
         "id": str(price.id),
         "practitioner_service_id": str(price.practitioner_service_id),
+        "practitioner_service_name": service.name if service is not None else None,
+        "practitioner_service_status": service.status if service is not None else None,
+        "organization_id": str(service.organization_id) if service is not None else None,
+        "organization_name": organization.name if organization is not None else None,
+        "organization_status": organization.status if organization is not None else None,
+        "practitioner_id": str(service.practitioner_id) if service is not None else None,
+        "practitioner_name": practitioner.full_name if practitioner is not None else None,
+        "practitioner_status": practitioner.status if practitioner is not None else None,
         "payer_plan_id": str(price.payer_plan_id),
+        "payer_plan_name": plan.name if plan is not None else None,
+        "payer_plan_status": plan.status if plan is not None else None,
+        "payer_id": str(plan.payer_id) if plan is not None else None,
+        "payer_name": payer.name if payer is not None else None,
+        "payer_status": payer.status if payer is not None else None,
+        "payer_type_id": str(payer.payer_type_id) if payer is not None else None,
+        "payer_type_name": payer_type.name if payer_type is not None else None,
+        "payer_type_code": payer_type.code if payer_type is not None else None,
+        "payer_type_status": payer_type.status if payer_type is not None else None,
         "price": _serialize_amount(price.price),
         "currency": price.currency,
         "valid_from": price.valid_from.isoformat(),
@@ -2083,41 +2132,182 @@ def disable_payer_plan(
     return {"data": data}
 
 
-@router.post("/practitioner-service-prices")
-def create_practitioner_service_price(
-    payload: CreatePractitionerServicePriceRequest,
-    tenant_context: TenantContext = Depends(get_admin_tenant_context),
-    session: Session = Depends(get_db_session),
-) -> dict[str, dict[str, object]]:
-    _ = tenant_context
-    if session.get(PractitionerService, payload.practitioner_service_id) is None:
-        raise ResourceNotFound("Practitioner service not found.")
-    if session.get(PayerPlan, payload.payer_plan_id) is None:
-        raise ResourceNotFound("Payer plan not found.")
-    price = PractitionerServicePrice(**payload.model_dump())
-    try:
-        session.add(price)
-        session.flush()
-        session.refresh(price)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    return {"data": serialize_practitioner_service_price(price)}
+def _price_options():
+    return (
+        joinedload(PractitionerServicePrice.practitioner_service).joinedload(PractitionerService.organization),
+        joinedload(PractitionerServicePrice.practitioner_service).joinedload(PractitionerService.practitioner),
+        joinedload(PractitionerServicePrice.payer_plan).joinedload(PayerPlan.payer).joinedload(Payer.payer_type),
+    )
 
 
-@router.get("/practitioner-services/{service_id}/prices")
-def list_practitioner_service_prices(
-    service_id: UUID,
+def _get_price_with_parents(session: Session, price_id: UUID) -> PractitionerServicePrice | None:
+    return session.scalar(select(PractitionerServicePrice).options(*_price_options()).where(PractitionerServicePrice.id == price_id))
+
+
+def _get_service_with_parents(session: Session, service_id: UUID) -> PractitionerService | None:
+    return session.scalar(select(PractitionerService).options(joinedload(PractitionerService.organization), joinedload(PractitionerService.practitioner)).where(PractitionerService.id == service_id))
+
+
+def _get_payer_plan_with_parents(session: Session, payer_plan_id: UUID) -> PayerPlan | None:
+    return session.scalar(select(PayerPlan).options(joinedload(PayerPlan.payer).joinedload(Payer.payer_type)).where(PayerPlan.id == payer_plan_id))
+
+
+def _validate_price_active_parents(service: PractitionerService, plan: PayerPlan) -> None:
+    if service.status != "active":
+        raise BusinessRuleViolation("Active prices require an active practitioner service.")
+    if plan.status != "active":
+        raise BusinessRuleViolation("Active prices require an active payer plan.")
+    if plan.payer.status != "active":
+        raise BusinessRuleViolation("Active prices require an active payer.")
+    if plan.payer.payer_type.status != "active":
+        raise BusinessRuleViolation("Active prices require an active payer type.")
+
+
+def _validate_price_dates(valid_from: date, valid_to: date | None) -> None:
+    if valid_to is not None and valid_to < valid_from:
+        raise DomainValidationError("valid_to must not be before valid_from.")
+
+
+def _validate_no_active_price_overlap(session: Session, service_id: UUID, plan_id: UUID, valid_from: date, valid_to: date | None, exclude_id: UUID | None = None) -> None:
+    stmt = select(PractitionerServicePrice).where(
+        PractitionerServicePrice.practitioner_service_id == service_id,
+        PractitionerServicePrice.payer_plan_id == plan_id,
+        PractitionerServicePrice.status == "active",
+        PractitionerServicePrice.valid_from <= (valid_to or date.max),
+        or_(PractitionerServicePrice.valid_to.is_(None), PractitionerServicePrice.valid_to >= valid_from),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(PractitionerServicePrice.id != exclude_id)
+    if session.scalar(stmt) is not None:
+        raise ConflictError("Active price validity overlaps another active price for the same service and plan.")
+
+
+@router.get("/practitioner-service-prices")
+def list_all_practitioner_service_prices(
+    organization_id: UUID | None = None,
+    practitioner_id: UUID | None = None,
+    practitioner_service_id: UUID | None = None,
+    payer_type_id: UUID | None = None,
+    payer_id: UUID | None = None,
+    payer_plan_id: UUID | None = None,
     status: str | None = None,
+    include_inactive: bool = True,
     tenant_context: TenantContext = Depends(get_admin_tenant_context),
     session: Session = Depends(get_db_session),
 ) -> dict[str, list[dict[str, object]]]:
     _ = tenant_context
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    stmt = select(PractitionerServicePrice).options(*_price_options()).join(PractitionerServicePrice.practitioner_service).join(PractitionerServicePrice.payer_plan).join(PayerPlan.payer).join(Payer.payer_type)
+    if organization_id is not None:
+        stmt = stmt.where(PractitionerService.organization_id == organization_id)
+    if practitioner_id is not None:
+        stmt = stmt.where(PractitionerService.practitioner_id == practitioner_id)
+    if practitioner_service_id is not None:
+        stmt = stmt.where(PractitionerServicePrice.practitioner_service_id == practitioner_service_id)
+    if payer_type_id is not None:
+        stmt = stmt.where(Payer.payer_type_id == payer_type_id)
+    if payer_id is not None:
+        stmt = stmt.where(PayerPlan.payer_id == payer_id)
+    if payer_plan_id is not None:
+        stmt = stmt.where(PractitionerServicePrice.payer_plan_id == payer_plan_id)
+    if status is not None:
+        stmt = stmt.where(PractitionerServicePrice.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(PractitionerServicePrice.status == "active")
+    prices = session.scalars(stmt.order_by(PractitionerServicePrice.valid_from, PractitionerServicePrice.id)).all()
+    return {"data": [serialize_practitioner_service_price(price) for price in prices]}
+
+
+@router.get("/practitioner-service-prices/{price_id}")
+def get_practitioner_service_price(price_id: UUID, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    price = _get_price_with_parents(session, price_id)
+    if price is None:
+        raise ResourceNotFound("Practitioner service price not found.")
+    return {"data": serialize_practitioner_service_price(price)}
+
+
+@router.post("/practitioner-service-prices")
+def create_practitioner_service_price(payload: CreatePractitionerServicePriceRequest, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    service = _get_service_with_parents(session, payload.practitioner_service_id)
+    if service is None:
+        raise ResourceNotFound("Practitioner service not found.")
+    plan = _get_payer_plan_with_parents(session, payload.payer_plan_id)
+    if plan is None:
+        raise ResourceNotFound("Payer plan not found.")
+    _validate_price_active_parents(service, plan)
+    if session.scalar(select(PractitionerServicePrice).where(PractitionerServicePrice.practitioner_service_id == payload.practitioner_service_id, PractitionerServicePrice.payer_plan_id == payload.payer_plan_id, PractitionerServicePrice.valid_from == payload.valid_from)) is not None:
+        raise ConflictError("Practitioner service price already exists for this service, plan and valid_from.")
+    _validate_no_active_price_overlap(session, payload.practitioner_service_id, payload.payer_plan_id, payload.valid_from, payload.valid_to)
+    price = PractitionerServicePrice(**payload.model_dump(), status="active")
+    try:
+        session.add(price)
+        session.flush()
+        price = _get_price_with_parents(session, price.id) or price
+        data = serialize_practitioner_service_price(price)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
+
+
+@router.patch("/practitioner-service-prices/{price_id}")
+def patch_practitioner_service_price(price_id: UUID, payload: PatchPractitionerServicePriceRequest, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    price = _get_price_with_parents(session, price_id)
+    if price is None:
+        raise ResourceNotFound("Practitioner service price not found.")
+    data = payload.model_dump(exclude_unset=True)
+    valid_from = data.get("valid_from", price.valid_from)
+    valid_to = data.get("valid_to", price.valid_to)
+    _validate_price_dates(valid_from, valid_to)
+    next_status = data.get("status", price.status)
+    if next_status == "active":
+        _validate_price_active_parents(price.practitioner_service, price.payer_plan)
+        _validate_no_active_price_overlap(session, price.practitioner_service_id, price.payer_plan_id, valid_from, valid_to, exclude_id=price_id)
+    for field, value in data.items():
+        setattr(price, field, value)
+    try:
+        session.flush()
+        price = _get_price_with_parents(session, price_id) or price
+        data = serialize_practitioner_service_price(price)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
+
+
+@router.post("/practitioner-service-prices/{price_id}/disable")
+def disable_practitioner_service_price(price_id: UUID, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    price = _get_price_with_parents(session, price_id)
+    if price is None:
+        raise ResourceNotFound("Practitioner service price not found.")
+    price.status = "inactive"
+    try:
+        session.flush()
+        price = _get_price_with_parents(session, price_id) or price
+        data = serialize_practitioner_service_price(price)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
+
+
+@router.get("/practitioner-services/{service_id}/prices")
+def list_practitioner_service_prices(service_id: UUID, status: str | None = None, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
     if session.get(PractitionerService, service_id) is None:
         raise ResourceNotFound("Practitioner service not found.")
-    stmt = select(PractitionerServicePrice).where(PractitionerServicePrice.practitioner_service_id == service_id)
+    stmt = select(PractitionerServicePrice).options(*_price_options()).where(PractitionerServicePrice.practitioner_service_id == service_id)
     if status is not None:
+        if status not in RELATION_STATUSES:
+            raise DomainValidationError("status must be active or inactive.")
         stmt = stmt.where(PractitionerServicePrice.status == status)
     prices = session.scalars(stmt.order_by(PractitionerServicePrice.valid_from, PractitionerServicePrice.payer_plan_id, PractitionerServicePrice.id)).all()
     return {"data": [serialize_practitioner_service_price(price) for price in prices]}
