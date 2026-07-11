@@ -395,3 +395,9 @@ La pantalla permite listar, crear, editar, inactivar y reactivar precios con nom
 ### Moneda operativa
 
 TotalChat / MediChat maneja una moneda operativa única por tenant. La multi-moneda dentro de un mismo tenant queda fuera del MVP. Como todavía no existe configuración formal de tenant, en esta fase la consola usa **COP** como default técnico temporal, muestra COP como contexto y envía `currency = "COP"` al crear precios. No hay selector de moneda por tenant, organización ni precio; tampoco tasas de cambio ni conversión.
+
+## 5.9.1. Disponibilidad base — Fase 6B.9
+
+La pantalla **Disponibilidad** permite administrar reglas recurrentes de atención para un profesional dentro de una organización, con servicio opcional o alcance **Todos los servicios**. La edición bloquea organización, profesional y servicio para preservar trazabilidad; si la asociación fue incorrecta, se inactiva la regla y se crea una nueva.
+
+La pantalla no muestra UUIDs, no crea citas, no crea reservas, no crea holds, no genera slots físicos y no implementa calendario visual. La convención visible es `0 = Lunes` y `6 = Domingo`.

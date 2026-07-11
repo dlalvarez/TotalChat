@@ -20,3 +20,11 @@ Crear o reactivar pagadores requiere tipo activo. Crear o reactivar planes requi
 ## Fase 6B.8 — PractitionerServicePrice
 
 La consola administra `PractitionerServicePrice` como tarifa manual para `PractitionerService + PayerPlan`. El modelo conserva `currency`, pero la UI usa COP como moneda operativa temporal y no expone selector editable. No se agregan modelos alternativos de precio ni tablas de configuración de moneda. Los precios activos no pueden solaparse para la misma pareja servicio/plan; los históricos inactivos permanecen listables.
+
+## Fase 6B.9 — PractitionerAvailabilityRule
+
+La consola administra reglas recurrentes de disponibilidad base para profesionales mediante `availability_rules` como configuración persistente tenant-scoped. La UI/API de Fase 6B.9 usa el contrato `PractitionerAvailabilityRule` con `organization_id`, `practitioner_id`, `practitioner_service_id` opcional, `day_of_week`, `start_time`, `end_time`, `valid_from`, `valid_to` opcional y `status`.
+
+Convención: `day_of_week` usa `0 = Monday/Lunes` y `6 = Sunday/Domingo`. `start_time` debe ser menor que `end_time`; no se modelan cruces de medianoche. `valid_to`, si existe, no puede ser anterior a `valid_from`. No hay borrado físico.
+
+Una regla general (`practitioner_service_id = null`) y una regla específica por servicio pueden coexistir; esta fase solo administra reglas y no resuelve prioridad para cálculo futuro de slots.

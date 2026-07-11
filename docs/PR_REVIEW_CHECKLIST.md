@@ -262,3 +262,11 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 - [ ] No se implementan pagos, citas, disponibilidad, facturación ni multi-moneda.
 - [ ] Crear/reactivar valida servicio, plan, pagador y tipo activos.
 - [ ] No hay solapamientos entre vigencias activas para el mismo servicio y plan.
+
+## Checklist específico Fase 6B.9
+
+- [ ] Disponibilidad base no crea citas, reservas, holds ni slots físicos.
+- [ ] `day_of_week` está documentado como `0 = Monday/Lunes` y `6 = Sunday/Domingo` en el contrato admin.
+- [ ] Crear/reactivar valida organización, profesional, relación organización-profesional y servicio opcional activos.
+- [ ] Reglas activas solapadas se rechazan para la misma combinación de organización, profesional, servicio opcional, día, horario y vigencia.
+- [ ] Reglas generales y específicas por servicio pueden coexistir sin resolver prioridad en esta fase.
