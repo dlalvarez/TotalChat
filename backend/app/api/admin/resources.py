@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.admin.dependencies import get_admin_tenant_context
 from app.db.session import get_db_session
@@ -45,6 +45,10 @@ RELATION_STATUSES = {"active", "inactive"}
 
 def _normalize_name(value: str) -> str:
     return " ".join(value.strip().split())
+
+
+def _normalize_code(value: str) -> str:
+    return "_".join(value.strip().lower().replace("-", "_").split())
 
 
 def _validate_room_type(value: str | None) -> str | None:
@@ -321,6 +325,58 @@ class CreatePayerTypeRequest(BaseModel):
     name: str
     description: str | None = None
 
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        normalized = _normalize_code(value)
+        if not normalized:
+            raise ValueError("code is required")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+
+class PatchPayerTypeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str | None = None
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_code(value)
+        if not normalized:
+            raise ValueError("code is required")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
+            raise ValueError("status must be active or inactive")
+        return value
+
 
 class CreatePayerRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -329,6 +385,39 @@ class CreatePayerRequest(BaseModel):
     name: str
     description: str | None = None
 
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+
+class PatchPayerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
+            raise ValueError("status must be active or inactive")
+        return value
+
 
 class CreatePayerPlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -336,6 +425,39 @@ class CreatePayerPlanRequest(BaseModel):
     payer_id: UUID
     name: str
     description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+
+class PatchPayerPlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("name is required")
+        return normalized
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
+            raise ValueError("status must be active or inactive")
+        return value
 
 
 class CreatePractitionerServicePriceRequest(BaseModel):
@@ -481,9 +603,13 @@ def serialize_payer_type(payer_type: PayerType) -> dict[str, object]:
 
 
 def serialize_payer(payer: Payer) -> dict[str, object]:
+    payer_type = payer.payer_type
     return {
         "id": str(payer.id),
         "payer_type_id": str(payer.payer_type_id),
+        "payer_type_name": payer_type.name if payer_type is not None else None,
+        "payer_type_code": payer_type.code if payer_type is not None else None,
+        "payer_type_status": payer_type.status if payer_type is not None else None,
         "name": payer.name,
         "description": payer.description,
         "status": payer.status,
@@ -491,9 +617,17 @@ def serialize_payer(payer: Payer) -> dict[str, object]:
 
 
 def serialize_payer_plan(plan: PayerPlan) -> dict[str, object]:
+    payer = plan.payer
+    payer_type = payer.payer_type if payer is not None else None
     return {
         "id": str(plan.id),
         "payer_id": str(plan.payer_id),
+        "payer_name": payer.name if payer is not None else None,
+        "payer_status": payer.status if payer is not None else None,
+        "payer_type_id": str(payer.payer_type_id) if payer is not None else None,
+        "payer_type_name": payer_type.name if payer_type is not None else None,
+        "payer_type_code": payer_type.code if payer_type is not None else None,
+        "payer_type_status": payer_type.status if payer_type is not None else None,
         "name": plan.name,
         "description": plan.description,
         "status": plan.status,
@@ -1589,6 +1723,67 @@ def create_service_modality(
     return {"data": serialize_service_modality(modality)}
 
 
+def _find_duplicate_payer_type_code(session: Session, code: str, exclude_id: UUID | None = None) -> PayerType | None:
+    stmt = select(PayerType).where(func.lower(PayerType.code) == code.lower())
+    if exclude_id is not None:
+        stmt = stmt.where(PayerType.id != exclude_id)
+    return session.scalar(stmt)
+
+
+def _find_duplicate_payer(session: Session, payer_type_id: UUID, name: str, exclude_id: UUID | None = None) -> Payer | None:
+    stmt = select(Payer).where(Payer.payer_type_id == payer_type_id, func.lower(Payer.name) == name.lower())
+    if exclude_id is not None:
+        stmt = stmt.where(Payer.id != exclude_id)
+    return session.scalar(stmt)
+
+
+def _find_duplicate_payer_plan(session: Session, payer_id: UUID, name: str, exclude_id: UUID | None = None) -> PayerPlan | None:
+    stmt = select(PayerPlan).where(PayerPlan.payer_id == payer_id, func.lower(PayerPlan.name) == name.lower())
+    if exclude_id is not None:
+        stmt = stmt.where(PayerPlan.id != exclude_id)
+    return session.scalar(stmt)
+
+
+def _get_payer_with_type(session: Session, payer_id: UUID) -> Payer | None:
+    return session.scalar(select(Payer).options(joinedload(Payer.payer_type)).where(Payer.id == payer_id))
+
+
+def _get_payer_plan_with_parents(session: Session, plan_id: UUID) -> PayerPlan | None:
+    return session.scalar(select(PayerPlan).options(joinedload(PayerPlan.payer).joinedload(Payer.payer_type)).where(PayerPlan.id == plan_id))
+
+
+@router.get("/payer-types")
+def list_payer_types(
+    status: str | None = None,
+    include_inactive: bool = True,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    stmt = select(PayerType)
+    if status is not None:
+        stmt = stmt.where(PayerType.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(PayerType.status == "active")
+    payer_types = session.scalars(stmt.order_by(PayerType.name, PayerType.id)).all()
+    return {"data": [serialize_payer_type(payer_type) for payer_type in payer_types]}
+
+
+@router.get("/payer-types/{payer_type_id}")
+def get_payer_type(
+    payer_type_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    payer_type = session.get(PayerType, payer_type_id)
+    if payer_type is None:
+        raise ResourceNotFound("Payer type not found.")
+    return {"data": serialize_payer_type(payer_type)}
+
+
 @router.post("/payer-types")
 def create_payer_type(
     payload: CreatePayerTypeRequest,
@@ -1596,8 +1791,7 @@ def create_payer_type(
     session: Session = Depends(get_db_session),
 ) -> dict[str, dict[str, object]]:
     _ = tenant_context
-    existing = session.scalar(select(PayerType).where(PayerType.code == payload.code))
-    if existing is not None:
+    if _find_duplicate_payer_type_code(session, payload.code) is not None:
         raise ConflictError("Payer type code already exists.")
     payer_type = PayerType(**payload.model_dump())
     try:
@@ -1611,6 +1805,88 @@ def create_payer_type(
     return {"data": serialize_payer_type(payer_type)}
 
 
+@router.patch("/payer-types/{payer_type_id}")
+def patch_payer_type(
+    payer_type_id: UUID,
+    payload: PatchPayerTypeRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    payer_type = session.get(PayerType, payer_type_id)
+    if payer_type is None:
+        raise ResourceNotFound("Payer type not found.")
+    data = payload.model_dump(exclude_unset=True)
+    if "code" in data and _find_duplicate_payer_type_code(session, data["code"], exclude_id=payer_type_id) is not None:
+        raise ConflictError("Payer type code already exists.")
+    for field, value in data.items():
+        setattr(payer_type, field, value)
+    try:
+        session.flush()
+        session.refresh(payer_type)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payer_type(payer_type)}
+
+
+@router.post("/payer-types/{payer_type_id}/disable")
+def disable_payer_type(
+    payer_type_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    payer_type = session.get(PayerType, payer_type_id)
+    if payer_type is None:
+        raise ResourceNotFound("Payer type not found.")
+    payer_type.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(payer_type)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_payer_type(payer_type)}
+
+
+@router.get("/payers")
+def list_payers(
+    payer_type_id: UUID | None = None,
+    status: str | None = None,
+    include_inactive: bool = True,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    stmt = select(Payer).options(joinedload(Payer.payer_type)).join(Payer.payer_type)
+    if payer_type_id is not None:
+        stmt = stmt.where(Payer.payer_type_id == payer_type_id)
+    if status is not None:
+        stmt = stmt.where(Payer.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(Payer.status == "active")
+    payers = session.scalars(stmt.order_by(Payer.name, Payer.id)).all()
+    return {"data": [serialize_payer(payer) for payer in payers]}
+
+
+@router.get("/payers/{payer_id}")
+def get_payer(
+    payer_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    payer = _get_payer_with_type(session, payer_id)
+    if payer is None:
+        raise ResourceNotFound("Payer not found.")
+    return {"data": serialize_payer(payer)}
+
+
 @router.post("/payers")
 def create_payer(
     payload: CreatePayerRequest,
@@ -1618,18 +1894,114 @@ def create_payer(
     session: Session = Depends(get_db_session),
 ) -> dict[str, dict[str, object]]:
     _ = tenant_context
-    if session.get(PayerType, payload.payer_type_id) is None:
+    payer_type = session.get(PayerType, payload.payer_type_id)
+    if payer_type is None:
         raise ResourceNotFound("Payer type not found.")
+    if payer_type.status != "active":
+        raise BusinessRuleViolation("Inactive payer types cannot have active payers.")
+    if _find_duplicate_payer(session, payload.payer_type_id, payload.name) is not None:
+        raise ConflictError("Payer name already exists for this payer type.")
     payer = Payer(**payload.model_dump())
+    payer.payer_type = payer_type
     try:
         session.add(payer)
         session.flush()
         session.refresh(payer)
+        data = serialize_payer(payer)
         session.commit()
     except Exception:
         session.rollback()
         raise
-    return {"data": serialize_payer(payer)}
+    return {"data": data}
+
+
+@router.patch("/payers/{payer_id}")
+def patch_payer(
+    payer_id: UUID,
+    payload: PatchPayerRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    payer = _get_payer_with_type(session, payer_id)
+    if payer is None:
+        raise ResourceNotFound("Payer not found.")
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("status") == "active" and payer.payer_type.status != "active":
+        raise BusinessRuleViolation("Payers cannot be activated while their payer type is inactive.")
+    if "name" in data and _find_duplicate_payer(session, payer.payer_type_id, data["name"], exclude_id=payer_id) is not None:
+        raise ConflictError("Payer name already exists for this payer type.")
+    for field, value in data.items():
+        setattr(payer, field, value)
+    try:
+        session.flush()
+        session.refresh(payer)
+        data = serialize_payer(payer)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
+
+
+@router.post("/payers/{payer_id}/disable")
+def disable_payer(
+    payer_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    payer = _get_payer_with_type(session, payer_id)
+    if payer is None:
+        raise ResourceNotFound("Payer not found.")
+    payer.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(payer)
+        data = serialize_payer(payer)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
+
+
+@router.get("/payer-plans")
+def list_payer_plans(
+    payer_type_id: UUID | None = None,
+    payer_id: UUID | None = None,
+    status: str | None = None,
+    include_inactive: bool = True,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    stmt = select(PayerPlan).options(joinedload(PayerPlan.payer).joinedload(Payer.payer_type)).join(PayerPlan.payer).join(Payer.payer_type)
+    if payer_type_id is not None:
+        stmt = stmt.where(Payer.payer_type_id == payer_type_id)
+    if payer_id is not None:
+        stmt = stmt.where(PayerPlan.payer_id == payer_id)
+    if status is not None:
+        stmt = stmt.where(PayerPlan.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(PayerPlan.status == "active")
+    plans = session.scalars(stmt.order_by(PayerPlan.name, PayerPlan.id)).all()
+    return {"data": [serialize_payer_plan(plan) for plan in plans]}
+
+
+@router.get("/payer-plans/{payer_plan_id}")
+def get_payer_plan(
+    payer_plan_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    plan = _get_payer_plan_with_parents(session, payer_plan_id)
+    if plan is None:
+        raise ResourceNotFound("Payer plan not found.")
+    return {"data": serialize_payer_plan(plan)}
 
 
 @router.post("/payer-plans")
@@ -1639,18 +2011,76 @@ def create_payer_plan(
     session: Session = Depends(get_db_session),
 ) -> dict[str, dict[str, object]]:
     _ = tenant_context
-    if session.get(Payer, payload.payer_id) is None:
+    payer = _get_payer_with_type(session, payload.payer_id)
+    if payer is None:
         raise ResourceNotFound("Payer not found.")
+    if payer.status != "active" or payer.payer_type.status != "active":
+        raise BusinessRuleViolation("Payer plans require an active payer and active payer type.")
+    if _find_duplicate_payer_plan(session, payload.payer_id, payload.name) is not None:
+        raise ConflictError("Payer plan name already exists for this payer.")
     plan = PayerPlan(**payload.model_dump())
+    plan.payer = payer
     try:
         session.add(plan)
         session.flush()
         session.refresh(plan)
+        data = serialize_payer_plan(plan)
         session.commit()
     except Exception:
         session.rollback()
         raise
-    return {"data": serialize_payer_plan(plan)}
+    return {"data": data}
+
+
+@router.patch("/payer-plans/{payer_plan_id}")
+def patch_payer_plan(
+    payer_plan_id: UUID,
+    payload: PatchPayerPlanRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    plan = _get_payer_plan_with_parents(session, payer_plan_id)
+    if plan is None:
+        raise ResourceNotFound("Payer plan not found.")
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("status") == "active" and (plan.payer.status != "active" or plan.payer.payer_type.status != "active"):
+        raise BusinessRuleViolation("Payer plans cannot be activated unless payer and payer type are active.")
+    if "name" in data and _find_duplicate_payer_plan(session, plan.payer_id, data["name"], exclude_id=payer_plan_id) is not None:
+        raise ConflictError("Payer plan name already exists for this payer.")
+    for field, value in data.items():
+        setattr(plan, field, value)
+    try:
+        session.flush()
+        session.refresh(plan)
+        data = serialize_payer_plan(plan)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
+
+
+@router.post("/payer-plans/{payer_plan_id}/disable")
+def disable_payer_plan(
+    payer_plan_id: UUID,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    plan = _get_payer_plan_with_parents(session, payer_plan_id)
+    if plan is None:
+        raise ResourceNotFound("Payer plan not found.")
+    plan.status = "inactive"
+    try:
+        session.flush()
+        session.refresh(plan)
+        data = serialize_payer_plan(plan)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": data}
 
 
 @router.post("/practitioner-service-prices")

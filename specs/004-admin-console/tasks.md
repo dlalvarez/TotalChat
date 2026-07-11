@@ -13,6 +13,9 @@
 - [x] CRUD servicios.
   - Depende de `organization_practitioners` activa.
   - No incluye precios, modalidades ni disponibilidad.
+- [x] CRUD pagadores y planes.
+  - Administra `payer_types`, `payers` y `payer_plans`.
+  - No incluye precios ni tarifas.
 - [ ] CRUD tarifas.
 - [ ] Pantalla disponibilidad.
 - [ ] Pantalla citas.

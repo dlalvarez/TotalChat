@@ -14,6 +14,7 @@ import { PractitionersPage } from './features/practitioners/PractitionersPage';
 import { SpecialtiesPage } from './features/specialties/SpecialtiesPage';
 import { OrganizationPractitionersPage } from './features/organizationPractitioners/OrganizationPractitionersPage';
 import { PractitionerServicesPage } from './features/practitionerServices/PractitionerServicesPage';
+import { PayersAndPlansPage } from './features/payers/PayersAndPlansPage';
 import { DEFAULT_DEVELOPMENT_TENANT, DEVELOPMENT_TENANTS } from './config/tenant';
 
 function PlaceholderPage({ name }: { name: string }) {
@@ -71,7 +72,8 @@ export default function App() {
         {active === 'Especialidades' ? <SpecialtiesPage tenant={tenant} /> : null}
         {active === 'Profesionales por organización' ? <OrganizationPractitionersPage tenant={tenant} /> : null}
         {active === 'Servicios' ? <PractitionerServicesPage tenant={tenant} /> : null}
-        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales', 'Especialidades', 'Profesionales por organización', 'Servicios'].includes(active) ? <PlaceholderPage name={active} /> : null}
+        {active === 'Pagadores y planes' ? <PayersAndPlansPage tenant={tenant} /> : null}
+        {!['Dashboard', 'Organizaciones', 'Sedes', 'Consultorios', 'Profesionales', 'Especialidades', 'Profesionales por organización', 'Servicios', 'Pagadores y planes'].includes(active) ? <PlaceholderPage name={active} /> : null}
       </AdminLayout>
     </QueryClientProvider>
   );

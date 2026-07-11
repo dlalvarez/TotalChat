@@ -1306,3 +1306,8 @@ Respuesta de relación:
 Campos de creación: `organization_id`, `practitioner_id`, `name`, `description`, `duration_minutes`, `requires_payment`. Edición solo permite `name`, `description`, `duration_minutes`, `requires_payment`, `status`; no permite cambiar organización ni profesional. La duplicidad se valida en aplicación por organización + profesional + nombre normalizado case-insensitive; no resuelve carreras concurrentes extremas.
 
 Servicios no incluye precios todavía. Servicios no incluye modalidades todavía en la consola administrativa. Servicios no incluye disponibilidad todavía.
+
+
+## Fase 6B.7 — Admin pagadores y planes
+
+La superficie `/api/admin` expone CRUD lógico para `payer-types`, `payers` y `payer-plans`. Los endpoints listan históricos por defecto, soportan filtros `status`/`include_inactive` y devuelven nombres legibles de relaciones para evitar que la consola muestre UUIDs. Esta fase excluye precios y tarifas.

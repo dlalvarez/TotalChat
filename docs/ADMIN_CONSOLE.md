@@ -379,3 +379,9 @@ Servicios del profesional permanecen fuera de alcance hasta Fase 6B.6.
 La página Servicios deja de ser placeholder y permite listar, crear, editar, inactivar y reactivar servicios del profesional. La creación selecciona organización activa por nombre y profesional filtrado por relación activa en Profesionales por organización. La edición muestra organización y profesional como contexto legible y no permite cambiar esa pareja; si hubo error, se inactiva y se crea un nuevo servicio. No se muestran UUIDs al usuario, no hay botón Eliminar y las acciones son Inactivar/Activar.
 
 Si una organización, profesional o relación se inactiva después de crear el servicio, el servicio histórico sigue visible con estados legibles. Esta fase excluye precios, modalidades, disponibilidad, pagos y especialidad por servicio.
+
+## Fase 6B.7 — Pagadores y planes
+
+La consola incorpora la página **Pagadores y planes** para administrar exclusivamente la base comercial `Tipo de pagador → Pagador → Plan`. La pantalla se divide en tres secciones: tipos de pagador, pagadores y planes. Los nombres legibles abren edición, la acción derecha permite `Inactivar` / `Activar`, los selectores muestran nombres y los UUIDs permanecen internos.
+
+Reglas implementadas: los pagadores solo se crean o reactivan bajo tipos activos; los planes solo se crean o reactivan bajo pagadores activos cuyo tipo también esté activo; los históricos permanecen visibles si un padre queda inactivo. Esta fase no configura precios, tarifas, disponibilidad, citas ni pagos.

@@ -241,3 +241,15 @@ REQUEST_CHANGES: El PR implementa alcance no autorizado. Debe limitarse a la spe
 - [ ] Duplicados se rechazan por organización + profesional + nombre normalizado.
 - [ ] No se implementan tarifas, modalidades ni disponibilidad en Servicios.
 - [ ] `python3 scripts/check_sdd_scope.py`, backend y frontend fueron ejecutados o documentan bloqueo.
+
+
+## Checklist Fase 6B.7 — Pagadores y planes
+
+- [ ] CRUD lógico de tipos de pagador, pagadores y planes implementado.
+- [ ] Crear/reactivar pagadores requiere tipo activo.
+- [ ] Crear/reactivar planes requiere pagador y tipo activos.
+- [ ] Históricos permanecen visibles aunque padres estén inactivos.
+- [ ] Consola usa nombres legibles y no muestra UUIDs ni `schema_name`.
+- [ ] Serializers cargan relaciones explícitamente para respuestas create/update/disable.
+- [ ] No se implementan precios, tarifas, disponibilidad, citas ni pagos.
+- [ ] `python3 scripts/check_sdd_scope.py`, backend y frontend fueron ejecutados o documentan bloqueo.
