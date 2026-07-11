@@ -277,8 +277,10 @@ def create_availability_exception(
 
 
 @router.get("/availability-exceptions")
-def list_availability_exceptions(practitioner_id: UUID | None = None, location_id: UUID | None = None, room_id: UUID | None = None, exception_type: str | None = None, status: str | None = None, include_inactive: bool = False, starts_from: datetime | None = None, starts_to: datetime | None = None, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, list[dict[str, object]]]:
+def list_availability_exceptions(practitioner_id: UUID | None = None, location_id: UUID | None = None, room_id: UUID | None = None, exception_type: str | None = None, status: str | None = None, include_inactive: bool = True, starts_from: datetime | None = None, starts_to: datetime | None = None, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, list[dict[str, object]]]:
     _ = tenant_context
+    if status is not None and status not in {"active", "inactive"}:
+        raise DomainValidationError("status must be active or inactive.")
     stmt = select(AvailabilityException)
     if practitioner_id is not None: stmt = stmt.where(AvailabilityException.practitioner_id == practitioner_id)
     if location_id is not None: stmt = stmt.where(AvailabilityException.location_id == location_id)

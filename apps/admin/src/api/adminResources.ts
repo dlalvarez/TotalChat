@@ -266,7 +266,7 @@ export const adminResourcesApi = {
   disablePractitionerService: (tenantId: string, serviceId: string) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
   activatePractitionerService: (tenantId: string, serviceId: string) => adminResourcesApi.updatePractitionerService(tenantId, serviceId, { status: 'active' }),
 
-  listAvailabilityExceptions: (tenantId: string) => apiRequest<AvailabilityException[]>('/api/admin/availability-exceptions', { tenantId }),
+  listAvailabilityExceptions: (tenantId: string) => apiRequest<AvailabilityException[]>('/api/admin/availability-exceptions?include_inactive=true', { tenantId }),
   createAvailabilityException: (tenantId: string, payload: CreateAvailabilityExceptionPayload) => apiRequest<AvailabilityException>('/api/admin/availability-exceptions', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
   updateAvailabilityException: (tenantId: string, exceptionId: string, payload: UpsertAvailabilityExceptionPayload) => apiRequest<AvailabilityException>(`/api/admin/availability-exceptions/${exceptionId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
   disableAvailabilityException: (tenantId: string, exceptionId: string) => apiRequest<AvailabilityException>(`/api/admin/availability-exceptions/${exceptionId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),

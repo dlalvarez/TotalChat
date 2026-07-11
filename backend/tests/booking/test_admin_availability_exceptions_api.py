@@ -79,3 +79,27 @@ def test_overlap_allowed_exact_active_duplicate_rejected_inactive_allows_recreat
     assert request('post','/api/admin/availability-exceptions',session,tenant_context,payload(seed)).status_code==409
     request('post',f"/api/admin/availability-exceptions/{first.json()['data']['id']}/disable",session,tenant_context,{})
     assert request('post','/api/admin/availability-exceptions',session,tenant_context,payload(seed)).status_code==200
+
+def test_list_keeps_inactive_by_default_and_filters_by_status(session, tenant_context, seed):
+    created = request('post', '/api/admin/availability-exceptions', session, tenant_context, payload(seed)); assert created.status_code == 200, created.text
+    exception_id = created.json()['data']['id']
+    disabled = request('post', f'/api/admin/availability-exceptions/{exception_id}/disable', session, tenant_context, {}); assert disabled.status_code == 200
+
+    default_listing = request('get', '/api/admin/availability-exceptions', session, tenant_context).json()['data']
+    assert len(default_listing) == 1 and default_listing[0]['id'] == exception_id and default_listing[0]['status'] == 'inactive'
+
+    inactive_listing = request('get', '/api/admin/availability-exceptions?status=inactive', session, tenant_context).json()['data']
+    assert len(inactive_listing) == 1 and inactive_listing[0]['id'] == exception_id and inactive_listing[0]['status'] == 'inactive'
+
+    active_listing = request('get', '/api/admin/availability-exceptions?status=active', session, tenant_context).json()['data']
+    assert active_listing == []
+
+    active_only_listing = request('get', '/api/admin/availability-exceptions?include_inactive=false', session, tenant_context).json()['data']
+    assert active_only_listing == []
+
+    invalid_status = request('get', '/api/admin/availability-exceptions?status=paused', session, tenant_context)
+    assert invalid_status.status_code == 422
+
+    reactivated = request('patch', f'/api/admin/availability-exceptions/{exception_id}', session, tenant_context, {'status': 'active'}); assert reactivated.status_code == 200
+    active_listing = request('get', '/api/admin/availability-exceptions?status=active', session, tenant_context).json()['data']
+    assert len(active_listing) == 1 and active_listing[0]['id'] == exception_id and active_listing[0]['status'] == 'active'
