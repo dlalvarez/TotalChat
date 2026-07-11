@@ -61,10 +61,10 @@ export function PricesPage({ tenant }: { tenant: AdminTenant }) {
   const payerTypeId = form.watch('payer_type_id');
   const payerId = form.watch('payer_id');
 
-  useEffect(() => { if (!editing) { form.setValue('practitioner_id', ''); form.setValue('practitioner_service_id', ''); } }, [organizationId]);
-  useEffect(() => { if (!editing) form.setValue('practitioner_service_id', ''); }, [practitionerId]);
-  useEffect(() => { if (!editing) { form.setValue('payer_id', ''); form.setValue('payer_plan_id', ''); } }, [payerTypeId]);
-  useEffect(() => { if (!editing) form.setValue('payer_plan_id', ''); }, [payerId]);
+  useEffect(() => { if (!editing) { form.setValue('practitioner_id', ''); form.setValue('practitioner_service_id', ''); } }, [editing, form, organizationId]);
+  useEffect(() => { if (!editing) form.setValue('practitioner_service_id', ''); }, [editing, form, practitionerId]);
+  useEffect(() => { if (!editing) { form.setValue('payer_id', ''); form.setValue('payer_plan_id', ''); } }, [editing, form, payerTypeId]);
+  useEffect(() => { if (!editing) form.setValue('payer_plan_id', ''); }, [editing, form, payerId]);
 
   const activeOrganizations = (organizations.data ?? []).filter((item) => item.status === 'active');
   const activeRelations = (relations.data ?? []).filter((item) => item.status === 'active' && item.organization_status === 'active' && item.practitioner_status === 'active');
