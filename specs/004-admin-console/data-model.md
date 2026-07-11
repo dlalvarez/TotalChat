@@ -28,3 +28,9 @@ La consola administra reglas recurrentes de disponibilidad base para profesional
 Convención: `day_of_week` usa `0 = Monday/Lunes` y `6 = Sunday/Domingo`. `start_time` debe ser menor que `end_time`; no se modelan cruces de medianoche. `valid_to`, si existe, no puede ser anterior a `valid_from`. No hay borrado físico.
 
 Una regla general (`practitioner_service_id = null`) y una regla específica por servicio pueden coexistir; esta fase solo administra reglas y no resuelve prioridad para cálculo futuro de slots.
+
+### Fase 6B.9.1 — Bloqueos e indisponibilidad
+
+La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
+
+La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.

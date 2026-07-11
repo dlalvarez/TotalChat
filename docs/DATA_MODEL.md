@@ -1299,3 +1299,9 @@ TotalChat/MediChat usará un modelo híbrido de agenda:
 - Los slots disponibles se calcularán bajo demanda a partir de reglas, bloqueos, reservas, citas y agendas externas futuras.
 - Las reservas/citas/holds sí se persistirán en fases posteriores para proteger horarios y auditar estados.
 - Esta fase no crea reservas, citas ni slots físicos.
+
+### Fase 6B.9.1 — Bloqueos e indisponibilidad
+
+La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
+
+La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.

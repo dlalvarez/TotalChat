@@ -35,3 +35,9 @@ Las respuestas incluyen nombres legibles y estados de servicio, organización, p
 Endpoints funcionales: `GET /api/admin/practitioner-availability-rules`, `GET /api/admin/practitioner-availability-rules/{rule_id}`, `POST /api/admin/practitioner-availability-rules`, `PATCH /api/admin/practitioner-availability-rules/{rule_id}` y `POST /api/admin/practitioner-availability-rules/{rule_id}/disable`.
 
 La convención de `day_of_week` para esta pantalla es estable: `0 = Monday/Lunes` y `6 = Sunday/Domingo`. Las respuestas incluyen nombres y estados legibles de organización, profesional, servicio opcional y relación organización-profesional. Si `practitioner_service_id` es `null`, `scope_label` es `Todos los servicios`. El listado conserva por defecto reglas activas e inactivas para trazabilidad, con `include_inactive=false` disponible para filtrar activas. No se expone `schema_name`.
+
+### Fase 6B.9.1 — Bloqueos e indisponibilidad
+
+La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
+
+La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.
