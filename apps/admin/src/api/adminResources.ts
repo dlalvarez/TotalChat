@@ -173,6 +173,10 @@ export type PractitionerServicePrice = {
   valid_to: string | null;
   status: string;
 };
+export type PractitionerAvailabilityRule = { id: string; organization_id: string; organization_name: string | null; organization_status: string | null; practitioner_id: string; practitioner_name: string | null; practitioner_status: string | null; organization_practitioner_status: string | null; practitioner_service_id: string | null; practitioner_service_name: string | null; practitioner_service_status: string | null; scope_label: string; day_of_week: number; start_time: string; end_time: string; valid_from: string; valid_to: string | null; status: string };
+export type CreatePractitionerAvailabilityRulePayload = { organization_id: string; practitioner_id: string; practitioner_service_id?: string | null; day_of_week: number; start_time: string; end_time: string; valid_from: string; valid_to?: string | null };
+export type UpsertPractitionerAvailabilityRulePayload = { day_of_week?: number; start_time?: string; end_time?: string; valid_from?: string; valid_to?: string | null; status?: string };
+
 export type CreatePractitionerServicePricePayload = { practitioner_service_id: string; payer_plan_id: string; price: number; currency: 'COP'; valid_from: string; valid_to?: string | null };
 export type UpsertPractitionerServicePricePayload = { price?: number; currency?: string; valid_from?: string; valid_to?: string | null; status?: string };
 
@@ -245,6 +249,12 @@ export const adminResourcesApi = {
   updatePractitionerService: (tenantId: string, serviceId: string, payload: UpsertPractitionerServicePayload) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
   disablePractitionerService: (tenantId: string, serviceId: string) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
   activatePractitionerService: (tenantId: string, serviceId: string) => adminResourcesApi.updatePractitionerService(tenantId, serviceId, { status: 'active' }),
+
+  listPractitionerAvailabilityRules: (tenantId: string) => apiRequest<PractitionerAvailabilityRule[]>('/api/admin/practitioner-availability-rules', { tenantId }),
+  createPractitionerAvailabilityRule: (tenantId: string, payload: CreatePractitionerAvailabilityRulePayload) => apiRequest<PractitionerAvailabilityRule>('/api/admin/practitioner-availability-rules', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+  updatePractitionerAvailabilityRule: (tenantId: string, ruleId: string, payload: UpsertPractitionerAvailabilityRulePayload) => apiRequest<PractitionerAvailabilityRule>(`/api/admin/practitioner-availability-rules/${ruleId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
+  disablePractitionerAvailabilityRule: (tenantId: string, ruleId: string) => apiRequest<PractitionerAvailabilityRule>(`/api/admin/practitioner-availability-rules/${ruleId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  activatePractitionerAvailabilityRule: (tenantId: string, ruleId: string) => adminResourcesApi.updatePractitionerAvailabilityRule(tenantId, ruleId, { status: 'active' }),
 
   listPractitionerServicePrices: (tenantId: string) => apiRequest<PractitionerServicePrice[]>('/api/admin/practitioner-service-prices', { tenantId }),
   createPractitionerServicePrice: (tenantId: string, payload: CreatePractitionerServicePricePayload) => apiRequest<PractitionerServicePrice>('/api/admin/practitioner-service-prices', { tenantId, method: 'POST', body: JSON.stringify(payload) }),

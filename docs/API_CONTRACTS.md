@@ -1326,3 +1326,15 @@ Endpoints bajo `/api/admin`:
 Las respuestas incluyen nombres y estados legibles para servicio, organización, profesional, plan, pagador y tipo de pagador. Crear o reactivar requiere servicio, plan, pagador y tipo activos. No se permiten precios negativos, moneda distinta a código ISO de 3 letras mayúsculas, `valid_to < valid_from`, duplicado por servicio + plan + `valid_from`, ni solapamiento entre vigencias activas del mismo servicio y plan. `valid_to = null` representa vigencia abierta.
 
 La API conserva el campo `currency`, pero la consola de Fase 6B.8 envía COP automáticamente y no permite editar moneda. La moneda operativa por tenant y `default_currency` quedan para una fase futura de Configuración; no se implementa multi-moneda ni conversión.
+
+## 12. Disponibilidad base administrativa
+
+`/api/admin/practitioner-availability-rules` administra reglas recurrentes de disponibilidad base. Soporta listado, detalle, creación, edición lógica e inactivación mediante:
+
+- `GET /api/admin/practitioner-availability-rules`
+- `GET /api/admin/practitioner-availability-rules/{rule_id}`
+- `POST /api/admin/practitioner-availability-rules`
+- `PATCH /api/admin/practitioner-availability-rules/{rule_id}`
+- `POST /api/admin/practitioner-availability-rules/{rule_id}/disable`
+
+El payload usa `day_of_week` con `0 = Monday/Lunes` y `6 = Sunday/Domingo`, `start_time < end_time`, `valid_from` requerido y `valid_to` opcional. Crear o reactivar exige organización, profesional, relación organización-profesional y servicio opcional activos. No expone `schema_name`.

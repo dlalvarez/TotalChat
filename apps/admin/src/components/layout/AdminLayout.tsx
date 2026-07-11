@@ -73,7 +73,7 @@ export function AdminLayout({
         </nav>
 
         <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
-          <strong className="text-slate-700">Fase 6B.8:</strong> precios funcionales con moneda operativa temporal COP.
+          <strong className="text-slate-700">Fase 6B.9:</strong> disponibilidad base funcional sin citas ni slots físicos.
         </div>
       </aside>
 

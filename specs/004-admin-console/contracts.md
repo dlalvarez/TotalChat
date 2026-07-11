@@ -29,3 +29,9 @@ Endpoints funcionales: `GET /api/admin/payer-types`, `GET /api/admin/payer-types
 Endpoints funcionales: `GET /api/admin/practitioner-service-prices`, `GET /api/admin/practitioner-service-prices/{price_id}`, `POST /api/admin/practitioner-service-prices`, `PATCH /api/admin/practitioner-service-prices/{price_id}`, `POST /api/admin/practitioner-service-prices/{price_id}/disable` y compatibilidad con `GET /api/admin/practitioner-services/{service_id}/prices`.
 
 Las respuestas incluyen nombres legibles y estados de servicio, organización, profesional, plan, pagador y tipo de pagador. Crear/reactivar exige padres activos. La API valida monto no negativo, moneda ISO mayúscula de 3 letras, vigencias coherentes, unicidad por servicio + plan + `valid_from` y ausencia de solapamientos entre precios activos. No se expone `schema_name`.
+
+## Fase 6B.9 — Disponibilidad base
+
+Endpoints funcionales: `GET /api/admin/practitioner-availability-rules`, `GET /api/admin/practitioner-availability-rules/{rule_id}`, `POST /api/admin/practitioner-availability-rules`, `PATCH /api/admin/practitioner-availability-rules/{rule_id}` y `POST /api/admin/practitioner-availability-rules/{rule_id}/disable`.
+
+La convención de `day_of_week` para esta pantalla es estable: `0 = Monday/Lunes` y `6 = Sunday/Domingo`. Las respuestas incluyen nombres y estados legibles de organización, profesional, servicio opcional y relación organización-profesional. Si `practitioner_service_id` es `null`, `scope_label` es `Todos los servicios`. El listado conserva por defecto reglas activas e inactivas para trazabilidad, con `include_inactive=false` disponible para filtrar activas. No se expone `schema_name`.

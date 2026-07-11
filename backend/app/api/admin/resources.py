@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 
@@ -24,6 +24,7 @@ from app.models.tenant import (
     PayerPlan,
     PayerType,
     Practitioner,
+    AvailabilityRule,
     OrganizationPractitioner,
     PractitionerService,
     PractitionerServicePrice,
@@ -508,6 +509,49 @@ class PatchPractitionerServicePriceRequest(BaseModel):
         if value is not None and value not in RELATION_STATUSES:
             raise ValueError("status must be active or inactive")
         return value
+
+
+class CreatePractitionerAvailabilityRuleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    organization_id: UUID
+    practitioner_id: UUID
+    practitioner_service_id: UUID | None = None
+    day_of_week: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+    valid_from: date
+    valid_to: date | None = None
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "CreatePractitionerAvailabilityRuleRequest":
+        if self.start_time >= self.end_time:
+            raise ValueError("start_time must be before end_time")
+        if self.valid_to is not None and self.valid_to < self.valid_from:
+            raise ValueError("valid_to must not be before valid_from")
+        return self
+
+
+class PatchPractitionerAvailabilityRuleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    day_of_week: int | None = Field(default=None, ge=0, le=6)
+    start_time: time | None = None
+    end_time: time | None = None
+    valid_from: date | None = None
+    valid_to: date | None = None
+    status: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in RELATION_STATUSES:
+            raise ValueError("status must be active or inactive")
+        return value
+
+
+class DisablePractitionerAvailabilityRuleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class CreatePaymentSettingsRequest(BaseModel):
@@ -2296,6 +2340,177 @@ def disable_practitioner_service_price(price_id: UUID, tenant_context: TenantCon
     except Exception:
         session.rollback()
         raise
+    return {"data": data}
+
+def _relation_status(session: Session, organization_id: UUID, practitioner_id: UUID) -> str | None:
+    relation = session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+    return relation.status if relation is not None else None
+
+
+def _get_availability_rule(session: Session, rule_id: UUID) -> AvailabilityRule | None:
+    return session.get(AvailabilityRule, rule_id)
+
+
+def _serialize_practitioner_availability_rule(session: Session, rule: AvailabilityRule) -> dict[str, object]:
+    organization = session.get(Organization, rule.organization_id)
+    practitioner = session.get(Practitioner, rule.practitioner_id)
+    service = session.get(PractitionerService, rule.practitioner_service_id) if rule.practitioner_service_id is not None else None
+    return {
+        "id": str(rule.id),
+        "organization_id": str(rule.organization_id),
+        "organization_name": organization.name if organization is not None else None,
+        "organization_status": organization.status if organization is not None else None,
+        "practitioner_id": str(rule.practitioner_id),
+        "practitioner_name": practitioner.full_name if practitioner is not None else None,
+        "practitioner_status": practitioner.status if practitioner is not None else None,
+        "organization_practitioner_status": _relation_status(session, rule.organization_id, rule.practitioner_id),
+        "practitioner_service_id": str(rule.practitioner_service_id) if rule.practitioner_service_id is not None else None,
+        "practitioner_service_name": service.name if service is not None else None,
+        "practitioner_service_status": service.status if service is not None else None,
+        "scope_label": service.name if service is not None else "Todos los servicios",
+        "day_of_week": rule.weekday,
+        "start_time": rule.start_time.isoformat(),
+        "end_time": rule.end_time.isoformat(),
+        "valid_from": rule.valid_from.isoformat(),
+        "valid_to": rule.valid_to.isoformat() if rule.valid_to is not None else None,
+        "status": rule.status,
+    }
+
+
+def _validate_availability_dates_times(start_time: time, end_time: time, valid_from: date, valid_to: date | None) -> None:
+    if start_time >= end_time:
+        raise DomainValidationError("start_time must be before end_time.")
+    if valid_to is not None and valid_to < valid_from:
+        raise DomainValidationError("valid_to must not be before valid_from.")
+
+
+def _validate_availability_active_parents(session: Session, organization_id: UUID, practitioner_id: UUID, practitioner_service_id: UUID | None) -> None:
+    organization = session.get(Organization, organization_id)
+    if organization is None:
+        raise ResourceNotFound("Organization not found.")
+    if organization.status != "active":
+        raise BusinessRuleViolation("Availability rules require an active organization.")
+    practitioner = session.get(Practitioner, practitioner_id)
+    if practitioner is None:
+        raise ResourceNotFound("Practitioner not found.")
+    if practitioner.status != "active":
+        raise BusinessRuleViolation("Availability rules require an active practitioner.")
+    relation = session.get(OrganizationPractitioner, {"organization_id": organization_id, "practitioner_id": practitioner_id})
+    if relation is None or relation.status != "active":
+        raise BusinessRuleViolation("Availability rules require an active organization-practitioner relation.")
+    if practitioner_service_id is not None:
+        service = session.get(PractitionerService, practitioner_service_id)
+        if service is None:
+            raise ResourceNotFound("Practitioner service not found.")
+        if service.status != "active":
+            raise BusinessRuleViolation("Availability rules require an active practitioner service.")
+        if service.organization_id != organization_id or service.practitioner_id != practitioner_id:
+            raise BusinessRuleViolation("Practitioner service must belong to the selected organization and practitioner.")
+
+
+def _validate_no_active_availability_overlap(session: Session, organization_id: UUID, practitioner_id: UUID, practitioner_service_id: UUID | None, day_of_week: int, start_time: time, end_time: time, valid_from: date, valid_to: date | None, exclude_id: UUID | None = None) -> None:
+    stmt = select(AvailabilityRule).where(
+        AvailabilityRule.organization_id == organization_id,
+        AvailabilityRule.practitioner_id == practitioner_id,
+        AvailabilityRule.weekday == day_of_week,
+        AvailabilityRule.status == "active",
+        AvailabilityRule.start_time < end_time,
+        AvailabilityRule.end_time > start_time,
+        AvailabilityRule.valid_from <= (valid_to or date.max),
+        or_(AvailabilityRule.valid_to.is_(None), AvailabilityRule.valid_to >= valid_from),
+    )
+    if practitioner_service_id is None:
+        stmt = stmt.where(AvailabilityRule.practitioner_service_id.is_(None))
+    else:
+        stmt = stmt.where(AvailabilityRule.practitioner_service_id == practitioner_service_id)
+    if exclude_id is not None:
+        stmt = stmt.where(AvailabilityRule.id != exclude_id)
+    if session.scalar(stmt) is not None:
+        raise ConflictError("Active availability rule overlaps another active rule for the same scope, day, time and validity.")
+
+
+@router.get("/practitioner-availability-rules")
+def list_practitioner_availability_rules(organization_id: UUID | None = None, practitioner_id: UUID | None = None, practitioner_service_id: UUID | None = None, day_of_week: int | None = None, status: str | None = None, include_inactive: bool = True, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    if status is not None and status not in RELATION_STATUSES:
+        raise DomainValidationError("status must be active or inactive.")
+    if day_of_week is not None and not 0 <= day_of_week <= 6:
+        raise DomainValidationError("day_of_week must be between 0 and 6.")
+    stmt = select(AvailabilityRule)
+    if organization_id is not None:
+        stmt = stmt.where(AvailabilityRule.organization_id == organization_id)
+    if practitioner_id is not None:
+        stmt = stmt.where(AvailabilityRule.practitioner_id == practitioner_id)
+    if practitioner_service_id is not None:
+        stmt = stmt.where(AvailabilityRule.practitioner_service_id == practitioner_service_id)
+    if day_of_week is not None:
+        stmt = stmt.where(AvailabilityRule.weekday == day_of_week)
+    if status is not None:
+        stmt = stmt.where(AvailabilityRule.status == status)
+    elif not include_inactive:
+        stmt = stmt.where(AvailabilityRule.status == "active")
+    rules = session.scalars(stmt.order_by(AvailabilityRule.weekday, AvailabilityRule.start_time, AvailabilityRule.id)).all()
+    return {"data": [_serialize_practitioner_availability_rule(session, rule) for rule in rules]}
+
+
+@router.get("/practitioner-availability-rules/{rule_id}")
+def get_practitioner_availability_rule(rule_id: UUID, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    rule = _get_availability_rule(session, rule_id)
+    if rule is None:
+        raise ResourceNotFound("Practitioner availability rule not found.")
+    return {"data": _serialize_practitioner_availability_rule(session, rule)}
+
+
+@router.post("/practitioner-availability-rules")
+def create_practitioner_availability_rule(payload: CreatePractitionerAvailabilityRuleRequest, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    _validate_availability_active_parents(session, payload.organization_id, payload.practitioner_id, payload.practitioner_service_id)
+    _validate_no_active_availability_overlap(session, payload.organization_id, payload.practitioner_id, payload.practitioner_service_id, payload.day_of_week, payload.start_time, payload.end_time, payload.valid_from, payload.valid_to)
+    rule = AvailabilityRule(organization_id=payload.organization_id, practitioner_id=payload.practitioner_id, practitioner_service_id=payload.practitioner_service_id, weekday=payload.day_of_week, start_time=payload.start_time, end_time=payload.end_time, valid_from=payload.valid_from, valid_to=payload.valid_to, modality="both", buffer_minutes=0, status="active")
+    try:
+        session.add(rule); session.flush(); data = _serialize_practitioner_availability_rule(session, rule); session.commit()
+    except Exception:
+        session.rollback(); raise
+    return {"data": data}
+
+
+@router.patch("/practitioner-availability-rules/{rule_id}")
+def patch_practitioner_availability_rule(rule_id: UUID, payload: PatchPractitionerAvailabilityRuleRequest, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    rule = _get_availability_rule(session, rule_id)
+    if rule is None:
+        raise ResourceNotFound("Practitioner availability rule not found.")
+    data = payload.model_dump(exclude_unset=True)
+    day_of_week = data.get("day_of_week", rule.weekday)
+    start_time_value = data.get("start_time", rule.start_time)
+    end_time_value = data.get("end_time", rule.end_time)
+    valid_from = data.get("valid_from", rule.valid_from)
+    valid_to = data.get("valid_to", rule.valid_to)
+    _validate_availability_dates_times(start_time_value, end_time_value, valid_from, valid_to)
+    if data.get("status", rule.status) == "active":
+        _validate_availability_active_parents(session, rule.organization_id, rule.practitioner_id, rule.practitioner_service_id)
+        _validate_no_active_availability_overlap(session, rule.organization_id, rule.practitioner_id, rule.practitioner_service_id, day_of_week, start_time_value, end_time_value, valid_from, valid_to, exclude_id=rule_id)
+    for field, value in data.items():
+        setattr(rule, "weekday" if field == "day_of_week" else field, value)
+    try:
+        session.flush(); data_out = _serialize_practitioner_availability_rule(session, rule); session.commit()
+    except Exception:
+        session.rollback(); raise
+    return {"data": data_out}
+
+
+@router.post("/practitioner-availability-rules/{rule_id}/disable")
+def disable_practitioner_availability_rule(rule_id: UUID, payload: DisablePractitionerAvailabilityRuleRequest, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = (tenant_context, payload)
+    rule = _get_availability_rule(session, rule_id)
+    if rule is None:
+        raise ResourceNotFound("Practitioner availability rule not found.")
+    rule.status = "inactive"
+    try:
+        session.flush(); data = _serialize_practitioner_availability_rule(session, rule); session.commit()
+    except Exception:
+        session.rollback(); raise
     return {"data": data}
 
 

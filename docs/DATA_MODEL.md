@@ -1288,3 +1288,14 @@ Reglas: crear o reactivar un servicio depende de que `organization_practitioners
 Se mantiene la unicidad por `practitioner_service_id + payer_plan_id + valid_from`. Adicionalmente, la aplicación valida que no existan dos precios **activos** del mismo servicio y plan con vigencias solapadas; `valid_to = null` significa rango abierto. Los históricos inactivos pueden permanecer aunque se solapen.
 
 TotalChat / MediChat asume una moneda operativa única por tenant. Para Fase 6B.8 no se crean `tenant_settings` ni `organization_settings`; COP es el default técnico temporal de consola. No hay multi-moneda por precio, tasas de cambio ni conversión.
+
+### 9.3. Disponibilidad base administrativa (Fase 6B.9)
+
+La administración de disponibilidad base usa reglas recurrentes persistentes para indicar cuándo un profesional podría atender dentro de una organización, opcionalmente para un servicio específico del profesional. La convención administrativa de `day_of_week` es `0 = Monday/Lunes` y `6 = Sunday/Domingo`; la implementación histórica de agenda puede mantener columnas internas existentes, pero el contrato admin expone esta convención estable.
+
+TotalChat/MediChat usará un modelo híbrido de agenda:
+
+- Las reglas de disponibilidad se guardan como configuración persistente.
+- Los slots disponibles se calcularán bajo demanda a partir de reglas, bloqueos, reservas, citas y agendas externas futuras.
+- Las reservas/citas/holds sí se persistirán en fases posteriores para proteger horarios y auditar estados.
+- Esta fase no crea reservas, citas ni slots físicos.
