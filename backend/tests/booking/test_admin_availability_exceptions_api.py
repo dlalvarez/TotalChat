@@ -98,7 +98,7 @@ def test_list_keeps_inactive_by_default_and_filters_by_status(session, tenant_co
     assert active_only_listing == []
 
     invalid_status = request('get', '/api/admin/availability-exceptions?status=paused', session, tenant_context)
-    assert invalid_status.status_code == 422
+    assert invalid_status.status_code == 400
 
     reactivated = request('patch', f'/api/admin/availability-exceptions/{exception_id}', session, tenant_context, {'status': 'active'}); assert reactivated.status_code == 200
     active_listing = request('get', '/api/admin/availability-exceptions?status=active', session, tenant_context).json()['data']
