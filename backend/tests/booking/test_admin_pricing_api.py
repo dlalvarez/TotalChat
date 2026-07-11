@@ -205,3 +205,88 @@ def test_missing_tenant_header_returns_authentication_required_for_payer_and_pri
     assert payer_type.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
     assert price.status_code == 401
     assert price.json()["error"]["code"] == "AUTHENTICATION_REQUIRED"
+
+def test_payer_type_full_logical_crud_and_normalized_duplicate(admin_session, tenant_context):
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        created = client.post("/api/admin/payer-types", json={"code": " Medicina Prepagada ", "name": " Medicina prepagada "}, headers=headers(tenant_context))
+        duplicate = client.post("/api/admin/payer-types", json={"code": "medicina_prepagada", "name": "Otra"}, headers=headers(tenant_context))
+        payer_type_id = created.json()["data"]["id"]
+        listed = client.get("/api/admin/payer-types", headers=headers(tenant_context))
+        one = client.get(f"/api/admin/payer-types/{payer_type_id}", headers=headers(tenant_context))
+        patched = client.patch(f"/api/admin/payer-types/{payer_type_id}", json={"name": "Prepagada", "description": "Base"}, headers=headers(tenant_context))
+        disabled = client.post(f"/api/admin/payer-types/{payer_type_id}/disable", json={}, headers=headers(tenant_context))
+        reactivated = client.patch(f"/api/admin/payer-types/{payer_type_id}", json={"status": "active"}, headers=headers(tenant_context))
+    finally:
+        clear_overrides()
+    assert created.status_code == 200
+    assert created.json()["data"]["code"] == "medicina_prepagada"
+    assert duplicate.status_code == 409
+    assert listed.status_code == 200 and len(listed.json()["data"]) == 1
+    assert one.status_code == 200
+    assert patched.json()["data"]["name"] == "Prepagada"
+    assert disabled.json()["data"]["status"] == "inactive"
+    assert reactivated.json()["data"]["status"] == "active"
+
+
+def test_payer_rules_visibility_and_safe_parent_serialization(admin_session, tenant_context, base_data):
+    _org, _practitioner, _service, payer_type, payer, _plan = base_data
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        created = client.post("/api/admin/payers", json={"payer_type_id": str(payer_type.id), "name": "Sura"}, headers=headers(tenant_context))
+        duplicate = client.post("/api/admin/payers", json={"payer_type_id": str(payer_type.id), "name": " sura "}, headers=headers(tenant_context))
+        payer_id = created.json()["data"]["id"]
+        patched = client.patch(f"/api/admin/payers/{payer_id}", json={"name": "Sura póliza", "description": "Entidad"}, headers=headers(tenant_context))
+        disabled = client.post(f"/api/admin/payers/{payer_id}/disable", json={}, headers=headers(tenant_context))
+        client.post(f"/api/admin/payer-types/{payer_type.id}/disable", json={}, headers=headers(tenant_context))
+        create_under_inactive = client.post("/api/admin/payers", json={"payer_type_id": str(payer_type.id), "name": "Colsanitas"}, headers=headers(tenant_context))
+        reactivate_blocked = client.patch(f"/api/admin/payers/{payer_id}", json={"status": "active"}, headers=headers(tenant_context))
+        listed = client.get("/api/admin/payers", headers=headers(tenant_context))
+        missing = client.post("/api/admin/payers", json={"payer_type_id": str(uuid4()), "name": "Nope"}, headers=headers(tenant_context))
+    finally:
+        clear_overrides()
+    assert duplicate.status_code == 409
+    assert patched.json()["data"]["payer_type_name"] == "Particular"
+    assert disabled.json()["data"]["payer_type_code"] == "particular"
+    assert create_under_inactive.status_code == 409
+    assert create_under_inactive.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert reactivate_blocked.status_code == 409
+    assert reactivate_blocked.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert missing.status_code == 404
+    assert any(item["id"] == payer_id and item["payer_type_status"] == "inactive" for item in listed.json()["data"])
+
+
+def test_payer_plan_rules_visibility_and_safe_parent_serialization(admin_session, tenant_context, base_data):
+    _org, _practitioner, _service, payer_type, payer, _plan = base_data
+    install_overrides(admin_session, tenant_context)
+    client = TestClient(app)
+    try:
+        created = client.post("/api/admin/payer-plans", json={"payer_id": str(payer.id), "name": "Póliza básica"}, headers=headers(tenant_context))
+        duplicate = client.post("/api/admin/payer-plans", json={"payer_id": str(payer.id), "name": " póliza BÁSICA "}, headers=headers(tenant_context))
+        plan_id = created.json()["data"]["id"]
+        patched = client.patch(f"/api/admin/payer-plans/{plan_id}", json={"name": "Póliza plus", "description": "Plan"}, headers=headers(tenant_context))
+        disabled = client.post(f"/api/admin/payer-plans/{plan_id}/disable", json={}, headers=headers(tenant_context))
+        client.post(f"/api/admin/payers/{payer.id}/disable", json={}, headers=headers(tenant_context))
+        create_under_inactive_payer = client.post("/api/admin/payer-plans", json={"payer_id": str(payer.id), "name": "Plan bloqueado"}, headers=headers(tenant_context))
+        reactivate_blocked = client.patch(f"/api/admin/payer-plans/{plan_id}", json={"status": "active"}, headers=headers(tenant_context))
+        client.patch(f"/api/admin/payers/{payer.id}", json={"status": "active"}, headers=headers(tenant_context))
+        client.post(f"/api/admin/payer-types/{payer_type.id}/disable", json={}, headers=headers(tenant_context))
+        create_under_inactive_type = client.post("/api/admin/payer-plans", json={"payer_id": str(payer.id), "name": "Plan tipo bloqueado"}, headers=headers(tenant_context))
+        listed = client.get("/api/admin/payer-plans", headers=headers(tenant_context))
+        missing = client.post("/api/admin/payer-plans", json={"payer_id": str(uuid4()), "name": "Nope"}, headers=headers(tenant_context))
+    finally:
+        clear_overrides()
+    assert created.json()["data"]["payer_name"] == "Particular"
+    assert duplicate.status_code == 409
+    assert patched.json()["data"]["payer_type_code"] == "particular"
+    assert disabled.json()["data"]["status"] == "inactive"
+    assert create_under_inactive_payer.status_code == 409
+    assert create_under_inactive_payer.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert reactivate_blocked.status_code == 409
+    assert reactivate_blocked.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert create_under_inactive_type.status_code == 409
+    assert create_under_inactive_type.json()["error"]["code"] == "BUSINESS_RULE_VIOLATION"
+    assert missing.status_code == 404
+    assert any(item["id"] == plan_id and item["payer_type_status"] == "inactive" for item in listed.json()["data"])
