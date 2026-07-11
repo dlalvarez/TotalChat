@@ -20,10 +20,18 @@ const planSchema = z.object({ payer_type_id: z.string().min(1, 'Selecciona un ti
 type PayerTypeForm = z.infer<typeof payerTypeSchema>;
 type PayerForm = z.infer<typeof payerSchema>;
 type PlanForm = z.infer<typeof planSchema>;
+type ActiveTab = 'payer-types' | 'payers' | 'plans';
+
+const tabs: { id: ActiveTab; label: string }[] = [
+  { id: 'payer-types', label: 'Tipos de pagador' },
+  { id: 'payers', label: 'Pagadores' },
+  { id: 'plans', label: 'Planes' },
+];
 
 export function PayersAndPlansPage({ tenant }: { tenant: AdminTenant }) {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('payer-types');
   const [editingType, setEditingType] = useState<PayerType | null>(null);
   const [editingPayer, setEditingPayer] = useState<Payer | null>(null);
   const [editingPlan, setEditingPlan] = useState<PayerPlan | null>(null);
@@ -42,8 +50,15 @@ export function PayersAndPlansPage({ tenant }: { tenant: AdminTenant }) {
   const payerForm = useForm<PayerForm>({ resolver: zodResolver(payerSchema), defaultValues: { payer_type_id: '', name: '', description: '' } });
   const planForm = useForm<PlanForm>({ resolver: zodResolver(planSchema), defaultValues: { payer_type_id: '', payer_id: '', name: '', description: '' } });
   const selectedPlanType = planForm.watch('payer_type_id');
-  useEffect(() => { if (!editingPlan) planForm.setValue('payer_id', '', { shouldValidate: true }); }, [editingPlan, planForm, selectedPlanType]);
+  useEffect(() => { if (!editingPlan) planForm.setValue('payer_id', ''); }, [editingPlan, planForm, selectedPlanType]);
   const planPayers = activePayers.filter((payer) => payer.payer_type_id === selectedPlanType);
+  const payerSelectHint = !editingPlan
+    ? selectedPlanType
+      ? planPayers.length === 0
+        ? 'No hay pagadores activos para este tipo.'
+        : undefined
+      : 'Selecciona primero un tipo de pagador.'
+    : undefined;
 
   const invalidateAll = async () => {
     await Promise.all([
@@ -75,8 +90,26 @@ export function PayersAndPlansPage({ tenant }: { tenant: AdminTenant }) {
     {feedback ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">{feedback}</div> : null}
     {error ? <div className="mb-4"><ErrorState description={(error as Error).message} /></div> : null}
 
-    <div className="grid gap-6 xl:grid-cols-3">
-      <SectionCard title="Tipos de pagador" description="Código único, nombre y estado lógico.">
+    <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => setActiveTab(tab.id)}
+          className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+            activeTab === tab.id
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+          }`}
+          aria-pressed={activeTab === tab.id}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+
+    <div className="max-w-6xl">
+      {activeTab === 'payer-types' ? <SectionCard title="Tipos de pagador" description="Código único, nombre y estado lógico.">
         <form className="mb-4 grid gap-3" onSubmit={typeForm.handleSubmit((values) => saveType.mutate(values))}>
           <FieldWrapper label="Código *" error={typeForm.formState.errors.code?.message}><Input {...typeForm.register('code')} placeholder="prepaid_medicine" /></FieldWrapper>
           <FieldWrapper label="Nombre *" error={typeForm.formState.errors.name?.message}><Input {...typeForm.register('name')} placeholder="Medicina prepagada" /></FieldWrapper>
@@ -86,9 +119,9 @@ export function PayersAndPlansPage({ tenant }: { tenant: AdminTenant }) {
         {payerTypes.isLoading ? <LoadingState /> : null}
         {payerTypes.isSuccess && payerTypes.data.length === 0 ? <EmptyState title="Sin tipos de pagador" description="Crea al menos un tipo activo para habilitar pagadores." /> : null}
         {payerTypes.isSuccess && payerTypes.data.length > 0 ? <DataTableShell columns={['Tipo', 'Código', 'Estado', 'Acción']} rows={payerTypes.data.map((type) => [<NameEditButton name={type.name} onEdit={() => { setEditingType(type); typeForm.reset({ code: type.code, name: type.name, description: type.description ?? '' }); }} />, type.code, <StatusBadge status={type.status} />, <StatusAction status={type.status} entityName={type.name} disabled={toggleType.isPending} onInactivate={() => toggleType.mutate(type)} onActivate={() => toggleType.mutate(type)} />])} /> : null}
-      </SectionCard>
+      </SectionCard> : null}
 
-      <SectionCard title="Pagadores" description="Entidad o categoría comercial bajo un tipo activo.">
+      {activeTab === 'payers' ? <SectionCard title="Pagadores" description="Entidad o categoría comercial bajo un tipo activo.">
         <form className="mb-4 grid gap-3" onSubmit={payerForm.handleSubmit((values) => savePayer.mutate(values))}>
           <FieldWrapper label="Tipo de pagador activo *" error={payerForm.formState.errors.payer_type_id?.message} hint={activeTypes.length === 0 ? 'No hay tipos activos disponibles.' : undefined}><Select {...payerForm.register('payer_type_id')} disabled={Boolean(editingPayer)}><option value="">Selecciona un tipo</option>{(editingPayer ? payerTypes.data ?? [] : activeTypes).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</Select></FieldWrapper>
           <FieldWrapper label="Nombre *" error={payerForm.formState.errors.name?.message}><Input {...payerForm.register('name')} placeholder="Particular" /></FieldWrapper>
@@ -96,18 +129,18 @@ export function PayersAndPlansPage({ tenant }: { tenant: AdminTenant }) {
           <Button type="submit" disabled={savePayer.isPending || (!editingPayer && activeTypes.length === 0)}>{editingPayer ? 'Guardar pagador' : 'Crear pagador'}</Button>
         </form>
         {payers.isSuccess && payers.data.length > 0 ? <DataTableShell columns={['Pagador', 'Tipo', 'Estado', 'Acción']} rows={payers.data.map((payer) => [<NameEditButton name={payer.name} onEdit={() => { setEditingPayer(payer); payerForm.reset({ payer_type_id: payer.payer_type_id, name: payer.name, description: payer.description ?? '' }); }} />, `${payer.payer_type_name ?? 'Tipo'}${payer.payer_type_status === 'inactive' ? ' (inactivo)' : ''}`, <StatusBadge status={payer.status} />, <StatusAction status={payer.status} entityName={payer.name} disabled={togglePayer.isPending} onInactivate={() => togglePayer.mutate(payer)} onActivate={() => togglePayer.mutate(payer)} />])} /> : <EmptyState title="Sin pagadores" description="Crea pagadores cuando exista un tipo activo." />}
-      </SectionCard>
+      </SectionCard> : null}
 
-      <SectionCard title="Planes" description="Producto, convenio o variante comercial del pagador. Sin precios.">
+      {activeTab === 'plans' ? <SectionCard title="Planes" description="Producto, convenio o variante comercial del pagador. Sin precios.">
         <form className="mb-4 grid gap-3" onSubmit={planForm.handleSubmit((values) => savePlan.mutate(values))}>
           <FieldWrapper label="Tipo de pagador activo *" error={planForm.formState.errors.payer_type_id?.message}><Select {...planForm.register('payer_type_id')} disabled={Boolean(editingPlan)}><option value="">Selecciona un tipo</option>{(editingPlan ? payerTypes.data ?? [] : activeTypes).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</Select></FieldWrapper>
-          <FieldWrapper label="Pagador activo *" error={planForm.formState.errors.payer_id?.message} hint={!editingPlan && selectedPlanType && planPayers.length === 0 ? 'No hay pagadores activos para este tipo.' : undefined}><Select {...planForm.register('payer_id')} disabled={Boolean(editingPlan) || !selectedPlanType}><option value="">Selecciona un pagador</option>{(editingPlan ? payers.data ?? [] : planPayers).map((payer) => <option key={payer.id} value={payer.id}>{payer.name}</option>)}</Select></FieldWrapper>
+          <FieldWrapper label="Pagador activo *" error={planForm.formState.errors.payer_id?.message} hint={payerSelectHint}><Select {...planForm.register('payer_id')} disabled={Boolean(editingPlan) || !selectedPlanType}><option value="">Selecciona un pagador</option>{(editingPlan ? payers.data ?? [] : planPayers).map((payer) => <option key={payer.id} value={payer.id}>{payer.name}</option>)}</Select></FieldWrapper>
           <FieldWrapper label="Nombre *" error={planForm.formState.errors.name?.message}><Input {...planForm.register('name')} placeholder="Tarifa particular estándar" /></FieldWrapper>
           <FieldWrapper label="Descripción"><Input {...planForm.register('description')} /></FieldWrapper>
           <Button type="submit" disabled={savePlan.isPending || (!editingPlan && planPayers.length === 0)}>{editingPlan ? 'Guardar plan' : 'Crear plan'}</Button>
         </form>
         {plans.isSuccess && plans.data.length > 0 ? <DataTableShell columns={['Plan', 'Pagador', 'Tipo', 'Estado', 'Acción']} rows={plans.data.map((plan) => [<NameEditButton name={plan.name} onEdit={() => { setEditingPlan(plan); planForm.reset({ payer_type_id: plan.payer_type_id ?? '', payer_id: plan.payer_id, name: plan.name, description: plan.description ?? '' }); }} />, `${plan.payer_name ?? 'Pagador'}${plan.payer_status === 'inactive' ? ' (inactivo)' : ''}`, `${plan.payer_type_name ?? 'Tipo'}${plan.payer_type_status === 'inactive' ? ' (inactivo)' : ''}`, <StatusBadge status={plan.status} />, <StatusAction status={plan.status} entityName={plan.name} disabled={togglePlan.isPending} onInactivate={() => togglePlan.mutate(plan)} onActivate={() => togglePlan.mutate(plan)} />])} /> : <EmptyState title="Sin planes" description="Crea planes cuando existan pagadores activos." />}
-      </SectionCard>
+      </SectionCard> : null}
     </div>
   </>;
 }
