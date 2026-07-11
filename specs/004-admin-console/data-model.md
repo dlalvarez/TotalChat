@@ -16,3 +16,7 @@ La consola administra `PractitionerService` por organización y profesional. La 
 La consola administra `payer_types`, `payers` y `payer_plans` como base comercial previa a tarifas. `PayerType` usa `code`, `name`, `description` y `status`; `code` se normaliza y es único de forma case-insensitive en la aplicación. `Payer` depende de `payer_type_id` y valida nombre único normalizado por tipo. `PayerPlan` depende de `payer_id` y valida nombre único normalizado por pagador.
 
 Crear o reactivar pagadores requiere tipo activo. Crear o reactivar planes requiere pagador activo y tipo activo. No hay borrado físico y los registros históricos siguen listables aunque sus padres queden inactivos. No se implementan precios ni `PractitionerServicePrice` en esta fase.
+
+## Fase 6B.8 — PractitionerServicePrice
+
+La consola administra `PractitionerServicePrice` como tarifa manual para `PractitionerService + PayerPlan`. El modelo conserva `currency`, pero la UI usa COP como moneda operativa temporal y no expone selector editable. No se agregan modelos alternativos de precio ni tablas de configuración de moneda. Los precios activos no pueden solaparse para la misma pareja servicio/plan; los históricos inactivos permanecen listables.

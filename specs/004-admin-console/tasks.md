@@ -16,7 +16,9 @@
 - [x] CRUD pagadores y planes.
   - Administra `payer_types`, `payers` y `payer_plans`.
   - No incluye precios ni tarifas.
-- [ ] CRUD tarifas.
+- [x] CRUD tarifas.
+  - Administra precios por servicio del profesional y plan de pagador.
+  - Usa COP como moneda operativa temporal en consola; no incluye multi-moneda, pagos, citas ni disponibilidad.
 - [ ] Pantalla disponibilidad.
 - [ ] Pantalla citas.
 - [ ] Pantalla pagos.

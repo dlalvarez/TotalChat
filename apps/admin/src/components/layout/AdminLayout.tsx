@@ -12,8 +12,8 @@ const nav = [
   'Especialidades',
   'Profesionales por organización',
   'Servicios',
-  'Precios',
   'Pagadores y planes',
+  'Precios',
   'Disponibilidad',
   'Citas',
   'Pagos',
@@ -73,7 +73,7 @@ export function AdminLayout({
         </nav>
 
         <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
-          <strong className="text-slate-700">Fase 6B.5:</strong> relación Organización–Profesional funcional; Servicios sigue diferido.
+          <strong className="text-slate-700">Fase 6B.8:</strong> precios funcionales con moneda operativa temporal COP.
         </div>
       </aside>
 

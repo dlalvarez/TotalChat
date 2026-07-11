@@ -23,3 +23,9 @@ Crear o reactivar requiere padres activos y relación `organization_practitioner
 Endpoints funcionales: `GET /api/admin/payer-types`, `GET /api/admin/payer-types/{payer_type_id}`, `POST /api/admin/payer-types`, `PATCH /api/admin/payer-types/{payer_type_id}`, `POST /api/admin/payer-types/{payer_type_id}/disable`; `GET /api/admin/payers`, `GET /api/admin/payers/{payer_id}`, `POST /api/admin/payers`, `PATCH /api/admin/payers/{payer_id}`, `POST /api/admin/payers/{payer_id}/disable`; `GET /api/admin/payer-plans`, `GET /api/admin/payer-plans/{payer_plan_id}`, `POST /api/admin/payer-plans`, `PATCH /api/admin/payer-plans/{payer_plan_id}`, `POST /api/admin/payer-plans/{payer_plan_id}/disable`.
 
 `PATCH` reactiva con `status: active`. Las respuestas de pagadores incluyen `payer_type_name`, `payer_type_code` y `payer_type_status`; las respuestas de planes incluyen `payer_name`, `payer_status`, `payer_type_id`, `payer_type_name`, `payer_type_code` y `payer_type_status`. No se acepta `schema_name` ni campos extra.
+
+## Fase 6B.8 — Precios / tarifas
+
+Endpoints funcionales: `GET /api/admin/practitioner-service-prices`, `GET /api/admin/practitioner-service-prices/{price_id}`, `POST /api/admin/practitioner-service-prices`, `PATCH /api/admin/practitioner-service-prices/{price_id}`, `POST /api/admin/practitioner-service-prices/{price_id}/disable` y compatibilidad con `GET /api/admin/practitioner-services/{service_id}/prices`.
+
+Las respuestas incluyen nombres legibles y estados de servicio, organización, profesional, plan, pagador y tipo de pagador. Crear/reactivar exige padres activos. La API valida monto no negativo, moneda ISO mayúscula de 3 letras, vigencias coherentes, unicidad por servicio + plan + `valid_from` y ausencia de solapamientos entre precios activos. No se expone `schema_name`.
