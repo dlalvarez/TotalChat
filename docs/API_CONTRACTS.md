@@ -1352,3 +1352,19 @@ La consola administra bloqueos con profesional, sede opcional, consultorio opcio
 Tipos permitidos: `vacation`, `medical_leave`, `personal`, `meeting`, `lunch`, `training`, `maintenance`, `temporary_closure`, `administrative`, `other`.
 
 Las respuestas incluyen IDs internos para operación del frontend y nombres/estados legibles: profesional, sede, organización y consultorio, además de `exception_type_label`; no exponen `schema_name`.
+
+## Fase 6B.10 — Admin appointments
+
+Endpoints tenant-scoped bajo `/api/admin`:
+
+- `GET /appointments` con filtros `organization_id`, `location_id`, `room_id`, `practitioner_id`, `practitioner_service_id`, `patient_id`, `status`, `date`, `date_from`, `date_to`.
+- `GET /appointments/{appointment_id}`.
+- `POST /appointments`.
+- `PATCH /appointments/{appointment_id}` limitado en esta fase a `notes` y `status`.
+- `POST /appointments/{appointment_id}/cancel` → `cancelled`.
+- `POST /appointments/{appointment_id}/complete` → `completed`.
+- `POST /appointments/{appointment_id}/no-show` → `no_show`.
+
+Estados administrativos: `scheduled`, `cancelled`, `completed`, `no_show`. Solo `scheduled` ocupa horario para validaciones de conflicto. Las respuestas incluyen nombres legibles para organización, sede, consultorio, profesional, servicio y paciente, y no exponen `schema_name`.
+
+`date_to` se interpreta inclusivo hasta el final del día indicado para mantener consistencia con los listados administrativos existentes.

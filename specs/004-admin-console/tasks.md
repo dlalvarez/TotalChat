@@ -22,6 +22,6 @@
 - [x] Pantalla disponibilidad.
   - Reglas recurrentes de atención.
   - Bloqueos e indisponibilidad administrativos.
-- [ ] Pantalla citas.
+- [x] Pantalla citas.
 - [ ] Pantalla pagos.
 - [ ] Pantalla links virtuales.

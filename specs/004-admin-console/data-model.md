@@ -34,3 +34,9 @@ Una regla general (`practitioner_service_id = null`) y una regla específica por
 La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
 
 La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.
+
+## Fase 6B.10 — Citas administrativas
+
+La consola reutiliza `bookings` como modelo persistente para citas administrativas y agrega `notes` como nota administrativa opcional. No se crea una tabla duplicada de `appointments`.
+
+Estados usados por esta pantalla: `scheduled`, `cancelled`, `completed`, `no_show`. Solo `scheduled` ocupa horario; los demás estados preservan historial sin bloquear nuevas citas.

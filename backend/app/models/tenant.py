@@ -284,6 +284,7 @@ class Booking(TimestampMixin, Base):
     pending_patient_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     admin_cancellation_reason: Mapped[str | None] = mapped_column(Text)
     admin_reschedule_reason: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     organization: Mapped[Organization] = relationship(back_populates="bookings")
     payment_attempts: Mapped[list["PaymentAttempt"]] = relationship(back_populates="booking")
 

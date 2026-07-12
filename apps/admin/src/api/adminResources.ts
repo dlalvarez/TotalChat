@@ -185,6 +185,13 @@ export const AVAILABILITY_EXCEPTION_TYPE_OPTIONS = [
   { value: 'administrative', label: 'Bloqueo administrativo' },
   { value: 'other', label: 'Otro' },
 ] as const;
+
+export type Patient = { id: string; full_name: string; document_type: string | null; document_number: string | null; email: string | null; phone: string | null; status: string };
+export type Appointment = { id: string; organization_id: string; organization_name: string | null; location_id: string | null; location_name: string | null; room_id: string | null; room_name: string | null; practitioner_id: string; practitioner_name: string | null; practitioner_service_id: string; practitioner_service_name: string | null; patient_id: string; patient_name: string | null; starts_at: string; ends_at: string; status: string; status_label: string; notes: string | null; created_at: string | null; updated_at: string | null };
+export type CreateAppointmentPayload = { organization_id: string; location_id: string; room_id?: string | null; practitioner_id: string; practitioner_service_id: string; patient_id: string; starts_at: string; ends_at: string; notes?: string | null };
+export type PatchAppointmentPayload = { notes?: string | null; status?: 'scheduled' | 'cancelled' | 'completed' | 'no_show' };
+export type AppointmentFilters = { organization_id?: string; location_id?: string; room_id?: string; practitioner_id?: string; practitioner_service_id?: string; patient_id?: string; status?: string; date?: string; date_from?: string; date_to?: string };
+
 export type AvailabilityException = { id: string; practitioner_id: string; practitioner_name: string | null; practitioner_status: string | null; location_id: string | null; location_name: string | null; location_status: string | null; organization_id: string | null; organization_name: string | null; organization_status: string | null; room_id: string | null; room_name: string | null; room_status: string | null; starts_at: string; ends_at: string; exception_type: string; exception_type_label: string; reason: string | null; status: string };
 export type CreateAvailabilityExceptionPayload = { practitioner_id: string; location_id?: string | null; room_id?: string | null; starts_at: string; ends_at: string; exception_type: string; reason?: string | null };
 export type UpsertAvailabilityExceptionPayload = { starts_at?: string; ends_at?: string; exception_type?: string; reason?: string | null; status?: string };
@@ -216,7 +223,18 @@ export type UpsertPractitionerPayload = {
 };
 export type CreatePractitionerPayload = Required<Pick<UpsertPractitionerPayload, 'full_name'>> & Omit<UpsertPractitionerPayload, 'full_name' | 'status'>;
 
+const appointmentQuery = (filters: AppointmentFilters = {}) => { const params = new URLSearchParams(); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); const query = params.toString(); return `/api/admin/appointments${query ? `?${query}` : ''}`; };
+
 export const adminResourcesApi = {
+  listPatients: (tenantId: string) => apiRequest<Patient[]>('/api/admin/patients', { tenantId }),
+  listAppointments: (tenantId: string, filters: AppointmentFilters = {}) => apiRequest<Appointment[]>(appointmentQuery(filters), { tenantId }),
+  getAppointment: (tenantId: string, appointmentId: string) => apiRequest<Appointment>(`/api/admin/appointments/${appointmentId}`, { tenantId }),
+  createAppointment: (tenantId: string, payload: CreateAppointmentPayload) => apiRequest<Appointment>('/api/admin/appointments', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+  updateAppointment: (tenantId: string, appointmentId: string, payload: PatchAppointmentPayload) => apiRequest<Appointment>(`/api/admin/appointments/${appointmentId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
+  cancelAppointment: (tenantId: string, appointmentId: string) => apiRequest<Appointment>(`/api/admin/appointments/${appointmentId}/cancel`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  completeAppointment: (tenantId: string, appointmentId: string) => apiRequest<Appointment>(`/api/admin/appointments/${appointmentId}/complete`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  noShowAppointment: (tenantId: string, appointmentId: string) => apiRequest<Appointment>(`/api/admin/appointments/${appointmentId}/no-show`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+
   listOrganizations: (tenantId: string) => apiRequest<Organization[]>('/api/admin/organizations', { tenantId }),
   createOrganization: (tenantId: string, payload: CreateOrganizationPayload) => apiRequest<Organization>('/api/admin/organizations', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
   updateOrganization: (tenantId: string, organizationId: string, payload: UpsertOrganizationPayload) => apiRequest<Organization>(`/api/admin/organizations/${organizationId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),

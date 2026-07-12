@@ -92,6 +92,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     apply_patient_payer_profiles_tenant_migration(connection, schema_name)
     apply_manual_payments_tenant_migration(connection, schema_name)
     apply_organization_practitioners_tenant_migration(connection, schema_name)
+    apply_booking_notes_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -292,6 +293,29 @@ def apply_manual_payments_tenant_migration(connection: Connection, schema_name: 
             f'''
             INSERT INTO "{schema_name}".tenant_schema_migrations (version)
             VALUES ('006_manual_simulated_payments')
+            ON CONFLICT (version) DO NOTHING
+            '''
+        )
+    )
+
+
+def apply_booking_notes_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Add nullable administrative notes to tenant booking/appointment records."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+    connection.execute(
+        text(
+            f'''
+            ALTER TABLE "{schema_name}".bookings
+            ADD COLUMN IF NOT EXISTS notes TEXT
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('007_booking_notes')
             ON CONFLICT (version) DO NOTHING
             '''
         )
