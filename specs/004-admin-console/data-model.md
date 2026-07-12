@@ -40,3 +40,7 @@ La consola administra bloqueos con profesional, sede opcional, consultorio opcio
 La consola reutiliza `bookings` como modelo persistente para citas administrativas y agrega `notes` como nota administrativa opcional. No se crea una tabla duplicada de `appointments`.
 
 Estados usados por esta pantalla: `scheduled`, `cancelled`, `completed`, `no_show`. Solo `scheduled` ocupa horario; los demás estados preservan historial sin bloquear nuevas citas.
+
+### Ajuste PR #43 — reprogramación y agenda diaria operativa
+
+La cita administrativa mantiene la misma organización, sede, profesional, servicio y paciente durante esta fase. La reprogramación básica solo cambia rango horario, consultorio y notas para citas `scheduled`; estados no activos solo admiten notas. La agenda diaria muestra slots visuales disponibles calculados desde reglas de disponibilidad base activas del profesional seleccionado, menos bloqueos activos y citas `scheduled`.

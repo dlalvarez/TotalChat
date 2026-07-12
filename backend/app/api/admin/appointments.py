@@ -38,6 +38,9 @@ class CreateAppointmentRequest(BaseModel):
 
 class PatchAppointmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    room_id: UUID | None = None
     notes: str | None = None
 
 class EmptyRequest(BaseModel):
@@ -135,7 +138,22 @@ def patch_appointment(appointment_id: UUID, payload: PatchAppointmentRequest, te
     _ = tenant_context; a = session.get(Booking, appointment_id)
     if a is None or a.status not in APPOINTMENT_STATUSES: raise ResourceNotFound("Appointment not found.")
     data = payload.model_dump(exclude_unset=True)
-    for k, v in data.items(): setattr(a, k, v)
+    structural = any(field in data for field in {"starts_at", "ends_at", "room_id"})
+    if structural:
+        if a.status != "scheduled": raise BusinessRuleViolation("Only scheduled appointments can be rescheduled.")
+        starts_at = data.get("starts_at", a.starts_at); ends_at = data.get("ends_at", a.ends_at); room_id = data.get("room_id", a.room_id)
+        if starts_at >= ends_at: raise DomainValidationError("starts_at must be before ends_at.")
+        if room_id is not None:
+            room = session.get(Room, room_id)
+            if room is None: raise ResourceNotFound("Room not found.")
+            if room.status != "active": raise BusinessRuleViolation("Appointment requires an active room.")
+            if a.location_id is None or room.location_id != a.location_id: raise BusinessRuleViolation("Room does not belong to the appointment location.")
+        validation_payload = CreateAppointmentRequest(organization_id=a.organization_id, location_id=a.location_id, room_id=room_id, practitioner_id=a.practitioner_id, practitioner_service_id=a.practitioner_service_id, patient_id=a.patient_id, starts_at=starts_at, ends_at=ends_at, notes=data.get("notes", a.notes))
+        _validate_payload(session, validation_payload, exclude_id=appointment_id)
+        a.starts_at = starts_at; a.ends_at = ends_at; a.room_id = room_id; a.duration_minutes_snapshot = max(1, int((ends_at - starts_at).total_seconds() // 60))
+        room = session.get(Room, room_id) if room_id is not None else None
+        a.room_snapshot = room.name if room is not None else None
+    if "notes" in data: a.notes = data["notes"]
     try:
         session.flush(); out = serialize_appointment(a, session); session.commit()
     except Exception:

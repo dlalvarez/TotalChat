@@ -92,3 +92,41 @@ def test_requires_tenant_auth(session):
         r=TestClient(app).get('/api/admin/appointments')
     finally: app.dependency_overrides.clear()
     assert r.status_code==401
+
+def test_patch_reschedules_scheduled_to_free_time(session, tenant_context, seed):
+    r=create(session,tenant_context,seed); assert r.status_code==200
+    patched=req('patch',f"/api/admin/appointments/{r.json()['data']['id']}",session,tenant_context,{'starts_at':'2026-07-20T10:00:00','ends_at':'2026-07-20T10:30:00'})
+    assert patched.status_code==200, patched.text
+    assert patched.json()['data']['starts_at'].startswith('2026-07-20T10:00:00')
+
+def test_patch_reschedule_rejects_invalid_range_block_and_practitioner_conflict(session, tenant_context, seed):
+    r=create(session,tenant_context,seed); assert r.status_code==200
+    aid=r.json()['data']['id']
+    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-20T11:00:00','ends_at':'2026-07-20T11:00:00'}).status_code in {409,422}
+    b=AvailabilityException(practitioner_id=seed['pr'].id, starts_at=datetime(2026,7,20,10,0), ends_at=datetime(2026,7,20,10,30), exception_type='meeting', status='active')
+    session.add(b); session.commit()
+    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-20T10:00:00','ends_at':'2026-07-20T10:30:00'}).status_code==409
+    b.status='inactive'; session.commit()
+    other=create(session,tenant_context,seed,starts_at='2026-07-20T12:00:00',ends_at='2026-07-20T12:30:00'); assert other.status_code==200
+    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-20T12:15:00','ends_at':'2026-07-20T12:45:00'}).status_code==409
+
+def test_patch_room_change_validates_room_status_location_and_conflict(session, tenant_context, seed):
+    r=create(session,tenant_context,seed); assert r.status_code==200
+    aid=r.json()['data']['id']
+    other_room=Room(location_id=seed['loc'].id, name='Consultorio 2'); session.add(other_room); session.commit()
+    patched=req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'room_id':str(other_room.id),'starts_at':'2026-07-20T10:00:00','ends_at':'2026-07-20T10:30:00'})
+    assert patched.status_code==200, patched.text
+    busy=create(session,tenant_context,seed,starts_at='2026-07-20T11:00:00',ends_at='2026-07-20T11:30:00'); assert busy.status_code==200
+    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'room_id':str(seed['room'].id),'starts_at':'2026-07-20T11:15:00','ends_at':'2026-07-20T11:45:00'}).status_code==409
+    other_room.status='inactive'; session.commit()
+    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'room_id':str(other_room.id)}).status_code==409
+    other_loc=Location(organization_id=seed['org'].id, name='Otra sede'); session.add(other_loc); session.flush(); wrong_room=Room(location_id=other_loc.id, name='Externo'); session.add(wrong_room); session.commit()
+    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'room_id':str(wrong_room.id)}).status_code==409
+
+def test_patch_does_not_reschedule_inactive_status_but_allows_notes(session, tenant_context, seed):
+    for endpoint in ['cancel','complete','no-show']:
+        r=create(session,tenant_context,seed, starts_at='2026-07-21T09:00:00', ends_at='2026-07-21T09:30:00'); assert r.status_code==200
+        aid=r.json()['data']['id']; req('post',f"/api/admin/appointments/{aid}/{endpoint}",session,tenant_context,{})
+        assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-21T10:00:00'}).status_code==409
+        ok=req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'notes':'Solo nota'})
+        assert ok.status_code==200 and ok.json()['data']['notes']=='Solo nota'

@@ -1316,3 +1316,7 @@ Estados administrativos de esta fase:
 - `cancelled`, `completed`, `no_show`: conservan trazabilidad pero no ocupan horario para nuevas citas.
 
 La validación de solapamiento usa rangos estándar: `existing.starts_at < new.ends_at` y `new.starts_at < existing.ends_at`. También se validan bloqueos activos aplicables del profesional en alcance general, sede o consultorio.
+
+### Migración tenant bajo demanda para `bookings.notes`
+
+La columna `bookings.notes` se agrega a tenants existentes mediante el comando explícito `python3 -m app.tenancy.migrate_existing_tenants`. La migración registra `007_booking_notes` en `tenant_schema_migrations` y es idempotente. No se ejecuta automáticamente en cada arranque del backend.

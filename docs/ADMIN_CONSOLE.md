@@ -421,3 +421,30 @@ Alcance implementado en esta fase:
 - visualización conjunta de citas y bloqueos activos como eventos temporales ordenados por inicio.
 
 La agenda diaria no implementa calendario semanal/mensual, drag and drop, resize, integraciones externas ni motor público avanzado de slots. Es una base preparatoria para una fase futura de calendario visual.
+
+### Operación — migraciones tenant bajo demanda
+
+Cuando una fase agrega o modifica columnas/tablas tenant, las migraciones para tenants existentes deben ejecutarse explícitamente. El backend no altera todos los schemas de tenant de forma silenciosa en cada arranque normal.
+
+Procedimiento esperado en `tc-dev-01`:
+
+```bash
+cd ~/projects/totalchat/backend
+source .venv/bin/activate
+
+POSTGRES_DB="$(grep '^POSTGRES_DB=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_USER="$(grep '^POSTGRES_USER=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_PASSWORD="$(cat ~/docker/totalchat/secrets/postgres_password.txt)"
+
+export TOTALCHAT_DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}"
+
+python3 -m app.tenancy.migrate_existing_tenants
+```
+
+El comando es idempotente: valida schemas tenant, asegura `tenant_schema_migrations`, aplica migraciones pendientes como `007_booking_notes` con `ADD COLUMN IF NOT EXISTS`/`ON CONFLICT DO NOTHING`, y muestra por consola qué schemas quedaron actualizados o al día.
+
+### Ajustes UX Fase 6B.10
+
+La agenda diaria de Citas muestra espacios `Disponible` explícitos a partir de disponibilidad base activa del profesional seleccionado, menos bloqueos activos y citas `scheduled`. Si no hay profesional seleccionado, la pantalla pide seleccionar uno para calcular espacios; si no hay disponibilidad base para el día, muestra un mensaje claro. Las tarjetas se compactan para mostrar hora, badge, paciente/profesional/servicio/sede/consultorio sin UUIDs.
+
+La edición administrativa permite reprogramar citas `scheduled` con fecha, hora y consultorio, y editar notas. Citas `cancelled`, `completed` y `no_show` solo permiten editar notas desde la UI.

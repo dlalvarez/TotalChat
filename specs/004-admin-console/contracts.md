@@ -49,3 +49,9 @@ Endpoints funcionales: `GET /api/admin/appointments`, `GET /api/admin/appointmen
 El listado acepta filtros por organización, sede, consultorio, profesional, servicio, paciente, estado y fecha/rango de fechas. `date_to` es inclusivo a fin de día. La respuesta serializa nombres legibles y labels de estado; no expone `schema_name`.
 
 `PATCH` queda limitado a `notes` y `status` en esta fase para evitar edición estructural sin reprogramación visual. Cambios de fecha/hora quedan como fase futura explícita.
+
+### Ajuste PR #43 — PATCH de citas y migración tenant
+
+`PATCH /api/admin/appointments/{appointment_id}` permite `notes` siempre y permite `starts_at`, `ends_at` y `room_id` solo para citas `scheduled`. La reprogramación revalida rangos, consultorio activo en la misma sede, bloqueos activos aplicables, cita `scheduled` del mismo profesional y cita `scheduled` del mismo consultorio, excluyendo la cita editada. `status` sigue fuera del contrato PATCH.
+
+Los tenants existentes reciben `bookings.notes` mediante el comando bajo demanda `python3 -m app.tenancy.migrate_existing_tenants`; no se requiere SQL manual.
