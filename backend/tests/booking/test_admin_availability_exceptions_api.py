@@ -88,6 +88,9 @@ def test_list_keeps_inactive_by_default_and_filters_by_status(session, tenant_co
     default_listing = request('get', '/api/admin/availability-exceptions', session, tenant_context).json()['data']
     assert len(default_listing) == 1 and default_listing[0]['id'] == exception_id and default_listing[0]['status'] == 'inactive'
 
+    explicit_include_listing = request('get', '/api/admin/availability-exceptions?include_inactive=true', session, tenant_context).json()['data']
+    assert len(explicit_include_listing) == 1 and explicit_include_listing[0]['id'] == exception_id and explicit_include_listing[0]['status'] == 'inactive'
+
     inactive_listing = request('get', '/api/admin/availability-exceptions?status=inactive', session, tenant_context).json()['data']
     assert len(inactive_listing) == 1 and inactive_listing[0]['id'] == exception_id and inactive_listing[0]['status'] == 'inactive'
 
