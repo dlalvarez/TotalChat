@@ -1338,3 +1338,17 @@ La API conserva el campo `currency`, pero la consola de Fase 6B.8 envía COP aut
 - `POST /api/admin/practitioner-availability-rules/{rule_id}/disable`
 
 El payload usa `day_of_week` con `0 = Monday/Lunes` y `6 = Sunday/Domingo`, `start_time < end_time`, `valid_from` requerido y `valid_to` opcional. Crear o reactivar exige organización, profesional, relación organización-profesional y servicio opcional activos. No expone `schema_name`.
+
+### Fase 6B.9.1 — Bloqueos e indisponibilidad
+
+La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
+
+La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.
+
+#### Endpoints admin de bloqueos
+
+`/api/admin/availability-exceptions` soporta `GET`, `POST`, `GET /{exception_id}`, `PATCH /{exception_id}` y `POST /{exception_id}/disable`. El listado permite filtrar por `practitioner_id`, `location_id`, `room_id`, `exception_type`, `status`, `include_inactive`, `starts_from` y `starts_to`.
+
+Tipos permitidos: `vacation`, `medical_leave`, `personal`, `meeting`, `lunch`, `training`, `maintenance`, `temporary_closure`, `administrative`, `other`.
+
+Las respuestas incluyen IDs internos para operación del frontend y nombres/estados legibles: profesional, sede, organización y consultorio, además de `exception_type_label`; no exponen `schema_name`.

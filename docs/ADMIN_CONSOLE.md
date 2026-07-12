@@ -401,3 +401,9 @@ TotalChat / MediChat maneja una moneda operativa única por tenant. La multi-mon
 La pantalla **Disponibilidad** permite administrar reglas recurrentes de atención para un profesional dentro de una organización, con servicio opcional o alcance **Todos los servicios**. La edición bloquea organización, profesional y servicio para preservar trazabilidad; si la asociación fue incorrecta, se inactiva la regla y se crea una nueva.
 
 La pantalla no muestra UUIDs, no crea citas, no crea reservas, no crea holds, no genera slots físicos y no implementa calendario visual. La convención visible es `0 = Lunes` y `6 = Domingo`.
+
+### Fase 6B.9.1 — Bloqueos e indisponibilidad
+
+La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
+
+La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.

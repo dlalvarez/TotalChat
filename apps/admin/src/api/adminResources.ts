@@ -173,6 +173,22 @@ export type PractitionerServicePrice = {
   valid_to: string | null;
   status: string;
 };
+export const AVAILABILITY_EXCEPTION_TYPE_OPTIONS = [
+  { value: 'vacation', label: 'Vacaciones' },
+  { value: 'medical_leave', label: 'Incapacidad' },
+  { value: 'personal', label: 'Espacio personal' },
+  { value: 'meeting', label: 'Reunión' },
+  { value: 'lunch', label: 'Almuerzo' },
+  { value: 'training', label: 'Capacitación' },
+  { value: 'maintenance', label: 'Mantenimiento' },
+  { value: 'temporary_closure', label: 'Cierre temporal' },
+  { value: 'administrative', label: 'Bloqueo administrativo' },
+  { value: 'other', label: 'Otro' },
+] as const;
+export type AvailabilityException = { id: string; practitioner_id: string; practitioner_name: string | null; practitioner_status: string | null; location_id: string | null; location_name: string | null; location_status: string | null; organization_id: string | null; organization_name: string | null; organization_status: string | null; room_id: string | null; room_name: string | null; room_status: string | null; starts_at: string; ends_at: string; exception_type: string; exception_type_label: string; reason: string | null; status: string };
+export type CreateAvailabilityExceptionPayload = { practitioner_id: string; location_id?: string | null; room_id?: string | null; starts_at: string; ends_at: string; exception_type: string; reason?: string | null };
+export type UpsertAvailabilityExceptionPayload = { starts_at?: string; ends_at?: string; exception_type?: string; reason?: string | null; status?: string };
+
 export type PractitionerAvailabilityRule = { id: string; organization_id: string; organization_name: string | null; organization_status: string | null; practitioner_id: string; practitioner_name: string | null; practitioner_status: string | null; organization_practitioner_status: string | null; practitioner_service_id: string | null; practitioner_service_name: string | null; practitioner_service_status: string | null; scope_label: string; day_of_week: number; start_time: string; end_time: string; valid_from: string; valid_to: string | null; status: string };
 export type CreatePractitionerAvailabilityRulePayload = { organization_id: string; practitioner_id: string; practitioner_service_id?: string | null; day_of_week: number; start_time: string; end_time: string; valid_from: string; valid_to?: string | null };
 export type UpsertPractitionerAvailabilityRulePayload = { day_of_week?: number; start_time?: string; end_time?: string; valid_from?: string; valid_to?: string | null; status?: string };
@@ -249,6 +265,12 @@ export const adminResourcesApi = {
   updatePractitionerService: (tenantId: string, serviceId: string, payload: UpsertPractitionerServicePayload) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
   disablePractitionerService: (tenantId: string, serviceId: string) => apiRequest<PractitionerService>(`/api/admin/practitioner-services/${serviceId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
   activatePractitionerService: (tenantId: string, serviceId: string) => adminResourcesApi.updatePractitionerService(tenantId, serviceId, { status: 'active' }),
+
+  listAvailabilityExceptions: (tenantId: string) => apiRequest<AvailabilityException[]>('/api/admin/availability-exceptions?include_inactive=true', { tenantId }),
+  createAvailabilityException: (tenantId: string, payload: CreateAvailabilityExceptionPayload) => apiRequest<AvailabilityException>('/api/admin/availability-exceptions', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+  updateAvailabilityException: (tenantId: string, exceptionId: string, payload: UpsertAvailabilityExceptionPayload) => apiRequest<AvailabilityException>(`/api/admin/availability-exceptions/${exceptionId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
+  disableAvailabilityException: (tenantId: string, exceptionId: string) => apiRequest<AvailabilityException>(`/api/admin/availability-exceptions/${exceptionId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  activateAvailabilityException: (tenantId: string, exceptionId: string) => adminResourcesApi.updateAvailabilityException(tenantId, exceptionId, { status: 'active' }),
 
   listPractitionerAvailabilityRules: (tenantId: string) => apiRequest<PractitionerAvailabilityRule[]>('/api/admin/practitioner-availability-rules', { tenantId }),
   createPractitionerAvailabilityRule: (tenantId: string, payload: CreatePractitionerAvailabilityRulePayload) => apiRequest<PractitionerAvailabilityRule>('/api/admin/practitioner-availability-rules', { tenantId, method: 'POST', body: JSON.stringify(payload) }),

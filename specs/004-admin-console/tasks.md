@@ -20,6 +20,8 @@
   - Administra precios por servicio del profesional y plan de pagador.
   - Usa COP como moneda operativa temporal en consola; no incluye multi-moneda, pagos, citas ni disponibilidad.
 - [x] Pantalla disponibilidad.
+  - Reglas recurrentes de atención.
+  - Bloqueos e indisponibilidad administrativos.
 - [ ] Pantalla citas.
 - [ ] Pantalla pagos.
 - [ ] Pantalla links virtuales.

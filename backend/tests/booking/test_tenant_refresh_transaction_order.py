@@ -39,3 +39,32 @@ def test_tenant_scoped_refreshes_happen_before_commit() -> None:
                     violations.append(f"{path}:{statement.lineno}")
 
     assert not violations, "session.refresh() must stay before session.commit() for tenant-scoped endpoints: " + ", ".join(violations)
+
+
+def test_create_availability_exception_serializes_before_commit() -> None:
+    """Readable tenant data must be serialized before commit while search_path is active."""
+    path = BACKEND_DIR / "app/api/admin/availability.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    function = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "create_availability_exception"
+    )
+    try_node = next(node for node in function.body if isinstance(node, ast.Try))
+
+    data_assignment_line = None
+    commit_line = None
+    for statement in try_node.body:
+        if (
+            isinstance(statement, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "data" for target in statement.targets)
+            and isinstance(statement.value, ast.Call)
+            and getattr(statement.value.func, "id", "") == "serialize_availability_exception"
+        ):
+            data_assignment_line = statement.lineno
+        if _is_session_call(statement, "commit"):
+            commit_line = statement.lineno
+
+    assert data_assignment_line is not None
+    assert commit_line is not None
+    assert data_assignment_line < commit_line
