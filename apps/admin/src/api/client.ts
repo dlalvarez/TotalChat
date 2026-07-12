@@ -22,13 +22,23 @@ type ApiOptions = RequestInit & {
 type ApiEnvelope<T> = { data: T };
 
 function getFriendlyErrorMessage(payload: unknown, fallback: string) {
-  if (payload && typeof payload === 'object' && 'detail' in payload) {
+  if (!payload || typeof payload !== 'object') return fallback;
+
+  if ('error' in payload) {
+    const error = (payload as { error?: unknown }).error;
+    if (error && typeof error === 'object' && 'message' in error) {
+      return String((error as { message?: unknown }).message);
+    }
+  }
+
+  if ('detail' in payload) {
     const detail = (payload as { detail?: unknown }).detail;
     if (detail && typeof detail === 'object' && 'message' in detail) {
       return String((detail as { message?: unknown }).message);
     }
     if (typeof detail === 'string') return detail;
   }
+
   return fallback;
 }
 
