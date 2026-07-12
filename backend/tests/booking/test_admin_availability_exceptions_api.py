@@ -95,7 +95,7 @@ def test_reactivate_inactive_duplicate_rejected_and_records_keep_status(session,
 
     reactivated = request('patch', f'/api/admin/availability-exceptions/{first_id}', session, tenant_context, {'status': 'active'})
     assert reactivated.status_code == 409
-    assert 'Active availability exception already exists' in reactivated.json()['detail']['message']
+    assert 'Active availability exception already exists' in reactivated.json()['error']['message']
 
     first_after = request('get', f'/api/admin/availability-exceptions/{first_id}', session, tenant_context).json()['data']
     second_after = request('get', f'/api/admin/availability-exceptions/{second_id}', session, tenant_context).json()['data']
