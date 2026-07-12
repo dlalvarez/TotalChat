@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -40,7 +39,6 @@ class CreateAppointmentRequest(BaseModel):
 class PatchAppointmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     notes: str | None = None
-    status: Literal["scheduled", "cancelled", "completed", "no_show"] | None = None
 
 class EmptyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")

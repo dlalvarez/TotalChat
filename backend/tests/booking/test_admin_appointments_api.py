@@ -47,6 +47,16 @@ def test_create_list_detail_status_actions_and_no_schema(session, tenant_context
     third=create(session,tenant_context,seed); assert third.status_code==200
     assert req('post',f"/api/admin/appointments/{third.json()['data']['id']}/no-show",session,tenant_context,{}).json()['data']['status']=='no_show'
 
+
+def test_patch_allows_notes_but_rejects_status_changes(session, tenant_context, seed):
+    r=create(session,tenant_context,seed); assert r.status_code==200, r.text
+    appointment_id = r.json()['data']['id']
+    patched = req('patch', f"/api/admin/appointments/{appointment_id}", session, tenant_context, {'notes': 'Nota actualizada'})
+    assert patched.status_code == 200, patched.text
+    assert patched.json()['data']['notes'] == 'Nota actualizada'
+    rejected = req('patch', f"/api/admin/appointments/{appointment_id}", session, tenant_context, {'status': 'scheduled'})
+    assert rejected.status_code == 422
+
 def test_reject_invalid_range_and_inactive_parents(session, tenant_context, seed):
     assert create(session,tenant_context,seed, starts_at='2026-07-20T09:00:00', ends_at='2026-07-20T09:00:00').status_code==422
     for obj in ['org','loc','room','pr']:
