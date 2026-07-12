@@ -80,6 +80,28 @@ def test_overlap_allowed_exact_active_duplicate_rejected_inactive_allows_recreat
     request('post',f"/api/admin/availability-exceptions/{first.json()['data']['id']}/disable",session,tenant_context,{})
     assert request('post','/api/admin/availability-exceptions',session,tenant_context,payload(seed)).status_code==200
 
+
+def test_reactivate_inactive_duplicate_rejected_and_records_keep_status(session, tenant_context, seed):
+    first = request('post', '/api/admin/availability-exceptions', session, tenant_context, payload(seed))
+    assert first.status_code == 200, first.text
+    first_id = first.json()['data']['id']
+
+    disabled = request('post', f'/api/admin/availability-exceptions/{first_id}/disable', session, tenant_context, {})
+    assert disabled.status_code == 200 and disabled.json()['data']['status'] == 'inactive'
+
+    second = request('post', '/api/admin/availability-exceptions', session, tenant_context, payload(seed))
+    assert second.status_code == 200, second.text
+    second_id = second.json()['data']['id']
+
+    reactivated = request('patch', f'/api/admin/availability-exceptions/{first_id}', session, tenant_context, {'status': 'active'})
+    assert reactivated.status_code == 409
+    assert 'Active availability exception already exists' in reactivated.json()['detail']['message']
+
+    first_after = request('get', f'/api/admin/availability-exceptions/{first_id}', session, tenant_context).json()['data']
+    second_after = request('get', f'/api/admin/availability-exceptions/{second_id}', session, tenant_context).json()['data']
+    assert first_after['status'] == 'inactive'
+    assert second_after['status'] == 'active'
+
 def test_list_keeps_inactive_by_default_and_filters_by_status(session, tenant_context, seed):
     created = request('post', '/api/admin/availability-exceptions', session, tenant_context, payload(seed)); assert created.status_code == 200, created.text
     exception_id = created.json()['data']['id']
