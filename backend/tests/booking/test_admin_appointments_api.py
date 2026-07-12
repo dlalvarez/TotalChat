@@ -102,7 +102,10 @@ def test_patch_reschedules_scheduled_to_free_time(session, tenant_context, seed)
 def test_patch_reschedule_rejects_invalid_range_block_and_practitioner_conflict(session, tenant_context, seed):
     r=create(session,tenant_context,seed); assert r.status_code==200
     aid=r.json()['data']['id']
-    assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-20T11:00:00','ends_at':'2026-07-20T11:00:00'}).status_code in {409,422}
+    invalid_range=req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-20T11:00:00','ends_at':'2026-07-20T11:00:00'})
+    assert invalid_range.status_code == 400
+    assert invalid_range.json()['error']['code'] == 'VALIDATION_ERROR'
+    assert 'starts_at must be before ends_at' in invalid_range.json()['error']['message']
     b=AvailabilityException(practitioner_id=seed['pr'].id, starts_at=datetime(2026,7,20,10,0), ends_at=datetime(2026,7,20,10,30), exception_type='meeting', status='active')
     session.add(b); session.commit()
     assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-20T10:00:00','ends_at':'2026-07-20T10:30:00'}).status_code==409
