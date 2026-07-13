@@ -6,12 +6,14 @@ export const APPOINTMENT_STATUS_OPTIONS = [
 export const toDateInput = (date: Date) => date.toISOString().slice(0, 10);
 export const formatDateTime = (value: string) => value.slice(0, 16).replace('T', ' ');
 export const formatTimeRange = (startsAt: string, endsAt: string) => `${startsAt.slice(11, 16)} - ${endsAt.slice(11, 16)}`;
-export type AgendaItem = { id: string; kind: 'available' | 'appointment' | 'block'; starts_at: string; ends_at: string; appointment?: Appointment; block?: AvailabilityException };
+export type AgendaItem = { id: string; kind: 'available' | 'appointment' | 'block'; starts_at: string; ends_at: string; appointment?: Appointment; block?: AvailabilityException; isContinuation?: boolean };
 const minutes = (time: string) => { const [h, m] = time.slice(0, 5).split(':').map(Number); return h * 60 + m; };
 const isoAt = (date: string, total: number) => `${date}T${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}:00`;
-const operationalDateTime = (value: string) => value.slice(0, 19);
-export const belongsToSelectedDate = (startsAt: string, selectedDate: string) => operationalDateTime(startsAt).slice(0, 10) === selectedDate;
-export const overlapsHalfOpenRange = (eventStart: string, eventEnd: string, slotStart: string, slotEnd: string) => operationalDateTime(eventStart) < operationalDateTime(slotEnd) && operationalDateTime(eventEnd) > operationalDateTime(slotStart);
+const operationalDateTime = (value: string | Date) => (value instanceof Date ? value.toISOString() : value).slice(0, 19);
+const comparableTimeMs = (value: string | Date) => { const normalized = operationalDateTime(value); const [datePart, timePart = '00:00:00'] = normalized.split('T'); const [year, month, day] = datePart.split('-').map(Number); const [hour = 0, minute = 0, second = 0] = timePart.split(':').map(Number); return Date.UTC(year, month - 1, day, hour, minute, second); };
+export const belongsToSelectedDate = (startsAt: string | Date, selectedDate: string) => operationalDateTime(startsAt).slice(0, 10) === selectedDate;
+export const overlapsHalfOpenRange = (eventStart: string | Date, eventEnd: string | Date, slotStart: string | Date, slotEnd: string | Date) => comparableTimeMs(eventStart) < comparableTimeMs(slotEnd) && comparableTimeMs(eventEnd) > comparableTimeMs(slotStart);
+const startsInsideHalfOpenRange = (eventStart: string | Date, slotStart: string | Date, slotEnd: string | Date) => comparableTimeMs(eventStart) >= comparableTimeMs(slotStart) && comparableTimeMs(eventStart) < comparableTimeMs(slotEnd);
 const dayOfWeekForDate = (date: string) => { const [year, month, day] = date.split('-').map(Number); const jsDay = new Date(year, month - 1, day).getDay(); return jsDay === 0 ? 6 : jsDay - 1; };
 export function activeAgendaAvailabilityRules({ selectedDate, practitionerId, serviceId, rules }: { selectedDate: string; practitionerId: string; serviceId?: string; rules: PractitionerAvailabilityRule[] }) {
   const dayOfWeek = dayOfWeekForDate(selectedDate);
@@ -30,7 +32,7 @@ export function buildAgendaItems({ selectedDate, practitionerId, serviceId, slot
       if (generated.has(id)) continue;
       const appointment = scheduledAppointments.find((a) => overlapsHalfOpenRange(a.starts_at, a.ends_at, starts_at, ends_at));
       const block = activeBlocks.find((b) => overlapsHalfOpenRange(b.starts_at, b.ends_at, starts_at, ends_at));
-      generated.set(id, { id, kind: appointment ? 'appointment' : block ? 'block' : 'available', starts_at, ends_at, appointment, block });
+      generated.set(id, { id, kind: appointment ? 'appointment' : block ? 'block' : 'available', starts_at, ends_at, appointment, block, isContinuation: appointment ? !startsInsideHalfOpenRange(appointment.starts_at, starts_at, ends_at) : undefined });
     }
   });
 
