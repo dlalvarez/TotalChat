@@ -1320,3 +1320,11 @@ La validación de solapamiento usa rangos estándar: `existing.starts_at < new.e
 ### Migración tenant bajo demanda para `bookings.notes`
 
 La columna `bookings.notes` se agrega a tenants existentes mediante el comando explícito `python3 -m app.tenancy.migrate_existing_tenants`. La migración registra `007_booking_notes` en `tenant_schema_migrations` y es idempotente. No se ejecuta automáticamente en cada arranque del backend.
+
+## Fase 6B.11 — Estados de pago administrativos
+
+La pantalla administrativa de pagos reutiliza las tablas tenant-scoped existentes `payment_attempts`, `payment_evidence` y `payment_reviews`.
+
+Estados operativos esperados para `payment_attempts.status` en esta fase: `pending`, `evidence_required`, `evidence_received`, `under_review`, `approved`, `rejected`, `expired`, `cancelled` y `simulated_approved`.
+
+Valores de `bookings.payment_status` usados por la revisión manual: `pending` para pagos no resueltos, `paid` cuando una revisión administrativa aprueba el intento y `rejected` cuando lo rechaza. Esta fase no agrega expiración automática, reembolsos, conciliación bancaria ni pasarelas reales.

@@ -448,3 +448,9 @@ El comando es idempotente: valida schemas tenant, asegura `tenant_schema_migrati
 La agenda diaria de Citas muestra espacios `Disponible` explícitos a partir de disponibilidad base activa del profesional seleccionado y siempre construye la línea temporal desde esos slots base. Las citas `scheduled` y los bloqueos activos se superponen sobre los slots derivados de disponibilidad usando intervalos semiabiertos `[inicio, fin)`: un evento que termina exactamente al inicio de un slot no ocupa ese slot. La agenda filtra las citas por fecha seleccionada y solo trata `scheduled` como ocupación real en esta fase, por lo que citas de otra fecha o estados `tentative`, `cancelled`, `completed` y `no_show` no bloquean slots. Si no hay profesional seleccionado, la pantalla pide seleccionar uno para calcular espacios; si no hay disponibilidad base para el día, muestra un mensaje claro. Las tarjetas se compactan para mostrar hora, badge, paciente/profesional/servicio/sede/consultorio sin UUIDs.
 
 La edición administrativa permite reprogramar citas `scheduled` con fecha, hora y consultorio, y editar notas. Citas `cancelled`, `completed` y `no_show` solo permiten editar notas desde la UI.
+
+## Fase 6B.11 — Pagos administrativos base
+
+La consola agrega la pantalla **Pagos** después de **Citas** para consultar intentos de pago asociados a citas y registrar revisión manual básica. La pantalla permite filtrar por organización, método, estado, rango de fechas y texto de paciente; muestra resumen operativo, listado, detalle, evidencias asociadas y revisiones previas.
+
+Las acciones disponibles son aprobar o rechazar intentos revisables. El rechazo exige motivo. La UI muestra nombres legibles y oculta identificadores técnicos como información principal; no expone `schema_name` ni descarga archivos de evidencia.
