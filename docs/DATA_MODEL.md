@@ -1305,3 +1305,18 @@ TotalChat/MediChat usará un modelo híbrido de agenda:
 La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
 
 La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.
+
+## Fase 6B.10 — Citas administrativas
+
+La fase reutiliza `bookings` como registro persistente alineado para citas administrativas, evitando duplicar modelos de ocupación de horario. Para el contrato administrativo de Citas se usan los campos `organization_id`, `location_id`, `room_id`, `practitioner_id`, `practitioner_service_id`, `patient_id`, `starts_at`, `ends_at`, `status`, `notes`, `created_at` y `updated_at`.
+
+Estados administrativos de esta fase:
+
+- `scheduled`: ocupa horario real y bloquea nuevas citas solapadas del profesional y del consultorio cuando aplica.
+- `cancelled`, `completed`, `no_show`: conservan trazabilidad pero no ocupan horario para nuevas citas.
+
+La validación de solapamiento usa rangos estándar: `existing.starts_at < new.ends_at` y `new.starts_at < existing.ends_at`. También se validan bloqueos activos aplicables del profesional en alcance general, sede o consultorio.
+
+### Migración tenant bajo demanda para `bookings.notes`
+
+La columna `bookings.notes` se agrega a tenants existentes mediante el comando explícito `python3 -m app.tenancy.migrate_existing_tenants`. La migración registra `007_booking_notes` en `tenant_schema_migrations` y es idempotente. No se ejecuta automáticamente en cada arranque del backend.

@@ -931,6 +931,13 @@ def serialize_practitioner_specialty(association: PractitionerSpecialty) -> dict
     }
 
 
+@router.get("/patients")
+def list_patients(tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, list[dict[str, object]]]:
+    _ = tenant_context
+    rows = session.scalars(select(Patient).order_by(Patient.full_name, Patient.id)).all()
+    return {"data": [serialize_patient(row) for row in rows]}
+
+
 @router.post("/patients")
 def create_patient(
     payload: CreatePatientRequest,

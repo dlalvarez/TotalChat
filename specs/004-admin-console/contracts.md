@@ -41,3 +41,17 @@ La convención de `day_of_week` para esta pantalla es estable: `0 = Monday/Lunes
 La disponibilidad base define elegibilidad de atención. Los bloqueos/indisponibilidades reducen esa elegibilidad para rangos futuros donde un profesional no puede atender, aunque sus reglas recurrentes indiquen que normalmente podría hacerlo. Las reservas, citas y holds serán los registros que ocupen realmente un horario en fases posteriores; esta fase no calcula slots, no crea citas y no crea reservas.
 
 La consola administra bloqueos con profesional, sede opcional, consultorio opcional, inicio, fin, tipo controlado por backend, motivo opcional y estado activo/inactivo. No hay borrado físico. Los tipos de bloqueo del MVP son controlados para preservar semántica operativa y facilitar reglas futuras; la configuración dinámica por tenant queda como mejora futura.
+
+## Fase 6B.10 — Citas administrativas
+
+Endpoints funcionales: `GET /api/admin/appointments`, `GET /api/admin/appointments/{appointment_id}`, `POST /api/admin/appointments`, `PATCH /api/admin/appointments/{appointment_id}`, `POST /api/admin/appointments/{appointment_id}/cancel`, `POST /api/admin/appointments/{appointment_id}/complete` y `POST /api/admin/appointments/{appointment_id}/no-show`.
+
+El listado acepta filtros por organización, sede, consultorio, profesional, servicio, paciente, estado y fecha/rango de fechas. `date_to` es inclusivo a fin de día. La respuesta serializa nombres legibles y labels de estado; no expone `schema_name`.
+
+`PATCH` queda limitado a `notes` y `status` en esta fase para evitar edición estructural sin reprogramación visual. Cambios de fecha/hora quedan como fase futura explícita.
+
+### Ajuste PR #43 — PATCH de citas y migración tenant
+
+`PATCH /api/admin/appointments/{appointment_id}` permite `notes` siempre y permite `starts_at`, `ends_at` y `room_id` solo para citas `scheduled`. La reprogramación revalida rangos, consultorio activo en la misma sede, bloqueos activos aplicables, cita `scheduled` del mismo profesional y cita `scheduled` del mismo consultorio, excluyendo la cita editada. `status` sigue fuera del contrato PATCH.
+
+Los tenants existentes reciben `bookings.notes` mediante el comando bajo demanda `python3 -m app.tenancy.migrate_existing_tenants`; no se requiere SQL manual.
