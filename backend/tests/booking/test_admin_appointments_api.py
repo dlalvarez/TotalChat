@@ -133,3 +133,39 @@ def test_patch_does_not_reschedule_inactive_status_but_allows_notes(session, ten
         assert req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'starts_at':'2026-07-21T10:00:00'}).status_code==409
         ok=req('patch',f"/api/admin/appointments/{aid}",session,tenant_context,{'notes':'Solo nota'})
         assert ok.status_code==200 and ok.json()['data']['notes']=='Solo nota'
+
+def test_create_derives_virtual_modality_from_location_and_rejects_room(session, tenant_context, seed):
+    seed['loc'].is_virtual = True
+    session.commit()
+    with_room = create(session, tenant_context, seed)
+    assert with_room.status_code == 409
+    r = create(session, tenant_context, seed, room_id=None)
+    assert r.status_code == 200, r.text
+    data = r.json()['data']
+    assert data['modality'] == 'virtual'
+    assert data['room_id'] is None
+    assert data['virtual_link_status'] == 'pending'
+
+
+def test_rejects_external_modality_and_presential_virtual_link_data(session, tenant_context, seed):
+    assert create(session, tenant_context, seed, modality='virtual').status_code == 422
+    r = create(session, tenant_context, seed, virtual_meeting_url='https://meet.example/manual')
+    assert r.status_code == 409
+
+
+def test_virtual_link_manual_fields_sent_and_cancelled(session, tenant_context, seed):
+    seed['loc'].is_virtual = True
+    session.commit()
+    r = create(session, tenant_context, seed, room_id=None, virtual_meeting_url='https://meet.example/manual')
+    assert r.status_code == 200, r.text
+    data = r.json()['data']
+    assert data['modality'] == 'virtual'
+    assert data['virtual_link_status'] == 'created'
+    assert data['virtual_link_provider'] == 'manual'
+    sent = req('patch', f"/api/admin/appointments/{data['id']}", session, tenant_context, {'virtual_link_status': 'sent'})
+    assert sent.status_code == 200, sent.text
+    assert sent.json()['data']['virtual_link_status'] == 'sent'
+    assert sent.json()['data']['virtual_link_sent_at'] is not None
+    cancelled = req('post', f"/api/admin/appointments/{data['id']}/cancel", session, tenant_context, {})
+    assert cancelled.status_code == 200
+    assert cancelled.json()['data']['virtual_link_status'] == 'cancelled'

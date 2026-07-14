@@ -62,3 +62,11 @@ Estados de `bookings.payment_status` usados por esta fase: `pending`, `paid` y `
 La consola administra `patients` existente sin crear tablas clínicas ni duplicar perfiles. Los campos operativos de esta fase son `full_name`, `phone`, `email`, `document_type`, `document_number`, `profile_status`, `created_from_channel`, `created_at` y `updated_at`. `document_type` usa catálogo controlado Colombia/MVP con valores `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`; no se agrega campo libre para otros tipos ni validación legal por edad o nacionalidad.
 
 Estados válidos de `profile_status`: `minimal`, `incomplete`, `complete`, `verified`, `inactive`. Crear desde admin establece `minimal`; inactivar establece `inactive`; reactivar vuelve a un estado permitido no inactivo, preferentemente `minimal` en el MVP. No hay borrado físico ni cambios sobre citas históricas.
+
+## Fase 6B.13 — Citas virtuales con link manual
+
+`bookings` conserva las columnas de link virtual dentro del mismo registro de cita; no se crea `booking_virtual_details` ni una tabla separada. La modalidad de la cita no es editable por UI/API admin: se deriva de la sede seleccionada (`locations.is_virtual`).
+
+- `locations.is_virtual = true` produce `bookings.modality = virtual`, sin consultorio (`room_id = null`).
+- `locations.is_virtual = false` produce `bookings.modality = in_person` y conserva el comportamiento actual de consultorio.
+- Solo citas virtuales pueden guardar `virtual_meeting_url`, `virtual_meeting_id`, `virtual_access_code`, `virtual_link_status`, `virtual_link_created_mode`, `virtual_link_provider` y `virtual_link_sent_at`.

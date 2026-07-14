@@ -1393,3 +1393,9 @@ Endpoints tenant-scoped bajo `/api/admin`:
 - `POST /patients/{patient_id}/disable`: inactiva lógicamente con `profile_status = inactive`; es idempotente y no elimina relaciones ni citas.
 
 La serialización de paciente incluye `id`, datos administrativos básicos, `profile_status`, `created_from_channel`, `created_at` y `updated_at`. No incluye `schema_name` ni información interna del tenant.
+
+## Admin appointments — modalidad derivada por sede
+
+En `POST /api/admin/appointments`, `location_id` es obligatorio y `modality` no forma parte del contrato externo. El backend deriva `bookings.modality` desde `locations.is_virtual` (`virtual` para sedes virtuales, `in_person` para sedes presenciales). Las sedes virtuales rechazan `room_id`; las sedes presenciales rechazan datos de link virtual.
+
+Los links virtuales MVP son manuales y se guardan en columnas de `bookings`, no en tabla separada. Sin link, una cita virtual responde `virtual_link_status = pending`; con link manual, `created`; al marcar enviado, `sent` y `virtual_link_sent_at`; al cancelar con link, `cancelled`. Las citas presenciales responden `virtual_link_status = not_applicable`.

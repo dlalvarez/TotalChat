@@ -285,6 +285,13 @@ class Booking(TimestampMixin, Base):
     admin_cancellation_reason: Mapped[str | None] = mapped_column(Text)
     admin_reschedule_reason: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    virtual_meeting_url: Mapped[str | None] = mapped_column(Text)
+    virtual_meeting_id: Mapped[str | None] = mapped_column(String(255))
+    virtual_access_code: Mapped[str | None] = mapped_column(String(255))
+    virtual_link_status: Mapped[str] = mapped_column(String(32), nullable=False, default="not_applicable", server_default="not_applicable")
+    virtual_link_created_mode: Mapped[str | None] = mapped_column(String(32))
+    virtual_link_provider: Mapped[str | None] = mapped_column(String(32))
+    virtual_link_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     organization: Mapped[Organization] = relationship(back_populates="bookings")
     payment_attempts: Mapped[list["PaymentAttempt"]] = relationship(back_populates="booking")
 

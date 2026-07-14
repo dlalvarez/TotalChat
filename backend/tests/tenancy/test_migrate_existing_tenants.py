@@ -13,6 +13,8 @@ class RecordingConnection:
             return Result(version in self.versions)
         if "VALUES ('007_booking_notes')" in text:
             self.versions.add("007_booking_notes")
+        if "VALUES ('008_virtual_appointment_links')" in text:
+            self.versions.add("008_virtual_appointment_links")
         return Result(False)
 
 class Result:

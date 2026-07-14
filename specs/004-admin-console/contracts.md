@@ -75,3 +75,11 @@ Endpoints funcionales: `GET /api/admin/patients`, `GET /api/admin/patients/{pati
 `GET /api/admin/patients` incluye pacientes activos e inactivos para trazabilidad y acepta filtros opcionales `q` por nombre/documento/teléfono/email y `profile_status`. `POST` requiere `full_name`, rechaza campos extra y `schema_name`, asigna `created_from_channel = admin` y `profile_status = minimal`; `document_type`, si se informa, se normaliza a mayúsculas y debe pertenecer al catálogo Colombia/MVP `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`. `PATCH` permite editar datos administrativos básicos y `profile_status`, validado contra `minimal`, `incomplete`, `complete`, `verified` e `inactive`; `document_type` puede ser `null` o un valor del mismo catálogo, y la reactivación MVP usa `profile_status = minimal`. `disable` inactiva lógicamente con `profile_status = inactive` y no borra citas, perfiles, contactos ni otros datos.
 
 Las respuestas no exponen `schema_name` ni información interna del tenant.
+
+## Fase 6B.13 — Citas virtuales con link manual derivadas desde sede
+
+`POST /api/admin/appointments` mantiene `location_id` obligatorio y no acepta `modality` como campo externo. La modalidad persistida en `bookings.modality` se deriva exclusivamente de `locations.is_virtual`: `true → virtual`, `false → in_person`.
+
+Para sedes virtuales, `room_id` debe ser `null` y la API acepta únicamente datos manuales de link virtual en columnas de `bookings`: `virtual_meeting_url`, `virtual_meeting_id`, `virtual_access_code`, `virtual_link_status`, `virtual_link_created_mode`, `virtual_link_provider` y `virtual_link_sent_at`. El MVP solo permite `virtual_link_provider = manual` y `virtual_link_created_mode = manual`; una cita virtual sin link queda `pending`, guardar un link manual queda `created`, marcarlo enviado queda `sent` y completa `virtual_link_sent_at`.
+
+Para sedes presenciales, la API rechaza datos de link virtual y devuelve `virtual_link_status = not_applicable`. Al cancelar una cita virtual con link, el estado del link pasa a `cancelled`.

@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Connection, Engine
 
 from app.core.config import get_settings
-from app.tenancy.schema import apply_base_tenant_migration, apply_booking_notes_tenant_migration, is_valid_tenant_schema_name
+from app.tenancy.schema import apply_base_tenant_migration, apply_booking_notes_tenant_migration, apply_virtual_link_columns_tenant_migration, is_valid_tenant_schema_name
 
 TenantMigration = Callable[[Connection, str], None]
 
@@ -18,6 +18,7 @@ class PendingTenantMigration:
 
 TENANT_MIGRATIONS: tuple[PendingTenantMigration, ...] = (
     PendingTenantMigration("007_booking_notes", apply_booking_notes_tenant_migration),
+    PendingTenantMigration("008_virtual_appointment_links", apply_virtual_link_columns_tenant_migration),
 )
 
 
