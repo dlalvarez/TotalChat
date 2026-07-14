@@ -99,14 +99,26 @@ def test_get_payment_detail_includes_evidence_and_reviews(session, tenant_contex
 @pytest.mark.parametrize("query", ["organization_id={org}", "method=transfer", "status=evidence_received", "date_from=2026-07-20", "date_to=2026-07-20", "patient=Juan", "patient=12345", "practitioner_id={practitioner}", "booking_id={booking}"])
 def test_get_payments_filters(session, tenant_context, seed, query):
     expected = create_attempt(session, seed["booking"])
-    create_attempt(session, seed["other_booking"], amount="80000.00")
+    later = create_attempt(session, seed["other_booking"], amount="80000.00")
     rendered = query.format(org=seed["org"].id, practitioner=seed["practitioner"].id, booking=seed["booking"].id)
     response = req("GET", f"/api/admin/payments?{rendered}", session, tenant_context)
     assert response.status_code == 200, response.text
     ids = [item["id"] for item in response.json()["data"]]
     assert str(expected.id) in ids
-    if rendered not in {"method=transfer", "status=evidence_received"}:
+    if rendered == "date_from=2026-07-20":
+        assert set(ids) == {str(expected.id), str(later.id)}
+    elif rendered in {"method=transfer", "status=evidence_received"}:
+        assert set(ids) == {str(expected.id), str(later.id)}
+    else:
         assert ids == [str(expected.id)]
+
+
+def test_get_payments_filters_exact_date_range(session, tenant_context, seed):
+    expected = create_attempt(session, seed["booking"])
+    create_attempt(session, seed["other_booking"], amount="80000.00")
+    response = req("GET", "/api/admin/payments?date_from=2026-07-20&date_to=2026-07-20", session, tenant_context)
+    assert response.status_code == 200, response.text
+    assert [item["id"] for item in response.json()["data"]] == [str(expected.id)]
 
 
 def test_approve_transfer_evidence_received_uses_domain_service(session, tenant_context, seed):
