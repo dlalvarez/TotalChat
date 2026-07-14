@@ -156,7 +156,9 @@ def test_patient_filters(admin_session, tenant_context):
     assert [row["id"] for row in api.get("/api/admin/patients?q=ABC123", headers=headers(tenant_context)).json()["data"]] == [str(p1.id)]
     assert [row["id"] for row in api.get("/api/admin/patients?q=laura@example.com", headers=headers(tenant_context)).json()["data"]] == [str(p2.id)]
     assert [row["id"] for row in api.get("/api/admin/patients?profile_status=verified", headers=headers(tenant_context)).json()["data"]] == [str(p2.id)]
-    assert api.get("/api/admin/patients?profile_status=deleted", headers=headers(tenant_context)).status_code == 422
+    invalid_status_response = api.get("/api/admin/patients?profile_status=deleted", headers=headers(tenant_context))
+    assert invalid_status_response.status_code == 400
+    assert invalid_status_response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_create_patient_payer_profile_keeps_existing_contract(admin_session, tenant_context):
