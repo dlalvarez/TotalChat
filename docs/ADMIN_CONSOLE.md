@@ -117,6 +117,44 @@ staff
 readonly
 ```
 
+
+## 4.1. Bootstrap operativo del primer usuario owner (Fase 6C.1)
+
+Antes de habilitar login real, TotalChat permite crear de forma controlada el primer usuario administrativo de un tenant mediante un comando backend interno. Este mecanismo prepara `public.users` y `public.user_tenants`; no crea endpoints públicos, no implementa pantalla de login, no emite JWT y no toca schemas tenant.
+
+Roles permitidos:
+
+```text
+owner
+admin
+staff
+readonly
+```
+
+El rol por defecto del bootstrap es `owner`. El comando acepta tenant por `tenant_slug` o `tenant_id`, valida que exista y esté activo, crea el usuario si no existe, actualiza datos seguros como `full_name`, reactiva usuario/vínculo como comportamiento explícito de bootstrap, y crea o reactiva el vínculo del usuario con el tenant. Nunca acepta ni muestra `schema_name`.
+
+Ejemplo operativo para `tc-dev-01`:
+
+```bash
+cd ~/projects/totalchat/backend
+source .venv/bin/activate
+
+POSTGRES_DB="$(grep '^POSTGRES_DB=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_USER="$(grep '^POSTGRES_USER=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_PASSWORD="$(cat ~/docker/totalchat/secrets/postgres_password.txt)"
+
+export TOTALCHAT_DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}"
+export TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD="cambiar-en-operacion"
+
+python3 -m app.auth.create_admin_user \
+  --tenant-slug clinica \
+  --email admin@clinica.com \
+  --full-name "Admin Clínica" \
+  --role owner
+```
+
+Si `TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD` no está definida, el comando solicita la contraseña con prompt seguro y confirmación. La salida operativa muestra email, tenant, rol y acciones realizadas; nunca imprime contraseña, hash ni `schema_name`.
+
 ## 5. Módulos
 
 ### 5.1. Login y tenant selector
