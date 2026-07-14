@@ -44,3 +44,15 @@ Estados usados por esta pantalla: `scheduled`, `cancelled`, `completed`, `no_sho
 ### Ajuste PR #43 — reprogramación y agenda diaria operativa
 
 La cita administrativa mantiene la misma organización, sede, profesional, servicio y paciente durante esta fase. La reprogramación básica solo cambia rango horario, consultorio y notas para citas `scheduled`; estados no activos solo admiten notas. La agenda diaria muestra slots visuales disponibles calculados desde reglas de disponibilidad base activas del profesional seleccionado, menos bloqueos activos y citas `scheduled`.
+
+## Fase 6B.11 — Pagos administrativos base
+
+La consola administra revisión manual sobre `payment_attempts`, `payment_evidence` y `payment_reviews` existentes. Las evidencias y revisiones no se eliminan físicamente.
+
+Estados de intento reconocidos por la pantalla: `pending`, `evidence_required`, `evidence_received`, `under_review`, `approved`, `rejected`, `expired`, `cancelled` y `simulated_approved`.
+
+Estados de `bookings.payment_status` usados por esta fase: `pending`, `paid` y `rejected`. Aprobar/rechazar pagos administrativos aplica solo a intentos `transfer` con `status = evidence_received`, debe pasar por `PaymentReviewService`, no modifica `bookings.status` ni libera horarios automáticamente.
+
+### Ajustes UX PR #44 — Vencidos y revisión tardía
+
+`expired` se usa en la UI como intento vencido por falta de evidencia y no es aprobable directamente. Un intento `transfer` en `evidence_received` permanece revisable aunque haya demora administrativa; no se agrega migración ni estado nuevo para revisión tardía en esta fase.

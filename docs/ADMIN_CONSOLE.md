@@ -448,3 +448,15 @@ El comando es idempotente: valida schemas tenant, asegura `tenant_schema_migrati
 La agenda diaria de Citas muestra espacios `Disponible` explícitos a partir de disponibilidad base activa del profesional seleccionado y siempre construye la línea temporal desde esos slots base. Las citas `scheduled` y los bloqueos activos se superponen sobre los slots derivados de disponibilidad usando intervalos semiabiertos `[inicio, fin)`: un evento que termina exactamente al inicio de un slot no ocupa ese slot. La agenda filtra las citas por fecha seleccionada y solo trata `scheduled` como ocupación real en esta fase, por lo que citas de otra fecha o estados `tentative`, `cancelled`, `completed` y `no_show` no bloquean slots. Si no hay profesional seleccionado, la pantalla pide seleccionar uno para calcular espacios; si no hay disponibilidad base para el día, muestra un mensaje claro. Las tarjetas se compactan para mostrar hora, badge, paciente/profesional/servicio/sede/consultorio sin UUIDs.
 
 La edición administrativa permite reprogramar citas `scheduled` con fecha, hora y consultorio, y editar notas. Citas `cancelled`, `completed` y `no_show` solo permiten editar notas desde la UI.
+
+## Fase 6B.11 — Pagos administrativos base
+
+La consola agrega la pantalla **Pagos** después de **Citas** para consultar intentos de pago asociados a citas y registrar revisión manual básica. La pantalla permite filtrar por organización, método, estado, rango de fechas y texto de paciente; muestra resumen operativo, listado, detalle, evidencias asociadas y revisiones previas.
+
+Las acciones disponibles son aprobar o rechazar únicamente intentos `transfer` con evidencia recibida; el backend ejecuta la transición mediante `PaymentReviewService`. El rechazo exige motivo. La UI muestra nombres legibles y oculta identificadores técnicos como información principal; no expone `schema_name` ni descarga archivos de evidencia.
+
+### Ajustes UX PR #44 — Pagos
+
+La pantalla Pagos prioriza el resumen operativo antes de filtros para que el administrador vea primero volumen total, pendientes de revisión, aprobados, rechazados y vencidos sin evidencia. El estado `expired` se presenta como vencido por falta de evidencia y no es aprobable directamente. Los intentos `transfer` con `evidence_received` siguen siendo revisables aunque la revisión administrativa se demore.
+
+La consola puede registrar un intento manual tipo `transfer` desde una cita existente usando un selector legible de cita/paciente/profesional/fecha/servicio. Si el administrador registra referencia o notas de evidencia, se reutiliza el endpoint existente de evidencia para dejar el intento en `evidence_received`; la aprobación/rechazo posterior continúa pasando por `PaymentReviewService`.

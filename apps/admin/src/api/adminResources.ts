@@ -319,3 +319,21 @@ export const adminResourcesApi = {
   assignPractitionerSpecialty: (tenantId: string, practitionerId: string, specialtyId: string) => apiRequest<PractitionerSpecialty>(`/api/admin/practitioners/${practitionerId}/specialties`, { tenantId, method: 'POST', body: JSON.stringify({ specialty_id: specialtyId }) }),
   disablePractitionerSpecialty: (tenantId: string, practitionerId: string, specialtyId: string) => apiRequest<PractitionerSpecialty>(`/api/admin/practitioners/${practitionerId}/specialties/${specialtyId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
 };
+
+
+export type PaymentAttemptBasic = { id: string; booking_id: string; method: string; amount: number | string; currency: string; status: string; expires_at: string | null; evidence_received_at: string | null; reviewed_at: string | null; reviewed_by_user_id: string | null };
+export type CreateTransferPaymentAttemptPayload = { booking_id: string; amount: string | number; currency: 'COP' };
+export type RegisterPaymentEvidencePayload = { storage_object_key?: string | null; original_filename?: string | null; content_type?: string | null; uploaded_channel?: string | null; notes?: string | null };
+export type PaymentReview = { id: string; payment_attempt_id: string; decision: string; reviewer_user_id: string | null; reviewed_at: string; notes: string | null };
+export type PaymentEvidence = { id: string; payment_attempt_id: string; storage_object_key: string | null; original_filename: string | null; content_type: string | null; uploaded_at: string; uploaded_channel: string | null; notes: string | null };
+export type AdminPayment = { id: string; booking_id: string; method: string; status: string; amount: number; currency: string; expires_at: string | null; evidence_received_at: string | null; reviewed_at: string | null; evidence_count: number; latest_review_decision: string | null; organization_id: string | null; organization_name: string | null; location_id: string | null; location_name: string | null; room_id: string | null; room_name: string | null; patient_id: string | null; patient_name: string | null; practitioner_id: string | null; practitioner_name: string | null; practitioner_service_id: string | null; practitioner_service_name: string | null; appointment_starts_at: string | null; appointment_ends_at: string | null; booking_status: string; booking_payment_status: string; booking_notes: string | null; evidence?: PaymentEvidence[]; reviews?: PaymentReview[] };
+export type PaymentFilters = { organization_id?: string; status?: string; method?: string; date_from?: string; date_to?: string; patient?: string; booking_id?: string; practitioner_id?: string };
+const paymentQuery = (filters: PaymentFilters = {}) => { const params = new URLSearchParams(); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); const query = params.toString(); return `/api/admin/payments${query ? `?${query}` : ''}`; };
+export const adminPaymentsApi = {
+  listPayments: (tenantId: string, filters: PaymentFilters = {}) => apiRequest<AdminPayment[]>(paymentQuery(filters), { tenantId }),
+  getPayment: (tenantId: string, paymentAttemptId: string) => apiRequest<AdminPayment>(`/api/admin/payments/${paymentAttemptId}`, { tenantId }),
+  approvePayment: (tenantId: string, paymentAttemptId: string, notes?: string) => apiRequest<AdminPayment>(`/api/admin/payments/${paymentAttemptId}/approve`, { tenantId, method: 'POST', body: JSON.stringify({ notes: notes || null }) }),
+  rejectPayment: (tenantId: string, paymentAttemptId: string, reason: string) => apiRequest<AdminPayment>(`/api/admin/payments/${paymentAttemptId}/reject`, { tenantId, method: 'POST', body: JSON.stringify({ reason }) }),
+  createTransferPaymentAttempt: (tenantId: string, payload: CreateTransferPaymentAttemptPayload) => apiRequest<PaymentAttemptBasic>('/api/admin/payment-attempts', { tenantId, method: 'POST', body: JSON.stringify({ ...payload, method: 'transfer' }) }),
+  registerPaymentEvidence: (tenantId: string, paymentAttemptId: string, payload: RegisterPaymentEvidencePayload) => apiRequest<{ payment_attempt: PaymentAttemptBasic; evidence: PaymentEvidence }>(`/api/admin/payment-attempts/${paymentAttemptId}/evidence`, { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+};

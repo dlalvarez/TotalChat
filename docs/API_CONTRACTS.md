@@ -1368,3 +1368,11 @@ Endpoints tenant-scoped bajo `/api/admin`:
 Estados administrativos: `scheduled`, `cancelled`, `completed`, `no_show`. Solo `scheduled` ocupa horario para validaciones de conflicto. Las respuestas incluyen nombres legibles para organización, sede, consultorio, profesional, servicio y paciente, y no exponen `schema_name`.
 
 `date_to` se interpreta inclusivo hasta el final del día indicado para mantener consistencia con los listados administrativos existentes.
+
+## Fase 6B.11 — Pagos administrativos base
+
+Endpoints funcionales de consola: `GET /api/admin/payments`, `GET /api/admin/payments/{payment_attempt_id}`, `POST /api/admin/payments/{payment_attempt_id}/approve` y `POST /api/admin/payments/{payment_attempt_id}/reject`.
+
+El listado acepta filtros por `organization_id`, `status`, `method`, `date_from`, `date_to`, `patient`, `booking_id` y `practitioner_id`. Las respuestas incluyen nombres legibles de paciente, profesional, servicio, organización, sede y consultorio cuando existen; no exponen `schema_name`.
+
+La aprobación/rechazo manual de esta superficie aplica únicamente a intentos `transfer` en estado `evidence_received` y debe ejecutarse mediante `PaymentReviewService`. La aprobación crea `payment_reviews.decision = approved`, actualiza `payment_attempts.status = approved`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status = paid`. El rechazo requiere `reason` o `notes`, crea `payment_reviews.decision = rejected`, actualiza `payment_attempts.status = rejected`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status = rejected`. Ninguna acción confirma, cancela o libera automáticamente la cita.
