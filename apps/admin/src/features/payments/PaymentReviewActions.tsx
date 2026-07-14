@@ -9,7 +9,7 @@ export function PaymentReviewActions({ payment, isPending, onApprove, onReject }
   const reviewable = isReviewablePayment(payment.status, payment.method);
   if (!reviewable) {
     if (payment.status === 'expired') {
-      return <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Vencido por falta de evidencia. No se puede aprobar directamente; registra un nuevo intento o evidencia según la política operativa.</p>;
+      return null;
     }
     return <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Este intento no está en un estado revisable manualmente.</p>;
   }
