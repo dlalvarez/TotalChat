@@ -121,6 +121,24 @@ def test_get_payments_filters_exact_date_range(session, tenant_context, seed):
     assert [item["id"] for item in response.json()["data"]] == [str(expected.id)]
 
 
+def test_manual_admin_transfer_attempt_uses_existing_attempt_and_evidence_flow(session, tenant_context, seed):
+    create_response = req("POST", "/api/admin/payment-attempts", session, tenant_context, json={"booking_id": str(seed["booking"].id), "method": "transfer", "amount": "120000.00", "currency": "COP"})
+    assert create_response.status_code == 200, create_response.text
+    attempt_data = create_response.json()["data"]
+    assert attempt_data["status"] == "evidence_required"
+    assert "schema_name" not in attempt_data
+
+    evidence_response = req("POST", f"/api/admin/payment-attempts/{attempt_data['id']}/evidence", session, tenant_context, json={"original_filename": "referencia-manual", "uploaded_channel": "admin", "notes": "Referencia administrativa"})
+    assert evidence_response.status_code == 200, evidence_response.text
+    evidence_data = evidence_response.json()["data"]
+    stored_attempt = session.get(PaymentAttempt, UUID(attempt_data["id"]))
+    booking = session.get(Booking, seed["booking"].id)
+    assert evidence_data["payment_attempt"]["status"] == "evidence_received"
+    assert evidence_data["evidence"]["notes"] == "Referencia administrativa"
+    assert stored_attempt.status == "evidence_received"
+    assert booking.status == "tentative"
+    assert booking.payment_status == "pending"
+
 def test_approve_transfer_evidence_received_uses_domain_service(session, tenant_context, seed):
     reviewer_id = uuid4(); attempt = create_attempt(session, seed["booking"])
     response = req("POST", f"/api/admin/payments/{attempt.id}/approve", session, tenant_context, json=review_payload(reviewer_user_id=str(reviewer_id)))

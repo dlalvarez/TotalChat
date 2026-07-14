@@ -52,3 +52,7 @@ La consola administra revisión manual sobre `payment_attempts`, `payment_eviden
 Estados de intento reconocidos por la pantalla: `pending`, `evidence_required`, `evidence_received`, `under_review`, `approved`, `rejected`, `expired`, `cancelled` y `simulated_approved`.
 
 Estados de `bookings.payment_status` usados por esta fase: `pending`, `paid` y `rejected`. Aprobar/rechazar pagos administrativos aplica solo a intentos `transfer` con `status = evidence_received`, debe pasar por `PaymentReviewService`, no modifica `bookings.status` ni libera horarios automáticamente.
+
+### Ajustes UX PR #44 — Vencidos y revisión tardía
+
+`expired` se usa en la UI como intento vencido por falta de evidencia y no es aprobable directamente. Un intento `transfer` en `evidence_received` permanece revisable aunque haya demora administrativa; no se agrega migración ni estado nuevo para revisión tardía en esta fase.

@@ -454,3 +454,9 @@ La edición administrativa permite reprogramar citas `scheduled` con fecha, hora
 La consola agrega la pantalla **Pagos** después de **Citas** para consultar intentos de pago asociados a citas y registrar revisión manual básica. La pantalla permite filtrar por organización, método, estado, rango de fechas y texto de paciente; muestra resumen operativo, listado, detalle, evidencias asociadas y revisiones previas.
 
 Las acciones disponibles son aprobar o rechazar únicamente intentos `transfer` con evidencia recibida; el backend ejecuta la transición mediante `PaymentReviewService`. El rechazo exige motivo. La UI muestra nombres legibles y oculta identificadores técnicos como información principal; no expone `schema_name` ni descarga archivos de evidencia.
+
+### Ajustes UX PR #44 — Pagos
+
+La pantalla Pagos prioriza el resumen operativo antes de filtros para que el administrador vea primero volumen total, pendientes de revisión, aprobados, rechazados y vencidos sin evidencia. El estado `expired` se presenta como vencido por falta de evidencia y no es aprobable directamente. Los intentos `transfer` con `evidence_received` siguen siendo revisables aunque la revisión administrativa se demore.
+
+La consola puede registrar un intento manual tipo `transfer` desde una cita existente usando un selector legible de cita/paciente/profesional/fecha/servicio. Si el administrador registra referencia o notas de evidencia, se reutiliza el endpoint existente de evidencia para dejar el intento en `evidence_received`; la aprobación/rechazo posterior continúa pasando por `PaymentReviewService`.

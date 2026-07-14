@@ -63,3 +63,7 @@ Endpoints funcionales: `GET /api/admin/payments`, `GET /api/admin/payments/{paym
 `GET /api/admin/payments` acepta filtros opcionales `organization_id`, `status`, `method`, `date_from`, `date_to`, `patient`, `booking_id` y `practitioner_id`. La respuesta serializa datos legibles de cita, paciente, profesional, servicio, organización, sede y consultorio, además de monto, moneda, vencimiento, evidencia, revisión y estado; no expone `schema_name`.
 
 `approve` y `reject` deben delegar en `PaymentReviewService`; aplican solo a intentos `transfer` con `status = evidence_received`, trazan revisión en `payment_reviews`, actualizan `payment_attempts.status`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status`. No cambian `bookings.status`, no liberan cupos y no ejecutan automatizaciones externas.
+
+### Ajustes UX PR #44 — Registro manual administrativo
+
+La UI de Pagos puede crear intentos manuales `transfer` reutilizando `POST /api/admin/payment-attempts` y puede registrar referencia/notas de comprobante reutilizando `POST /api/admin/payment-attempts/{payment_attempt_id}/evidence`. Esta acción no aprueba pagos, no cambia `bookings.status`, no libera cupos y no crea un segundo camino de revisión; la decisión final permanece en `PaymentReviewService`.
