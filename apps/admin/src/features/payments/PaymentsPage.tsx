@@ -9,7 +9,7 @@ import { adminPaymentsApi, adminResourcesApi, type AdminPayment, type PaymentFil
 import type { AdminTenant } from '../../config/tenant';
 import { PaymentList } from './PaymentList';
 import { PaymentDetailPanel } from './PaymentDetailPanel';
-import { formatDateTime, PAYMENT_METHOD_OPTIONS, PAYMENT_STATUS_OPTIONS, paymentStatusLabel } from './paymentUtils';
+import { formatDateTime, PAYMENT_METHOD_OPTIONS, PAYMENT_STATUS_OPTIONS } from './paymentUtils';
 
 type FilterState = Required<Pick<PaymentFilters, 'organization_id' | 'status' | 'method' | 'date_from' | 'date_to' | 'patient'>>;
 type ManualPaymentForm = { booking_id: string; amount: string; evidence_reference: string; evidence_notes: string };
