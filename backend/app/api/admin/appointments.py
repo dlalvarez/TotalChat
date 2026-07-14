@@ -18,6 +18,7 @@ from app.tenancy.context import TenantContext
 router = APIRouter(prefix="/appointments", tags=["admin-appointments"])
 APPOINTMENT_STATUSES = {"scheduled", "cancelled", "completed", "no_show"}
 APPOINTMENT_STATUS_LABELS = {"scheduled": "Programada", "cancelled": "Cancelada", "completed": "Atendida", "no_show": "No asistió"}
+VIRTUAL_LINK_FIELDS = ("virtual_meeting_url", "virtual_meeting_id", "virtual_access_code", "virtual_link_status", "virtual_link_created_mode", "virtual_link_provider")
 
 class CreateAppointmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -61,6 +62,47 @@ class EmptyRequest(BaseModel):
 def _overlap(model, starts_at: datetime, ends_at: datetime):
     return (model.starts_at < ends_at, starts_at < model.ends_at)
 
+def _has_virtual_link_url(value: str | None) -> bool:
+    return bool(value and value.strip())
+
+def _set_virtual_link_pending(a: Booking) -> None:
+    a.virtual_link_status = "pending"
+    a.virtual_link_sent_at = None
+    a.virtual_link_created_mode = None
+    a.virtual_link_provider = None
+
+def _normalize_virtual_link_state(a: Booking, requested_status: str | None = None) -> None:
+    has_url = _has_virtual_link_url(a.virtual_meeting_url)
+    if not has_url:
+        if requested_status in {"created", "sent"}:
+            raise BusinessRuleViolation("virtual_meeting_url is required before marking a virtual link as created or sent.")
+        _set_virtual_link_pending(a)
+        return
+    if requested_status == "sent":
+        a.virtual_link_status = "sent"
+        a.virtual_link_created_mode = "manual"
+        a.virtual_link_provider = "manual"
+        if a.virtual_link_sent_at is None:
+            a.virtual_link_sent_at = datetime.now(timezone.utc)
+        return
+    if requested_status == "cancelled":
+        a.virtual_link_status = "cancelled"
+        return
+    if requested_status == "pending":
+        _set_virtual_link_pending(a)
+        return
+    if requested_status is None and a.virtual_link_status in {"sent", "cancelled"}:
+        if a.virtual_link_status == "sent":
+            a.virtual_link_created_mode = "manual"
+            a.virtual_link_provider = "manual"
+            if a.virtual_link_sent_at is None:
+                a.virtual_link_sent_at = datetime.now(timezone.utc)
+        return
+    a.virtual_link_status = "created"
+    a.virtual_link_created_mode = "manual"
+    a.virtual_link_provider = "manual"
+    a.virtual_link_sent_at = None
+
 def _validate_payload(session: Session, p: CreateAppointmentRequest, exclude_id: UUID | None = None) -> tuple[Organization, Location, Room | None, Practitioner, PractitionerService, Patient]:
     org = session.get(Organization, p.organization_id)
     if org is None: raise ResourceNotFound("Organization not found.")
@@ -98,6 +140,8 @@ def _validate_payload(session: Session, p: CreateAppointmentRequest, exclude_id:
             raise BusinessRuleViolation("MVP virtual appointments only support manual link creation mode.")
         if p.virtual_link_status not in (None, "pending", "created"):
             raise BusinessRuleViolation("Virtual link status can only be pending or created when creating an appointment.")
+        if p.virtual_link_status == "created" and not _has_virtual_link_url(p.virtual_meeting_url):
+            raise BusinessRuleViolation("virtual_meeting_url is required before marking a virtual link as created.")
 
     stmt = select(AvailabilityException).where(AvailabilityException.status == "active", AvailabilityException.practitioner_id == practitioner.id, AvailabilityException.starts_at < p.ends_at, p.starts_at < AvailabilityException.ends_at)
     stmt = stmt.where(or_(AvailabilityException.location_id.is_(None), AvailabilityException.location_id == loc.id))
@@ -150,9 +194,9 @@ def create_appointment(payload: CreateAppointmentRequest, tenant_context: Tenant
     _ = tenant_context
     org, loc, room, practitioner, service, patient = _validate_payload(session, payload)
     modality = "virtual" if loc.is_virtual else "in_person"
-    has_link = any([payload.virtual_meeting_url, payload.virtual_meeting_id, payload.virtual_access_code])
-    virtual_link_status = "created" if loc.is_virtual and has_link else "pending" if loc.is_virtual else "not_applicable"
-    a = Booking(organization_id=org.id, patient_id=patient.id, practitioner_id=practitioner.id, practitioner_service_id=service.id, location_id=loc.id, room_id=None if loc.is_virtual else (room.id if room else None), modality=modality, starts_at=payload.starts_at, ends_at=payload.ends_at, status="scheduled", payment_status="pending", service_name_snapshot=service.name, duration_minutes_snapshot=max(1, int((payload.ends_at - payload.starts_at).total_seconds() // 60)), practitioner_name_snapshot=practitioner.full_name, modality_snapshot=modality, location_name_snapshot=loc.name, room_snapshot=None if loc.is_virtual else (room.name if room else None), price_snapshot=Decimal("0.00"), currency_snapshot="COP", total_amount=Decimal("0.00"), created_channel="admin", pending_patient_data=False, notes=payload.notes, virtual_meeting_url=payload.virtual_meeting_url if loc.is_virtual else None, virtual_meeting_id=payload.virtual_meeting_id if loc.is_virtual else None, virtual_access_code=payload.virtual_access_code if loc.is_virtual else None, virtual_link_status=virtual_link_status, virtual_link_created_mode="manual" if loc.is_virtual and has_link else None, virtual_link_provider="manual" if loc.is_virtual and has_link else None)
+    has_link_url = _has_virtual_link_url(payload.virtual_meeting_url)
+    virtual_link_status = "created" if loc.is_virtual and has_link_url else "pending" if loc.is_virtual else "not_applicable"
+    a = Booking(organization_id=org.id, patient_id=patient.id, practitioner_id=practitioner.id, practitioner_service_id=service.id, location_id=loc.id, room_id=None if loc.is_virtual else (room.id if room else None), modality=modality, starts_at=payload.starts_at, ends_at=payload.ends_at, status="scheduled", payment_status="pending", service_name_snapshot=service.name, duration_minutes_snapshot=max(1, int((payload.ends_at - payload.starts_at).total_seconds() // 60)), practitioner_name_snapshot=practitioner.full_name, modality_snapshot=modality, location_name_snapshot=loc.name, room_snapshot=None if loc.is_virtual else (room.name if room else None), price_snapshot=Decimal("0.00"), currency_snapshot="COP", total_amount=Decimal("0.00"), created_channel="admin", pending_patient_data=False, notes=payload.notes, virtual_meeting_url=payload.virtual_meeting_url if loc.is_virtual else None, virtual_meeting_id=payload.virtual_meeting_id if loc.is_virtual else None, virtual_access_code=payload.virtual_access_code if loc.is_virtual else None, virtual_link_status=virtual_link_status, virtual_link_created_mode="manual" if loc.is_virtual and has_link_url else None, virtual_link_provider="manual" if loc.is_virtual and has_link_url else None)
     try:
         session.add(a); session.flush(); data = serialize_appointment(a, session); session.commit()
     except Exception:
@@ -181,7 +225,7 @@ def patch_appointment(appointment_id: UUID, payload: PatchAppointmentRequest, te
         room = session.get(Room, room_id) if room_id is not None else None
         a.room_snapshot = room.name if room is not None else None
     if "notes" in data: a.notes = data["notes"]
-    virtual_payload = {k: data[k] for k in ["virtual_meeting_url", "virtual_meeting_id", "virtual_access_code", "virtual_link_status", "virtual_link_created_mode", "virtual_link_provider"] if k in data}
+    virtual_payload = {k: data[k] for k in VIRTUAL_LINK_FIELDS if k in data}
     if virtual_payload:
         if a.modality != "virtual": raise BusinessRuleViolation("Virtual link data is only allowed for virtual appointments.")
         if virtual_payload.get("virtual_link_provider") not in (None, "manual"): raise BusinessRuleViolation("MVP virtual appointments only support manual link provider.")
@@ -190,13 +234,7 @@ def patch_appointment(appointment_id: UUID, payload: PatchAppointmentRequest, te
         if requested_status not in (None, "pending", "created", "sent", "cancelled"): raise BusinessRuleViolation("Invalid virtual link status.")
         for field, value in virtual_payload.items():
             setattr(a, field, value)
-        if any(field in virtual_payload for field in ["virtual_meeting_url", "virtual_meeting_id", "virtual_access_code"]):
-            has_link = any([a.virtual_meeting_url, a.virtual_meeting_id, a.virtual_access_code])
-            a.virtual_link_status = "created" if has_link and a.virtual_link_status in (None, "pending") else a.virtual_link_status
-            a.virtual_link_created_mode = "manual" if has_link else a.virtual_link_created_mode
-            a.virtual_link_provider = "manual" if has_link else a.virtual_link_provider
-        if a.virtual_link_status == "sent" and a.virtual_link_sent_at is None:
-            a.virtual_link_sent_at = datetime.now(timezone.utc)
+        _normalize_virtual_link_state(a, requested_status)
     try:
         session.flush(); out = serialize_appointment(a, session); session.commit()
     except Exception:
@@ -207,7 +245,7 @@ def _set_status(appointment_id: UUID, status: str, session: Session):
     a = session.get(Booking, appointment_id)
     if a is None or a.status not in APPOINTMENT_STATUSES: raise ResourceNotFound("Appointment not found.")
     a.status = status
-    if status == "cancelled" and a.modality == "virtual" and any([getattr(a, "virtual_meeting_url", None), getattr(a, "virtual_meeting_id", None), getattr(a, "virtual_access_code", None)]):
+    if status == "cancelled" and a.modality == "virtual" and _has_virtual_link_url(getattr(a, "virtual_meeting_url", None)):
         a.virtual_link_status = "cancelled"
     try:
         session.flush(); out = serialize_appointment(a, session); session.commit()

@@ -169,3 +169,35 @@ def test_virtual_link_manual_fields_sent_and_cancelled(session, tenant_context, 
     cancelled = req('post', f"/api/admin/appointments/{data['id']}/cancel", session, tenant_context, {})
     assert cancelled.status_code == 200
     assert cancelled.json()['data']['virtual_link_status'] == 'cancelled'
+
+
+def test_virtual_link_requires_url_for_created_and_sent(session, tenant_context, seed):
+    seed['loc'].is_virtual = True
+    session.commit()
+    by_id = create(session, tenant_context, seed, room_id=None, virtual_meeting_id='123')
+    assert by_id.status_code == 200, by_id.text
+    data = by_id.json()['data']
+    assert data['virtual_link_status'] == 'pending'
+    assert data['virtual_link_created_mode'] is None
+    assert data['virtual_link_provider'] is None
+    sent_without_url = req('patch', f"/api/admin/appointments/{data['id']}", session, tenant_context, {'virtual_link_status': 'sent'})
+    assert sent_without_url.status_code == 409
+    created_without_url = req('patch', f"/api/admin/appointments/{data['id']}", session, tenant_context, {'virtual_link_status': 'created'})
+    assert created_without_url.status_code == 409
+
+
+def test_clearing_virtual_url_resets_link_state(session, tenant_context, seed):
+    seed['loc'].is_virtual = True
+    session.commit()
+    r = create(session, tenant_context, seed, room_id=None, starts_at='2026-07-20T13:00:00', ends_at='2026-07-20T13:30:00', virtual_meeting_url='https://meet.example/manual')
+    assert r.status_code == 200, r.text
+    data = r.json()['data']
+    sent = req('patch', f"/api/admin/appointments/{data['id']}", session, tenant_context, {'virtual_link_status': 'sent'})
+    assert sent.status_code == 200, sent.text
+    cleared = req('patch', f"/api/admin/appointments/{data['id']}", session, tenant_context, {'virtual_meeting_url': None, 'virtual_meeting_id': None, 'virtual_access_code': None})
+    assert cleared.status_code == 200, cleared.text
+    out = cleared.json()['data']
+    assert out['virtual_link_status'] == 'pending'
+    assert out['virtual_link_sent_at'] is None
+    assert out['virtual_link_created_mode'] is None
+    assert out['virtual_link_provider'] is None

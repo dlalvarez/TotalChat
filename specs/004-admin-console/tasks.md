@@ -28,7 +28,8 @@
   - No incluye historia clínica, datos clínicos, fusión/deduplicación avanzada, contactos múltiples ni perfiles de pagador automáticos.
 - [x] Pantalla pagos.
   - Implementación base cerrada y validada post-merge en PR #44.
-- [ ] Pantalla links virtuales.
+- [x] Links virtuales manuales integrados en pantalla Citas.
+  - No existe pantalla independiente de links virtuales en este MVP.
 
 ## Fase 6B.13 — Citas virtuales con link manual
 

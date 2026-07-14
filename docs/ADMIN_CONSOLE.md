@@ -480,7 +480,7 @@ Exclusiones preservadas: historia clínica, datos clínicos, consentimientos, ad
 
 En Citas, la UI no muestra selector libre de modalidad. La sede seleccionada define si la cita es virtual o presencial mediante `locations.is_virtual`.
 
-- Sede virtual: se muestra un área “Cita virtual”, se deshabilita consultorio y se muestran campos de link manual.
+- Sede virtual: se muestra un área “Cita virtual”, se deshabilita consultorio y se muestran campos de link manual. Solo una URL de reunión permite considerar el link creado o enviado; ID y código de acceso son auxiliares.
 - Sede presencial: se muestra un área “Cita presencial”, se conserva consultorio y se ocultan campos de link virtual.
 
 El frontend no envía `modality` en creación de citas.

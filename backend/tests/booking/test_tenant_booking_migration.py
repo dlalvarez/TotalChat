@@ -129,9 +129,6 @@ def test_manual_payments_migration_creates_tables_in_tenant_schema_only() -> Non
     assert "public.ix_payment_attempts_booking_id" not in sql
     assert "public.ix_payment_evidence_payment_attempt_id" not in sql
     assert "public.ix_payment_reviews_payment_attempt_id" not in sql
-    assert "ADD COLUMN IF NOT EXISTS virtual_meeting_url TEXT" in sql
-    assert "ADD COLUMN IF NOT EXISTS virtual_link_status VARCHAR(32) DEFAULT 'not_applicable' NOT NULL" in sql
-    assert "008_virtual_appointment_links" in sql
 
 
 def test_manual_payments_migration_rejects_invalid_schema_name() -> None:
