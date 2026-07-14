@@ -7,6 +7,6 @@ export const PAYMENT_STATUS_OPTIONS = [
 export const paymentMethodLabel = (v: string) => PAYMENT_METHOD_OPTIONS.find((o) => o.value === v)?.label ?? v;
 export const paymentStatusLabel = (v: string) => PAYMENT_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v;
 export const paymentStatusTone = (v: string) => v === 'approved' || v === 'simulated_approved' ? 'success' : v === 'rejected' || v === 'expired' || v === 'cancelled' ? 'warning' : v === 'evidence_received' || v === 'under_review' ? 'info' : 'neutral';
-export const isReviewablePayment = (status: string, method: string) => ['evidence_received', 'under_review'].includes(status) || (method === 'pay_on_site' && status === 'pending');
+export const isReviewablePayment = (status: string, method: string) => method === 'transfer' && status === 'evidence_received';
 export const formatMoney = (amount: number, currency: string) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: currency || 'COP', maximumFractionDigits: 0 }).format(amount || 0);
 export const formatDateTime = (value: string | null) => value ? new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';

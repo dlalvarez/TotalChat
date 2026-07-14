@@ -189,6 +189,7 @@ def test_post_review_moves_attempt_status_and_sets_review_fields(review_session,
     assert stored.status == decision
     assert stored.reviewed_at is not None
     assert stored.reviewed_by_user_id == reviewer_id
+    assert review_session.get(Booking, booking.id).payment_status == ("paid" if decision == "approved" else "rejected")
 
 
 @pytest.mark.parametrize("action", ["approve", "reject"])

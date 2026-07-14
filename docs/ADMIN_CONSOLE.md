@@ -453,4 +453,4 @@ La edición administrativa permite reprogramar citas `scheduled` con fecha, hora
 
 La consola agrega la pantalla **Pagos** después de **Citas** para consultar intentos de pago asociados a citas y registrar revisión manual básica. La pantalla permite filtrar por organización, método, estado, rango de fechas y texto de paciente; muestra resumen operativo, listado, detalle, evidencias asociadas y revisiones previas.
 
-Las acciones disponibles son aprobar o rechazar intentos revisables. El rechazo exige motivo. La UI muestra nombres legibles y oculta identificadores técnicos como información principal; no expone `schema_name` ni descarga archivos de evidencia.
+Las acciones disponibles son aprobar o rechazar únicamente intentos `transfer` con evidencia recibida; el backend ejecuta la transición mediante `PaymentReviewService`. El rechazo exige motivo. La UI muestra nombres legibles y oculta identificadores técnicos como información principal; no expone `schema_name` ni descarga archivos de evidencia.

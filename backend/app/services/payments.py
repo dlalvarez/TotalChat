@@ -171,6 +171,8 @@ class PaymentReviewService:
         reviewer_user_id: UUID | None = None,
         notes: str | None = None,
     ) -> PaymentReview:
+        if not (notes or "").strip():
+            raise DomainValidationError("Rejecting a payment requires notes.")
         return self._review_attempt(
             payment_attempt_id=payment_attempt_id,
             decision="rejected",
@@ -204,9 +206,14 @@ class PaymentReviewService:
             reviewed_at=reviewed_at,
             notes=notes,
         )
+        booking = attempt.booking or self.session.get(Booking, attempt.booking_id)
+        if booking is None:
+            raise ResourceNotFound("Booking not found.")
+
         attempt.status = decision
         attempt.reviewed_at = reviewed_at
         attempt.reviewed_by_user_id = reviewer_user_id
+        booking.payment_status = "paid" if decision == "approved" else "rejected"
         self.session.add(review)
         return review
 

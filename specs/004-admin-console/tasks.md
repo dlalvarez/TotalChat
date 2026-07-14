@@ -23,5 +23,6 @@
   - Reglas recurrentes de atención.
   - Bloqueos e indisponibilidad administrativos.
 - [x] Pantalla citas.
-- [x] Pantalla pagos.
+- [ ] Pantalla pagos.
+  - Implementación base agregada en PR #44; pendiente cierre definitivo cuando puedan ejecutarse pruebas backend/frontend completas en entorno con dependencias disponibles.
 - [ ] Pantalla links virtuales.
