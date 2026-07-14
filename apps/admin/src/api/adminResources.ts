@@ -187,8 +187,9 @@ export const AVAILABILITY_EXCEPTION_TYPE_OPTIONS = [
 ] as const;
 
 export type PatientProfileStatus = 'minimal' | 'incomplete' | 'complete' | 'verified' | 'inactive';
-export type Patient = { id: string; full_name: string; document_type: string | null; document_number: string | null; email: string | null; phone: string | null; profile_status: PatientProfileStatus; status: PatientProfileStatus; created_from_channel: string | null; created_at: string | null; updated_at: string | null };
-export type CreatePatientPayload = { full_name: string; document_type?: string | null; document_number?: string | null; email?: string | null; phone?: string | null };
+export type PatientDocumentType = 'RC' | 'TI' | 'CC' | 'PAS' | 'CE' | 'RE' | 'PPT' | 'SC' | 'DNI' | 'NIT' | 'OTHER';
+export type Patient = { id: string; full_name: string; document_type: PatientDocumentType | null; document_number: string | null; email: string | null; phone: string | null; profile_status: PatientProfileStatus; status: PatientProfileStatus; created_from_channel: string | null; created_at: string | null; updated_at: string | null };
+export type CreatePatientPayload = { full_name: string; document_type?: PatientDocumentType | null; document_number?: string | null; email?: string | null; phone?: string | null };
 export type UpdatePatientPayload = Partial<CreatePatientPayload> & { profile_status?: PatientProfileStatus };
 export type PatientFilters = { q?: string; profile_status?: PatientProfileStatus };
 export type Appointment = { id: string; organization_id: string; organization_name: string | null; location_id: string | null; location_name: string | null; room_id: string | null; room_name: string | null; practitioner_id: string; practitioner_name: string | null; practitioner_service_id: string; practitioner_service_name: string | null; patient_id: string; patient_name: string | null; starts_at: string; ends_at: string; status: string; status_label: string; notes: string | null; created_at: string | null; updated_at: string | null };

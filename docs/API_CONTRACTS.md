@@ -1383,8 +1383,8 @@ Endpoints tenant-scoped bajo `/api/admin`:
 
 - `GET /patients`: lista pacientes activos e inactivos. Filtros opcionales: `q` por nombre/documento/teléfono/email y `profile_status`.
 - `GET /patients/{patient_id}`: devuelve detalle básico o `404` si no existe.
-- `POST /patients`: crea paciente con `full_name` obligatorio y campos opcionales `phone`, `email`, `document_type`, `document_number`. Rechaza campos extra y `schema_name`; asigna `created_from_channel = admin` y `profile_status = minimal`.
-- `PATCH /patients/{patient_id}`: edita datos administrativos básicos y `profile_status`; valida estados `minimal`, `incomplete`, `complete`, `verified`, `inactive`.
+- `POST /patients`: crea paciente con `full_name` obligatorio y campos opcionales `phone`, `email`, `document_type`, `document_number`. Rechaza campos extra y `schema_name`; asigna `created_from_channel = admin` y `profile_status = minimal`. `document_type`, si se informa, se normaliza a mayúsculas y debe pertenecer al catálogo Colombia/MVP `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`.
+- `PATCH /patients/{patient_id}`: edita datos administrativos básicos y `profile_status`; valida estados `minimal`, `incomplete`, `complete`, `verified`, `inactive`. `document_type` puede ser `null` o un valor del catálogo Colombia/MVP `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`.
 - `POST /patients/{patient_id}/disable`: inactiva lógicamente con `profile_status = inactive`; es idempotente y no elimina relaciones ni citas.
 
 La serialización de paciente incluye `id`, datos administrativos básicos, `profile_status`, `created_from_channel`, `created_at` y `updated_at`. No incluye `schema_name` ni información interna del tenant.

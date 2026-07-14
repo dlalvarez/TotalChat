@@ -1331,7 +1331,7 @@ Valores de `bookings.payment_status` usados por la revisión manual: `pending` p
 
 ## Pacientes administrativos — Fase 6B.12
 
-`patients` conserva datos administrativos mínimos del paciente por schema tenant. Los estados válidos de `profile_status` para la consola son:
+`patients` conserva datos administrativos mínimos del paciente por schema tenant. En Fase 6B.12 `document_type` no es texto libre: usa catálogo controlado Colombia/MVP con valores `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`; no se valida edad, nacionalidad, longitud/formato del número ni fuentes externas. Los estados válidos de `profile_status` para la consola son:
 
 - `minimal`
 - `incomplete`

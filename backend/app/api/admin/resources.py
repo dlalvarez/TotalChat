@@ -43,6 +43,7 @@ ROOM_TYPES = {"consulta_general", "procedimientos", "terapia", "diagnostico", "v
 ORGANIZATION_PRACTITIONER_ROLES = {"primary", "member", "external"}
 RELATION_STATUSES = {"active", "inactive"}
 PATIENT_PROFILE_STATUSES = {"minimal", "incomplete", "complete", "verified", "inactive"}
+PATIENT_DOCUMENT_TYPES = {"RC", "TI", "CC", "PAS", "CE", "RE", "PPT", "SC", "DNI", "NIT", "OTHER"}
 
 
 def _normalize_name(value: str) -> str:
@@ -51,6 +52,17 @@ def _normalize_name(value: str) -> str:
 
 def _normalize_code(value: str) -> str:
     return "_".join(value.strip().lower().replace("-", "_").split())
+
+
+def _normalize_patient_document_type(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    if not normalized:
+        return None
+    if normalized not in PATIENT_DOCUMENT_TYPES:
+        raise ValueError("document_type must be one of RC, TI, CC, PAS, CE, RE, PPT, SC, DNI, NIT, OTHER")
+    return normalized
 
 
 def _validate_room_type(value: str | None) -> str | None:
@@ -654,6 +666,11 @@ class CreatePatientRequest(BaseModel):
             raise ValueError("full_name is required")
         return normalized
 
+    @field_validator("document_type")
+    @classmethod
+    def normalize_document_type(cls, value: str | None) -> str | None:
+        return _normalize_patient_document_type(value)
+
 
 class PatchPatientRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -674,6 +691,11 @@ class PatchPatientRequest(BaseModel):
         if not normalized:
             raise ValueError("full_name is required")
         return normalized
+
+    @field_validator("document_type")
+    @classmethod
+    def normalize_document_type(cls, value: str | None) -> str | None:
+        return _normalize_patient_document_type(value)
 
     @field_validator("profile_status")
     @classmethod

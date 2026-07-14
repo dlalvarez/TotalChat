@@ -468,6 +468,7 @@ La consola incluye una pantalla administrativa de Pacientes ubicada antes de Cit
 Alcance explícito de esta fase:
 
 - Datos administrativos básicos: nombre completo, tipo/número de documento, teléfono, email y estado de perfil.
+- `document_type` usa catálogo controlado Colombia/MVP con valores `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`; `OTHER` es escape operativo controlado, sin campo adicional de texto libre.
 - Creación desde consola con `created_from_channel = admin` y `profile_status = minimal`.
 - Inactivación lógica mediante `profile_status = inactive`; no existe borrado físico.
 - Reactivación mediante actualización de `profile_status` a un estado permitido no inactivo, usando `minimal` como criterio MVP.

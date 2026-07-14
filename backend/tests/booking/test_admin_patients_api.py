@@ -93,18 +93,27 @@ def test_get_patient_detail_and_404(admin_session, tenant_context):
 
 def test_create_patient_defaults_to_admin_minimal_and_rejects_bad_payloads(admin_session, tenant_context):
     api = client(admin_session, tenant_context)
-    response = api.post("/api/admin/patients", json={"full_name": "  Juan Pérez  ", "email": "juan@example.com"}, headers=headers(tenant_context))
+    response = api.post("/api/admin/patients", json={"full_name": "  Juan Pérez  ", "email": "juan@example.com", "document_type": "cc"}, headers=headers(tenant_context))
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["full_name"] == "Juan Pérez"
     assert data["profile_status"] == "minimal"
+    assert data["document_type"] == "CC"
     assert data["created_from_channel"] == "admin"
     assert_no_schema_name(data)
+
+    null_document_response = api.post("/api/admin/patients", json={"full_name": "Sin Documento", "document_type": None}, headers=headers(tenant_context))
+    assert null_document_response.status_code == 200
+    assert null_document_response.json()["data"]["document_type"] is None
+    allowed_document_response = api.post("/api/admin/patients", json={"full_name": "Con Documento", "document_type": "CC"}, headers=headers(tenant_context))
+    assert allowed_document_response.status_code == 200
+    assert allowed_document_response.json()["data"]["document_type"] == "CC"
 
     assert api.post("/api/admin/patients", json={"full_name": "Evil", "schema_name": "tenant_evil"}, headers=headers(tenant_context)).status_code == 422
     assert api.post("/api/admin/patients", json={"full_name": "Evil", "unexpected": True}, headers=headers(tenant_context)).status_code == 422
     assert api.post("/api/admin/patients", json={"phone": "+57"}, headers=headers(tenant_context)).status_code == 422
     assert api.post("/api/admin/patients", json={"full_name": "   "}, headers=headers(tenant_context)).status_code == 422
+    assert api.post("/api/admin/patients", json={"full_name": "Evil", "document_type": "UNKNOWN"}, headers=headers(tenant_context)).status_code == 422
 
 
 def test_patch_patient_updates_basic_fields_and_validates_payload(admin_session, tenant_context):
@@ -112,19 +121,24 @@ def test_patch_patient_updates_basic_fields_and_validates_payload(admin_session,
     api = client(admin_session, tenant_context)
     response = api.patch(
         f"/api/admin/patients/{patient.id}",
-        json={"full_name": "María Editada", "phone": "2", "profile_status": "complete"},
+        json={"full_name": "María Editada", "phone": "2", "document_type": "PAS", "profile_status": "complete"},
         headers=headers(tenant_context),
     )
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["full_name"] == "María Editada"
     assert data["phone"] == "2"
+    assert data["document_type"] == "PAS"
     assert data["profile_status"] == "complete"
     assert_no_schema_name(data)
 
     assert api.patch(f"/api/admin/patients/{patient.id}", json={"schema_name": "tenant_evil"}, headers=headers(tenant_context)).status_code == 422
     assert api.patch(f"/api/admin/patients/{patient.id}", json={"unexpected": True}, headers=headers(tenant_context)).status_code == 422
     assert api.patch(f"/api/admin/patients/{patient.id}", json={"profile_status": "deleted"}, headers=headers(tenant_context)).status_code == 422
+    null_patch_response = api.patch(f"/api/admin/patients/{patient.id}", json={"document_type": None}, headers=headers(tenant_context))
+    assert null_patch_response.status_code == 200
+    assert null_patch_response.json()["data"]["document_type"] is None
+    assert api.patch(f"/api/admin/patients/{patient.id}", json={"document_type": "UNKNOWN"}, headers=headers(tenant_context)).status_code == 422
     assert api.patch(f"/api/admin/patients/{uuid4()}", json={"full_name": "Nada"}, headers=headers(tenant_context)).status_code == 404
 
 

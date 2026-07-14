@@ -59,6 +59,6 @@ Estados de `bookings.payment_status` usados por esta fase: `pending`, `paid` y `
 
 ## Fase 6B.12 — Pacientes administrativos base
 
-La consola administra `patients` existente sin crear tablas clínicas ni duplicar perfiles. Los campos operativos de esta fase son `full_name`, `phone`, `email`, `document_type`, `document_number`, `profile_status`, `created_from_channel`, `created_at` y `updated_at`.
+La consola administra `patients` existente sin crear tablas clínicas ni duplicar perfiles. Los campos operativos de esta fase son `full_name`, `phone`, `email`, `document_type`, `document_number`, `profile_status`, `created_from_channel`, `created_at` y `updated_at`. `document_type` usa catálogo controlado Colombia/MVP con valores `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`; no se agrega campo libre para otros tipos ni validación legal por edad o nacionalidad.
 
 Estados válidos de `profile_status`: `minimal`, `incomplete`, `complete`, `verified`, `inactive`. Crear desde admin establece `minimal`; inactivar establece `inactive`; reactivar vuelve a un estado permitido no inactivo, preferentemente `minimal` en el MVP. No hay borrado físico ni cambios sobre citas históricas.
