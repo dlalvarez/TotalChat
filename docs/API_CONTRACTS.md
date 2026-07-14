@@ -585,11 +585,12 @@ Request mínimo:
   "full_name": "Juan Pérez",
   "phone": "+573001112233",
   "email": null,
-  "document_type": null,
-  "document_number": null,
-  "created_from_channel": "admin"
+  "document_type": "CC",
+  "document_number": "123456789"
 }
 ```
+
+`document_type` es opcional y puede ser `null`. Si se informa, debe pertenecer al catálogo controlado Colombia/MVP: `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`.
 
 Response:
 
@@ -606,7 +607,11 @@ Response:
 Reglas:
 
 - Paciente previo no es requisito para cita.
-- Si faltan datos no críticos, `profile_status` puede ser `minimal` o `incomplete`.
+- `full_name` es obligatorio; `phone`, `email`, `document_type` y `document_number` son opcionales.
+- `created_from_channel` no se envía desde frontend ni clientes API; el backend lo asigna internamente como `admin`.
+- El endpoint rechaza campos extra, incluido `schema_name`.
+- Al crear desde consola, `profile_status` queda en `minimal` en Fase 6B.12.
+- No se validan edad, nacionalidad, longitud/formato documental ni fuentes externas.
 
 ### 12.2. POST `/api/admin/patients/{patient_id}/payer-profiles`
 
