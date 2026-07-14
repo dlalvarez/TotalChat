@@ -540,3 +540,7 @@ campaign.status = scheduled
 no deliveries sent before scheduled_at
 worker sends when due
 ```
+
+## Escenario de cita virtual manual
+
+Una sede `Teleconsulta` con `is_virtual = true` debe crear citas con `bookings.modality = virtual`, `room_id = null` y `virtual_link_status = pending` si aún no hay link. Al guardar una URL manual, el estado pasa a `created`; al marcar enviado, a `sent` con `virtual_link_sent_at`. `virtual_meeting_id` y `virtual_access_code` pueden acompañar la URL, pero sin `virtual_meeting_url` no crean ni envían el link.

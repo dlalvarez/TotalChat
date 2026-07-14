@@ -28,4 +28,13 @@
   - No incluye historia clínica, datos clínicos, fusión/deduplicación avanzada, contactos múltiples ni perfiles de pagador automáticos.
 - [x] Pantalla pagos.
   - Implementación base cerrada y validada post-merge en PR #44.
-- [ ] Pantalla links virtuales.
+- [x] Links virtuales manuales integrados en pantalla Citas.
+  - No existe pantalla independiente de links virtuales en este MVP.
+
+## Fase 6B.13 — Citas virtuales con link manual
+
+- [x] Derivar modalidad de cita administrativa desde `locations.is_virtual`.
+- [x] Quitar modalidad como campo editable del frontend/payload.
+- [x] Mantener datos de link virtual manual como columnas de `bookings`.
+- [x] Mostrar UI diferenciada para cita virtual/presencial según sede.
+- [x] Rechazar consultorio en sedes virtuales y datos virtuales en sedes presenciales.

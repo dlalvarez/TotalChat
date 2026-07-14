@@ -93,6 +93,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     apply_manual_payments_tenant_migration(connection, schema_name)
     apply_organization_practitioners_tenant_migration(connection, schema_name)
     apply_booking_notes_tenant_migration(connection, schema_name)
+    apply_virtual_link_columns_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -355,5 +356,30 @@ def apply_organization_practitioners_tenant_migration(connection: Connection, sc
             VALUES ('007_organization_practitioners')
             ON CONFLICT (version) DO NOTHING
             '''
+        )
+    )
+
+
+def apply_virtual_link_columns_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Add MVP manual virtual appointment link columns to bookings."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+    for statement in [
+        "ADD COLUMN IF NOT EXISTS virtual_meeting_url TEXT",
+        "ADD COLUMN IF NOT EXISTS virtual_meeting_id VARCHAR(255)",
+        "ADD COLUMN IF NOT EXISTS virtual_access_code VARCHAR(255)",
+        "ADD COLUMN IF NOT EXISTS virtual_link_status VARCHAR(32) DEFAULT 'not_applicable' NOT NULL",
+        "ADD COLUMN IF NOT EXISTS virtual_link_created_mode VARCHAR(32)",
+        "ADD COLUMN IF NOT EXISTS virtual_link_provider VARCHAR(32)",
+        "ADD COLUMN IF NOT EXISTS virtual_link_sent_at TIMESTAMPTZ",
+    ]:
+        connection.execute(text(f'ALTER TABLE "{schema_name}".bookings {statement}'))
+    connection.execute(
+        text(
+            f"""
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('008_virtual_appointment_links')
+            ON CONFLICT (version) DO NOTHING
+            """
         )
     )

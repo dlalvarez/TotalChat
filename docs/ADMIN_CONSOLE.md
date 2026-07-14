@@ -475,3 +475,12 @@ Alcance explícito de esta fase:
 - Pacientes inactivos permanecen visibles para trazabilidad y para preservar citas históricas.
 
 Exclusiones preservadas: historia clínica, datos clínicos, consentimientos, adjuntos, diagnósticos, fusión/deduplicación avanzada, validación externa de documentos, contactos múltiples y creación automática de perfiles de pagador. No se expone `schema_name` ni se piden UUIDs manualmente al admin.
+
+### Fase 6B.13 — Citas virtuales derivadas desde sede
+
+En Citas, la UI no muestra selector libre de modalidad. La sede seleccionada define si la cita es virtual o presencial mediante `locations.is_virtual`.
+
+- Sede virtual: se muestra un área “Cita virtual”, se deshabilita consultorio y se muestran campos de link manual. Solo una URL de reunión permite considerar el link creado o enviado; ID y código de acceso son auxiliares.
+- Sede presencial: se muestra un área “Cita presencial”, se conserva consultorio y se ocultan campos de link virtual.
+
+El frontend no envía `modality` en creación de citas.

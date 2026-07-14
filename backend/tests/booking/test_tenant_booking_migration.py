@@ -9,6 +9,7 @@ from app.tenancy.schema import (
     apply_booking_domain_tenant_migration,
     apply_patient_payer_profiles_tenant_migration,
     apply_manual_payments_tenant_migration,
+    apply_virtual_link_columns_tenant_migration,
 )
 
 
@@ -58,6 +59,9 @@ def test_booking_domain_migration_creates_tables_in_tenant_schema_only() -> None
     assert "public.ix_payment_attempts_booking_id" not in sql
     assert "public.ix_payment_evidence_payment_attempt_id" not in sql
     assert "public.ix_payment_reviews_payment_attempt_id" not in sql
+    assert "ADD COLUMN IF NOT EXISTS virtual_meeting_url TEXT" in sql
+    assert "ADD COLUMN IF NOT EXISTS virtual_link_status VARCHAR(32) DEFAULT 'not_applicable' NOT NULL" in sql
+    assert "008_virtual_appointment_links" in sql
 
 
 def test_booking_domain_migration_rejects_invalid_schema_name() -> None:
@@ -130,3 +134,21 @@ def test_manual_payments_migration_creates_tables_in_tenant_schema_only() -> Non
 def test_manual_payments_migration_rejects_invalid_schema_name() -> None:
     with pytest.raises(ValueError):
         apply_manual_payments_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
+
+
+def test_virtual_link_columns_migration_adds_booking_columns() -> None:
+    connection = RecordingConnection()
+    apply_virtual_link_columns_tenant_migration(connection, "tenant_alpha")  # type: ignore[arg-type]
+
+    sql = "\n".join(connection.statements)
+    assert 'ALTER TABLE "tenant_alpha".bookings ADD COLUMN IF NOT EXISTS virtual_meeting_url TEXT' in sql
+    assert "ADD COLUMN IF NOT EXISTS virtual_meeting_id VARCHAR(255)" in sql
+    assert "ADD COLUMN IF NOT EXISTS virtual_access_code VARCHAR(255)" in sql
+    assert "ADD COLUMN IF NOT EXISTS virtual_link_status VARCHAR(32) DEFAULT 'not_applicable' NOT NULL" in sql
+    assert "ADD COLUMN IF NOT EXISTS virtual_link_sent_at TIMESTAMPTZ" in sql
+    assert "008_virtual_appointment_links" in sql
+
+
+def test_virtual_link_columns_migration_rejects_invalid_schema_name() -> None:
+    with pytest.raises(ValueError):
+        apply_virtual_link_columns_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]

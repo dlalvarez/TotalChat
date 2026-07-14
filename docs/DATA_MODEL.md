@@ -1340,3 +1340,9 @@ Valores de `bookings.payment_status` usados por la revisión manual: `pending` p
 - `inactive`
 
 Crear desde consola usa `created_from_channel = admin` y `profile_status = minimal`. La inactivación es lógica (`inactive`) y no modifica citas históricas, perfiles de pagador ni contactos existentes. La reactivación se realiza actualizando `profile_status` a un estado permitido no inactivo; el MVP usa `minimal` cuando no hay criterio adicional documentado.
+
+## Citas virtuales MVP y modalidad por sede
+
+Para citas administrativas, la sede define la modalidad: `locations.is_virtual = true` implica `bookings.modality = virtual`, y `locations.is_virtual = false` implica `bookings.modality = in_person`. No hay selector libre de modalidad en la experiencia admin.
+
+Los datos de link virtual manual permanecen en `bookings` mediante columnas como `virtual_meeting_url`, `virtual_meeting_id`, `virtual_access_code`, `virtual_link_status`, `virtual_link_created_mode`, `virtual_link_provider` y `virtual_link_sent_at`. En el MVP, `virtual_meeting_url` es el dato mínimo para considerar el link creado o enviado; `virtual_meeting_id` y `virtual_access_code` son auxiliares. No se crea `booking_virtual_details` en este MVP.
