@@ -67,3 +67,11 @@ Endpoints funcionales: `GET /api/admin/payments`, `GET /api/admin/payments/{paym
 ### Ajustes UX PR #44 — Registro manual administrativo
 
 La UI de Pagos puede crear intentos manuales `transfer` reutilizando `POST /api/admin/payment-attempts` y puede registrar referencia/notas de comprobante reutilizando `POST /api/admin/payment-attempts/{payment_attempt_id}/evidence`. Esta acción no aprueba pagos, no cambia `bookings.status`, no libera cupos y no crea un segundo camino de revisión; la decisión final permanece en `PaymentReviewService`.
+
+## Fase 6B.12 — Pacientes administrativos base
+
+Endpoints funcionales: `GET /api/admin/patients`, `GET /api/admin/patients/{patient_id}`, `POST /api/admin/patients`, `PATCH /api/admin/patients/{patient_id}` y `POST /api/admin/patients/{patient_id}/disable`.
+
+`GET /api/admin/patients` incluye pacientes activos e inactivos para trazabilidad y acepta filtros opcionales `q` por nombre/documento/teléfono/email y `profile_status`. `POST` requiere `full_name`, rechaza campos extra y `schema_name`, asigna `created_from_channel = admin` y `profile_status = minimal`; `document_type`, si se informa, se normaliza a mayúsculas y debe pertenecer al catálogo Colombia/MVP `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`. `PATCH` permite editar datos administrativos básicos y `profile_status`, validado contra `minimal`, `incomplete`, `complete`, `verified` e `inactive`; `document_type` puede ser `null` o un valor del mismo catálogo, y la reactivación MVP usa `profile_status = minimal`. `disable` inactiva lógicamente con `profile_status = inactive` y no borra citas, perfiles, contactos ni otros datos.
+
+Las respuestas no exponen `schema_name` ni información interna del tenant.

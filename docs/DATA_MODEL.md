@@ -1328,3 +1328,15 @@ La pantalla administrativa de pagos reutiliza las tablas tenant-scoped existente
 Estados operativos esperados para `payment_attempts.status` en esta fase: `pending`, `evidence_required`, `evidence_received`, `under_review`, `approved`, `rejected`, `expired`, `cancelled` y `simulated_approved`.
 
 Valores de `bookings.payment_status` usados por la revisión manual: `pending` para pagos no resueltos, `paid` cuando `PaymentReviewService` aprueba un intento `transfer` con evidencia recibida y `rejected` cuando lo rechaza. Esta fase no agrega expiración automática, reembolsos, conciliación bancaria ni pasarelas reales.
+
+## Pacientes administrativos — Fase 6B.12
+
+`patients` conserva datos administrativos mínimos del paciente por schema tenant. En Fase 6B.12 `document_type` no es texto libre: usa catálogo controlado Colombia/MVP con valores `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`; no se valida edad, nacionalidad, longitud/formato del número ni fuentes externas. Los estados válidos de `profile_status` para la consola son:
+
+- `minimal`
+- `incomplete`
+- `complete`
+- `verified`
+- `inactive`
+
+Crear desde consola usa `created_from_channel = admin` y `profile_status = minimal`. La inactivación es lógica (`inactive`) y no modifica citas históricas, perfiles de pagador ni contactos existentes. La reactivación se realiza actualizando `profile_status` a un estado permitido no inactivo; el MVP usa `minimal` cuando no hay criterio adicional documentado.

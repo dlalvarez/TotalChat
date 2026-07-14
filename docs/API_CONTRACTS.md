@@ -585,11 +585,12 @@ Request mínimo:
   "full_name": "Juan Pérez",
   "phone": "+573001112233",
   "email": null,
-  "document_type": null,
-  "document_number": null,
-  "created_from_channel": "admin"
+  "document_type": "CC",
+  "document_number": "123456789"
 }
 ```
+
+`document_type` es opcional y puede ser `null`. Si se informa, debe pertenecer al catálogo controlado Colombia/MVP: `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`.
 
 Response:
 
@@ -606,7 +607,11 @@ Response:
 Reglas:
 
 - Paciente previo no es requisito para cita.
-- Si faltan datos no críticos, `profile_status` puede ser `minimal` o `incomplete`.
+- `full_name` es obligatorio; `phone`, `email`, `document_type` y `document_number` son opcionales.
+- `created_from_channel` no se envía desde frontend ni clientes API; el backend lo asigna internamente como `admin`.
+- El endpoint rechaza campos extra, incluido `schema_name`.
+- Al crear desde consola, `profile_status` queda en `minimal` en Fase 6B.12.
+- No se validan edad, nacionalidad, longitud/formato documental ni fuentes externas.
 
 ### 12.2. POST `/api/admin/patients/{patient_id}/payer-profiles`
 
@@ -1376,3 +1381,15 @@ Endpoints funcionales de consola: `GET /api/admin/payments`, `GET /api/admin/pay
 El listado acepta filtros por `organization_id`, `status`, `method`, `date_from`, `date_to`, `patient`, `booking_id` y `practitioner_id`. Las respuestas incluyen nombres legibles de paciente, profesional, servicio, organización, sede y consultorio cuando existen; no exponen `schema_name`.
 
 La aprobación/rechazo manual de esta superficie aplica únicamente a intentos `transfer` en estado `evidence_received` y debe ejecutarse mediante `PaymentReviewService`. La aprobación crea `payment_reviews.decision = approved`, actualiza `payment_attempts.status = approved`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status = paid`. El rechazo requiere `reason` o `notes`, crea `payment_reviews.decision = rejected`, actualiza `payment_attempts.status = rejected`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status = rejected`. Ninguna acción confirma, cancela o libera automáticamente la cita.
+
+## Pacientes administrativos — Fase 6B.12
+
+Endpoints tenant-scoped bajo `/api/admin`:
+
+- `GET /patients`: lista pacientes activos e inactivos. Filtros opcionales: `q` por nombre/documento/teléfono/email y `profile_status`.
+- `GET /patients/{patient_id}`: devuelve detalle básico o `404` si no existe.
+- `POST /patients`: crea paciente con `full_name` obligatorio y campos opcionales `phone`, `email`, `document_type`, `document_number`. Rechaza campos extra y `schema_name`; asigna `created_from_channel = admin` y `profile_status = minimal`. `document_type`, si se informa, se normaliza a mayúsculas y debe pertenecer al catálogo Colombia/MVP `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`.
+- `PATCH /patients/{patient_id}`: edita datos administrativos básicos y `profile_status`; valida estados `minimal`, `incomplete`, `complete`, `verified`, `inactive`. `document_type` puede ser `null` o un valor del catálogo Colombia/MVP `RC`, `TI`, `CC`, `PAS`, `CE`, `RE`, `PPT`, `SC`, `DNI`, `NIT`, `OTHER`.
+- `POST /patients/{patient_id}/disable`: inactiva lógicamente con `profile_status = inactive`; es idempotente y no elimina relaciones ni citas.
+
+La serialización de paciente incluye `id`, datos administrativos básicos, `profile_status`, `created_from_channel`, `created_at` y `updated_at`. No incluye `schema_name` ni información interna del tenant.

@@ -23,6 +23,9 @@
   - Reglas recurrentes de atención.
   - Bloqueos e indisponibilidad administrativos.
 - [x] Pantalla citas.
-- [ ] Pantalla pagos.
-  - Implementación base agregada en PR #44; pendiente cierre definitivo cuando puedan ejecutarse pruebas backend/frontend completas en entorno con dependencias disponibles.
+- [x] Pantalla pacientes.
+  - Gestiona pacientes administrativos básicos: listar, detalle, crear, editar, inactivar y reactivar sin borrado físico.
+  - No incluye historia clínica, datos clínicos, fusión/deduplicación avanzada, contactos múltiples ni perfiles de pagador automáticos.
+- [x] Pantalla pagos.
+  - Implementación base cerrada y validada post-merge en PR #44.
 - [ ] Pantalla links virtuales.
