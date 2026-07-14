@@ -186,7 +186,11 @@ export const AVAILABILITY_EXCEPTION_TYPE_OPTIONS = [
   { value: 'other', label: 'Otro' },
 ] as const;
 
-export type Patient = { id: string; full_name: string; document_type: string | null; document_number: string | null; email: string | null; phone: string | null; status: string };
+export type PatientProfileStatus = 'minimal' | 'incomplete' | 'complete' | 'verified' | 'inactive';
+export type Patient = { id: string; full_name: string; document_type: string | null; document_number: string | null; email: string | null; phone: string | null; profile_status: PatientProfileStatus; status: PatientProfileStatus; created_from_channel: string | null; created_at: string | null; updated_at: string | null };
+export type CreatePatientPayload = { full_name: string; document_type?: string | null; document_number?: string | null; email?: string | null; phone?: string | null };
+export type UpdatePatientPayload = Partial<CreatePatientPayload> & { profile_status?: PatientProfileStatus };
+export type PatientFilters = { q?: string; profile_status?: PatientProfileStatus };
 export type Appointment = { id: string; organization_id: string; organization_name: string | null; location_id: string | null; location_name: string | null; room_id: string | null; room_name: string | null; practitioner_id: string; practitioner_name: string | null; practitioner_service_id: string; practitioner_service_name: string | null; patient_id: string; patient_name: string | null; starts_at: string; ends_at: string; status: string; status_label: string; notes: string | null; created_at: string | null; updated_at: string | null };
 export type CreateAppointmentPayload = { organization_id: string; location_id: string; room_id?: string | null; practitioner_id: string; practitioner_service_id: string; patient_id: string; starts_at: string; ends_at: string; notes?: string | null };
 export type PatchAppointmentPayload = { starts_at?: string; ends_at?: string; room_id?: string | null; notes?: string | null };
@@ -223,10 +227,17 @@ export type UpsertPractitionerPayload = {
 };
 export type CreatePractitionerPayload = Required<Pick<UpsertPractitionerPayload, 'full_name'>> & Omit<UpsertPractitionerPayload, 'full_name' | 'status'>;
 
-const appointmentQuery = (filters: AppointmentFilters = {}) => { const params = new URLSearchParams(); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); const query = params.toString(); return `/api/admin/appointments${query ? `?${query}` : ''}`; };
+const buildQuery = (basePath: string, filters: Record<string, string | undefined> = {}) => { const params = new URLSearchParams(); Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); }); const query = params.toString(); return `${basePath}${query ? `?${query}` : ''}`; };
+const appointmentQuery = (filters: AppointmentFilters = {}) => buildQuery('/api/admin/appointments', filters);
+const patientQuery = (filters: PatientFilters = {}) => buildQuery('/api/admin/patients', filters);
 
 export const adminResourcesApi = {
-  listPatients: (tenantId: string) => apiRequest<Patient[]>('/api/admin/patients', { tenantId }),
+  listPatients: (tenantId: string, filters: PatientFilters = {}) => apiRequest<Patient[]>(patientQuery(filters), { tenantId }),
+  getPatient: (tenantId: string, patientId: string) => apiRequest<Patient>(`/api/admin/patients/${patientId}`, { tenantId }),
+  createPatient: (tenantId: string, payload: CreatePatientPayload) => apiRequest<Patient>('/api/admin/patients', { tenantId, method: 'POST', body: JSON.stringify(payload) }),
+  updatePatient: (tenantId: string, patientId: string, payload: UpdatePatientPayload) => apiRequest<Patient>(`/api/admin/patients/${patientId}`, { tenantId, method: 'PATCH', body: JSON.stringify(payload) }),
+  disablePatient: (tenantId: string, patientId: string) => apiRequest<Patient>(`/api/admin/patients/${patientId}/disable`, { tenantId, method: 'POST', body: JSON.stringify({}) }),
+  reactivatePatient: (tenantId: string, patientId: string) => adminResourcesApi.updatePatient(tenantId, patientId, { profile_status: 'minimal' }),
   listAppointments: (tenantId: string, filters: AppointmentFilters = {}) => apiRequest<Appointment[]>(appointmentQuery(filters), { tenantId }),
   getAppointment: (tenantId: string, appointmentId: string) => apiRequest<Appointment>(`/api/admin/appointments/${appointmentId}`, { tenantId }),
   createAppointment: (tenantId: string, payload: CreateAppointmentPayload) => apiRequest<Appointment>('/api/admin/appointments', { tenantId, method: 'POST', body: JSON.stringify(payload) }),

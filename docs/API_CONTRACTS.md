@@ -1376,3 +1376,15 @@ Endpoints funcionales de consola: `GET /api/admin/payments`, `GET /api/admin/pay
 El listado acepta filtros por `organization_id`, `status`, `method`, `date_from`, `date_to`, `patient`, `booking_id` y `practitioner_id`. Las respuestas incluyen nombres legibles de paciente, profesional, servicio, organización, sede y consultorio cuando existen; no exponen `schema_name`.
 
 La aprobación/rechazo manual de esta superficie aplica únicamente a intentos `transfer` en estado `evidence_received` y debe ejecutarse mediante `PaymentReviewService`. La aprobación crea `payment_reviews.decision = approved`, actualiza `payment_attempts.status = approved`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status = paid`. El rechazo requiere `reason` o `notes`, crea `payment_reviews.decision = rejected`, actualiza `payment_attempts.status = rejected`, `payment_attempts.reviewed_at`, `payment_attempts.reviewed_by_user_id` cuando exista y `bookings.payment_status = rejected`. Ninguna acción confirma, cancela o libera automáticamente la cita.
+
+## Pacientes administrativos — Fase 6B.12
+
+Endpoints tenant-scoped bajo `/api/admin`:
+
+- `GET /patients`: lista pacientes activos e inactivos. Filtros opcionales: `q` por nombre/documento/teléfono/email y `profile_status`.
+- `GET /patients/{patient_id}`: devuelve detalle básico o `404` si no existe.
+- `POST /patients`: crea paciente con `full_name` obligatorio y campos opcionales `phone`, `email`, `document_type`, `document_number`. Rechaza campos extra y `schema_name`; asigna `created_from_channel = admin` y `profile_status = minimal`.
+- `PATCH /patients/{patient_id}`: edita datos administrativos básicos y `profile_status`; valida estados `minimal`, `incomplete`, `complete`, `verified`, `inactive`.
+- `POST /patients/{patient_id}/disable`: inactiva lógicamente con `profile_status = inactive`; es idempotente y no elimina relaciones ni citas.
+
+La serialización de paciente incluye `id`, datos administrativos básicos, `profile_status`, `created_from_channel`, `created_at` y `updated_at`. No incluye `schema_name` ni información interna del tenant.

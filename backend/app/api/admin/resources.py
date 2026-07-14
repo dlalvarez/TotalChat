@@ -42,6 +42,7 @@ router = APIRouter(tags=["admin-resources"])
 ROOM_TYPES = {"consulta_general", "procedimientos", "terapia", "diagnostico", "virtual", "otro"}
 ORGANIZATION_PRACTITIONER_ROLES = {"primary", "member", "external"}
 RELATION_STATUSES = {"active", "inactive"}
+PATIENT_PROFILE_STATUSES = {"minimal", "incomplete", "complete", "verified", "inactive"}
 
 
 def _normalize_name(value: str) -> str:
@@ -639,11 +640,51 @@ class ReviewPaymentAttemptRequest(BaseModel):
 class CreatePatientRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    full_name: str
+    full_name: str = Field(min_length=1)
     document_type: str | None = None
     document_number: str | None = None
     email: str | None = None
     phone: str | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def normalize_full_name(cls, value: str) -> str:
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("full_name is required")
+        return normalized
+
+
+class PatchPatientRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str | None = None
+    document_type: str | None = None
+    document_number: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    profile_status: str | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def normalize_full_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = _normalize_name(value)
+        if not normalized:
+            raise ValueError("full_name is required")
+        return normalized
+
+    @field_validator("profile_status")
+    @classmethod
+    def validate_profile_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in PATIENT_PROFILE_STATUSES:
+            raise ValueError("profile_status must be one of minimal, incomplete, complete, verified, inactive")
+        return value
+
+
+class DisablePatientRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class CreatePatientPayerProfileRequest(BaseModel):
@@ -802,7 +843,11 @@ def serialize_patient(patient: Patient) -> dict[str, object]:
         "document_number": patient.document_number,
         "email": patient.email,
         "phone": patient.phone,
+        "profile_status": patient.profile_status,
         "status": patient.profile_status,
+        "created_from_channel": patient.created_from_channel,
+        "created_at": patient.created_at.isoformat() if patient.created_at is not None else None,
+        "updated_at": patient.updated_at.isoformat() if patient.updated_at is not None else None,
     }
 
 
@@ -932,10 +977,39 @@ def serialize_practitioner_specialty(association: PractitionerSpecialty) -> dict
 
 
 @router.get("/patients")
-def list_patients(tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, list[dict[str, object]]]:
+def list_patients(
+    q: str | None = None,
+    profile_status: str | None = None,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, list[dict[str, object]]]:
     _ = tenant_context
-    rows = session.scalars(select(Patient).order_by(Patient.full_name, Patient.id)).all()
+    if profile_status is not None and profile_status not in PATIENT_PROFILE_STATUSES:
+        raise DomainValidationError("profile_status must be one of minimal, incomplete, complete, verified, inactive.")
+    query = select(Patient)
+    if profile_status is not None:
+        query = query.where(Patient.profile_status == profile_status)
+    if q:
+        term = f"%{q.strip().lower()}%"
+        query = query.where(
+            or_(
+                func.lower(Patient.full_name).like(term),
+                func.lower(Patient.document_number).like(term),
+                func.lower(Patient.phone).like(term),
+                func.lower(Patient.email).like(term),
+            )
+        )
+    rows = session.scalars(query.order_by(Patient.full_name, Patient.id)).all()
     return {"data": [serialize_patient(row) for row in rows]}
+
+
+@router.get("/patients/{patient_id}")
+def get_patient(patient_id: UUID, tenant_context: TenantContext = Depends(get_admin_tenant_context), session: Session = Depends(get_db_session)) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    patient = session.get(Patient, patient_id)
+    if patient is None:
+        raise ResourceNotFound("Patient not found.")
+    return {"data": serialize_patient(patient)}
 
 
 @router.post("/patients")
@@ -945,9 +1019,55 @@ def create_patient(
     session: Session = Depends(get_db_session),
 ) -> dict[str, dict[str, object]]:
     _ = tenant_context
-    patient = Patient(**payload.model_dump())
+    patient = Patient(**payload.model_dump(), profile_status="minimal", created_from_channel="admin")
     try:
         session.add(patient)
+        session.flush()
+        session.refresh(patient)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_patient(patient)}
+
+
+@router.patch("/patients/{patient_id}")
+def patch_patient(
+    patient_id: UUID,
+    payload: PatchPatientRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = tenant_context
+    patient = session.get(Patient, patient_id)
+    if patient is None:
+        raise ResourceNotFound("Patient not found.")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(patient, field, value)
+    try:
+        session.flush()
+        session.refresh(patient)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return {"data": serialize_patient(patient)}
+
+
+@router.post("/patients/{patient_id}/disable")
+def disable_patient(
+    patient_id: UUID,
+    payload: DisablePatientRequest,
+    tenant_context: TenantContext = Depends(get_admin_tenant_context),
+    session: Session = Depends(get_db_session),
+) -> dict[str, dict[str, object]]:
+    _ = payload
+    _ = tenant_context
+    patient = session.get(Patient, patient_id)
+    if patient is None:
+        raise ResourceNotFound("Patient not found.")
+    patient.profile_status = "inactive"
+    try:
         session.flush()
         session.refresh(patient)
         session.commit()

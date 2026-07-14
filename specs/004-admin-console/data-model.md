@@ -56,3 +56,9 @@ Estados de `bookings.payment_status` usados por esta fase: `pending`, `paid` y `
 ### Ajustes UX PR #44 — Vencidos y revisión tardía
 
 `expired` se usa en la UI como intento vencido por falta de evidencia y no es aprobable directamente. Un intento `transfer` en `evidence_received` permanece revisable aunque haya demora administrativa; no se agrega migración ni estado nuevo para revisión tardía en esta fase.
+
+## Fase 6B.12 — Pacientes administrativos base
+
+La consola administra `patients` existente sin crear tablas clínicas ni duplicar perfiles. Los campos operativos de esta fase son `full_name`, `phone`, `email`, `document_type`, `document_number`, `profile_status`, `created_from_channel`, `created_at` y `updated_at`.
+
+Estados válidos de `profile_status`: `minimal`, `incomplete`, `complete`, `verified`, `inactive`. Crear desde admin establece `minimal`; inactivar establece `inactive`; reactivar vuelve a un estado permitido no inactivo, preferentemente `minimal` en el MVP. No hay borrado físico ni cambios sobre citas históricas.

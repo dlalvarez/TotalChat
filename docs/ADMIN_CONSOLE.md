@@ -460,3 +460,17 @@ Las acciones disponibles son aprobar o rechazar únicamente intentos `transfer` 
 La pantalla Pagos prioriza el resumen operativo antes de filtros para que el administrador vea primero volumen total, pendientes de revisión, aprobados, rechazados y vencidos sin evidencia. El estado `expired` se presenta como vencido por falta de evidencia y no es aprobable directamente. Los intentos `transfer` con `evidence_received` siguen siendo revisables aunque la revisión administrativa se demore.
 
 La consola puede registrar un intento manual tipo `transfer` desde una cita existente usando un selector legible de cita/paciente/profesional/fecha/servicio. Si el administrador registra referencia o notas de evidencia, se reutiliza el endpoint existente de evidencia para dejar el intento en `evidence_received`; la aprobación/rechazo posterior continúa pasando por `PaymentReviewService`.
+
+## Fase 6B.12 — Pacientes administrativos base
+
+La consola incluye una pantalla administrativa de Pacientes ubicada antes de Citas en la navegación operativa. Permite listar, crear, consultar, editar, inactivar y reactivar pacientes del tenant actual.
+
+Alcance explícito de esta fase:
+
+- Datos administrativos básicos: nombre completo, tipo/número de documento, teléfono, email y estado de perfil.
+- Creación desde consola con `created_from_channel = admin` y `profile_status = minimal`.
+- Inactivación lógica mediante `profile_status = inactive`; no existe borrado físico.
+- Reactivación mediante actualización de `profile_status` a un estado permitido no inactivo, usando `minimal` como criterio MVP.
+- Pacientes inactivos permanecen visibles para trazabilidad y para preservar citas históricas.
+
+Exclusiones preservadas: historia clínica, datos clínicos, consentimientos, adjuntos, diagnósticos, fusión/deduplicación avanzada, validación externa de documentos, contactos múltiples y creación automática de perfiles de pagador. No se expone `schema_name` ni se piden UUIDs manualmente al admin.

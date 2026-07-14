@@ -15,6 +15,7 @@ const nav = [
   'Pagadores y planes',
   'Precios',
   'Disponibilidad',
+  'Pacientes',
   'Citas',
   'Pagos',
   'Configuración',
@@ -73,7 +74,7 @@ export function AdminLayout({
         </nav>
 
         <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
-          <strong className="text-slate-700">Fase 6B.11:</strong> pagos administrativos base y revisión manual.
+          <strong className="text-slate-700">Fase 6B.12:</strong> pacientes administrativos base.
         </div>
       </aside>
 
