@@ -31,6 +31,11 @@ Recomendado:
 - Roles por tenant.
 
 
+## 4.0. Provisioning operativo de tenants (Fase 6C.1.1)
+
+El alta operativa de tenants antes del login real se realiza mediante `python3 -m app.tenancy.create_tenant`. El comando solo acepta `--name` y `--slug`, genera `schema_name` internamente, valida el schema seguro derivado, escribe en `public.tenants`, crea el schema tenant y aplica migraciones idempotentes. No acepta ni muestra `schema_name`, no crea owner automáticamente, no expone endpoint HTTP, no implementa signup y no reactiva tenants inactivos.
+
+
 ## 4.1. Bootstrap operativo del primer usuario owner (Fase 6C.1)
 
 Antes de habilitar login real, TotalChat permite crear de forma controlada el primer usuario administrativo de un tenant mediante un comando backend interno. Este mecanismo prepara `public.users` y `public.user_tenants`; no crea endpoints públicos, no implementa pantalla de login, no emite JWT y no toca schemas tenant.
