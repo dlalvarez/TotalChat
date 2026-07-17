@@ -593,3 +593,10 @@ Regla:
 ```text
 Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos por vertical.
 ```
+
+
+## 7A.1. Providers IA y documentos semánticos
+
+La Fase 7A.1 agrega una capa backend `app.ai` con abstracciones `LLMProvider` y `EmbeddingsProvider`, más `OpenAIProvider` como proveedor inicial. La configuración se lee desde variables `TOTALCHAT_LLM_PROVIDER`, `TOTALCHAT_LLM_MODEL`, `TOTALCHAT_OPENAI_API_KEY`, `TOTALCHAT_EMBEDDINGS_MODEL` y `TOTALCHAT_EMBEDDING_DIMENSIONS`; la falta de API key falla al usar el proveedor, no al importar módulos.
+
+Los documentos semánticos se almacenan en `semantic_documents` dentro de cada schema tenant. No viven en `public`, no incluyen `schema_name` y toda operación futura de IA debe recibir el tenant ya resuelto por backend antes de consultar embeddings o tools. Esta fase no agrega LangGraph, tools de dominio, endpoints HTTP, canales ni RAG completo.

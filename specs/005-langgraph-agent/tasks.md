@@ -1,9 +1,9 @@
 # Tasks 005 — LangGraph Agent
 
-- [ ] Crear LLMProvider.
-- [ ] Crear OpenAIProvider.
-- [ ] Crear EmbeddingsProvider.
-- [ ] Crear semantic_documents.
+- [x] Crear LLMProvider.
+- [x] Crear OpenAIProvider.
+- [x] Crear EmbeddingsProvider.
+- [x] Crear semantic_documents.
 - [ ] Crear graph state.
 - [ ] Crear booking graph.
 - [ ] Crear tools de servicios.

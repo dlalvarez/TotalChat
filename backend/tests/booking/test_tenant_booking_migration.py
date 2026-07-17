@@ -152,3 +152,28 @@ def test_virtual_link_columns_migration_adds_booking_columns() -> None:
 def test_virtual_link_columns_migration_rejects_invalid_schema_name() -> None:
     with pytest.raises(ValueError):
         apply_virtual_link_columns_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
+
+
+def test_semantic_documents_migration_creates_tenant_scoped_vector_table_only():
+    from app.tenancy.schema import apply_semantic_documents_tenant_migration
+
+    connection = RecordingConnection()
+    apply_semantic_documents_tenant_migration(connection, "tenant_alpha")  # type: ignore[arg-type]
+
+    sql = "\n".join(connection.statements)
+    assert 'CREATE EXTENSION IF NOT EXISTS vector' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".semantic_documents' in sql
+    assert "embedding VECTOR(1536)" in sql
+    assert "metadata JSONB DEFAULT '{}' NOT NULL" in sql
+    assert "schema_name" not in sql
+    assert 'public.semantic_documents' not in sql
+    assert '"public".semantic_documents' not in sql
+    assert "009_semantic_documents" in sql
+    assert "ON CONFLICT (version) DO NOTHING" in sql
+
+
+def test_semantic_documents_migration_rejects_invalid_schema_name():
+    from app.tenancy.schema import apply_semantic_documents_tenant_migration
+
+    with pytest.raises(ValueError):
+        apply_semantic_documents_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]

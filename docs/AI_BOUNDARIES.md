@@ -114,3 +114,10 @@ Se deben registrar:
 - Resultado resumido.
 - Errores.
 - Estado conversacional.
+
+
+## 11. Fase 7A.1 — providers y documentos semánticos
+
+La primera entrega de Fase 7 define providers testeables sin red y `semantic_documents` tenant-scoped. El `OpenAIProvider` solo puede usarse después de configuración explícita y no se invoca en tests. Los embeddings preparan almacenamiento para recuperación futura, pero no autorizan al modelo a inventar precios, disponibilidad, pagos, citas ni políticas.
+
+No se agrega LangGraph, tools, endpoints HTTP ni resolución de tenant por IA en esta fase.

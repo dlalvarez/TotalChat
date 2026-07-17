@@ -578,3 +578,8 @@ Para Fase 6C.2, los tests de autenticación usan un usuario activo con password 
 ## Fase 6D.1 — Dashboard administrativo real
 
 Los tests del dashboard usan un tenant administrativo autenticado con JWT y un contexto tenant-scoped. Los fixtures mínimos incluyen citas `scheduled` de hoy, futuras, virtuales con y sin `virtual_meeting_url`, intentos de pago `transfer` con `status = evidence_received` y evidencia recibida, además de servicios y profesionales activos/inactivos para validar conteos operativos sin exponer `schema_name`.
+
+
+## 7. Fixtures IA Fase 7A.1
+
+Las pruebas de providers deben usar fakes/mocks sin invocar OpenAI real. Un tenant demo puede tener documentos semánticos como políticas administrativas o descripciones de servicios, siempre almacenados en su schema tenant en `semantic_documents` con embeddings de dimensión `TOTALCHAT_EMBEDDING_DIMENSIONS`. Las pruebas deben verificar que `public.semantic_documents` no existe y que `schema_name` no se modela ni serializa.
