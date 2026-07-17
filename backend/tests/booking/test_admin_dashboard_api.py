@@ -133,6 +133,7 @@ def test_endpoint_exige_tenant(dashboard_session):
 def test_dashboard_summary_metrics_lists_and_no_schema_name(dashboard_session, tenant_context, monkeypatch):
     fixed_now = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
     seed = seed_dashboard(dashboard_session, now=fixed_now)
+    expected_evidence_received_at = fixed_now.replace(tzinfo=None).isoformat()
     import app.api.admin.dashboard as dashboard_module
     monkeypatch.setattr(dashboard_module, "_now", lambda: fixed_now)
 
@@ -157,7 +158,7 @@ def test_dashboard_summary_metrics_lists_and_no_schema_name(dashboard_session, t
         "service_name": "Consulta",
         "amount": 100000.0,
         "currency": "COP",
-        "evidence_received_at": fixed_now.isoformat(),
+        "evidence_received_at": expected_evidence_received_at,
     }]
     assert [item["id"] for item in data["virtual_link_alerts"]] == [str(seed["virtual_without_link"].id)]
     assert "schema_name" not in str(data)
