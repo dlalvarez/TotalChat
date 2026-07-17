@@ -570,3 +570,7 @@ worker sends when due
 ## Escenario de cita virtual manual
 
 Una sede `Teleconsulta` con `is_virtual = true` debe crear citas con `bookings.modality = virtual`, `room_id = null` y `virtual_link_status = pending` si aún no hay link. Al guardar una URL manual, el estado pasa a `created`; al marcar enviado, a `sent` con `virtual_link_sent_at`. `virtual_meeting_id` y `virtual_access_code` pueden acompañar la URL, pero sin `virtual_meeting_url` no crean ni envían el link.
+
+### 3.12.3. Login administrativo real
+
+Para Fase 6C.2, los tests de autenticación usan un usuario activo con password bcrypt en `public.users` y vínculo activo en `public.user_tenants` hacia un tenant activo. Los escenarios mínimos son: login exitoso, password incorrecto, usuario inactivo, ausencia de vínculos activos, `/api/auth/me` sin `schema_name`, rutas admin sin token, token inválido/expirado, tenant no asociado y ruta admin válida con token más `X-TotalChat-Tenant-Id`.

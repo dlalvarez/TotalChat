@@ -1,7 +1,9 @@
 # Tasks 004 — Admin Console
 
 - [x] Crear app frontend.
-- [ ] Crear login.
+- [x] Crear login.
+  - Fase 6C.2 implementa login real con `POST /api/auth/login`, `GET /api/auth/me`, JWT access token de 30 minutos usando `TOTALCHAT_JWT_SECRET` y autorización admin por token + `X-TotalChat-Tenant-Id`.
+  - `POST /api/auth/refresh`, gestión UI de usuarios, invitaciones y self-service signup quedan diferidos explícitamente.
 - [x] Crear layout.
 - [ ] Crear dashboard.
 - [x] CRUD organizaciones.

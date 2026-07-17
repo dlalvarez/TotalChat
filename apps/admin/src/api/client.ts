@@ -1,5 +1,3 @@
-import { DEFAULT_DEVELOPMENT_TENANT } from '../config/tenant';
-
 const API_BASE_URL =
   import.meta.env.VITE_TOTALCHAT_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
 
@@ -17,6 +15,9 @@ export class ApiError extends Error {
 
 type ApiOptions = RequestInit & {
   tenantId?: string;
+  accessToken?: string | null;
+  skipAuth?: boolean;
+  skipTenant?: boolean;
 };
 
 type ApiEnvelope<T> = { data: T };
@@ -43,14 +44,17 @@ function getFriendlyErrorMessage(payload: unknown, fallback: string) {
 }
 
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { tenantId = DEFAULT_DEVELOPMENT_TENANT.id, headers, body, ...init } = options;
+  const { tenantId, accessToken, skipAuth = false, skipTenant = false, headers, body, ...init } = options;
+  const storedToken = typeof window !== 'undefined' ? window.localStorage.getItem('totalchat_admin_access_token') : null;
+  const bearerToken = accessToken ?? storedToken;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     body,
     headers: {
       Accept: 'application/json',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
-      'X-TotalChat-Tenant-Id': tenantId,
+      ...(!skipAuth && bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+      ...(!skipTenant && tenantId ? { 'X-TotalChat-Tenant-Id': tenantId } : {}),
       ...headers,
     },
   });

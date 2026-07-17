@@ -156,3 +156,11 @@ Debe considerar:
 - Backup completo.
 - Restauración por tenant.
 - Export por schema.
+
+## 3.1. Fase 6C.2 — JWT administrativo real
+
+La consola admin usa login email/password contra `public.users`. Solo usuarios `active`, con password bcrypt válido, vínculo activo en `public.user_tenants` y tenant activo pueden recibir JWT. El secret obligatorio es `TOTALCHAT_JWT_SECRET`; si no está definido, la emisión o validación del token falla de forma explícita.
+
+El access token dura 30 minutos (`expires_in = 1800`) e incluye únicamente `sub`, `email`, `exp` y tipo `access`. No incluye `schema_name`, password hash ni datos tenant sensibles. Refresh tokens, recuperación de contraseña, OAuth, invitaciones y gestión UI de usuarios quedan fuera de Fase 6C.2.
+
+Todas las rutas `/api/admin/*` requieren `Authorization: Bearer <token>` y `X-TotalChat-Tenant-Id`. El header de tenant solo selecciona entre tenants autorizados; no es fuente de autorización por sí solo.
