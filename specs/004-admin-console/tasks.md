@@ -45,3 +45,13 @@
 - [x] Crear servicio backend interno para bootstrap de usuario admin en `public.users` y `public.user_tenants`.
 - [x] Crear comando CLI `python3 -m app.auth.create_admin_user` con password por prompt seguro o `TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD`.
 - [x] Mantener fuera de alcance login UI, endpoint de login, JWT, refresh tokens, gestión de usuarios e invitaciones.
+
+
+## Fase 6C.1.1 — CLI operativo idempotente de provisioning de tenant
+
+- [x] Crear comando CLI `python3 -m app.tenancy.create_tenant` con argumentos `--name` y `--slug`.
+- [x] Mantener `schema_name` generado internamente desde slug, sin aceptarlo ni mostrarlo en la salida principal.
+- [x] Hacer idempotente la creación de `public.tenants`, schema tenant y migraciones base/booking.
+- [x] Rechazar tenants existentes inactivos sin reactivarlos automáticamente.
+- [x] Documentar el procedimiento operativo `tc-dev-01` y el encadenamiento con `app.auth.create_admin_user`.
+- [x] Mantener fuera de alcance login UI, `/api/auth/login`, JWT, refresh tokens, gestión SaaS de tenants, self-service signup y creación automática de owner.

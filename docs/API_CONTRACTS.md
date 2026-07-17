@@ -196,7 +196,7 @@ Aplicar especialmente a:
 
 ### 3.6. Bootstrap administrativo pre-login
 
-La Fase 6C.1 no agrega contrato HTTP. El bootstrap del primer usuario administrativo se ejecuta solo por CLI backend con `python3 -m app.auth.create_admin_user` y escribe en `public.users` y `public.user_tenants` después de validar `public.tenants`. Sigue pendiente el contrato de login real (`/api/auth/login` o equivalente), emisión de JWT, refresh tokens y protección completa de rutas admin.
+La Fase 6C.1.1 tampoco agrega contrato HTTP: el provisioning de tenants se ejecuta solo por CLI backend con `python3 -m app.tenancy.create_tenant` y escribe en `public.tenants` más el schema PostgreSQL del tenant. La Fase 6C.1 no agrega contrato HTTP. El bootstrap del primer usuario administrativo se ejecuta solo por CLI backend con `python3 -m app.auth.create_admin_user` y escribe en `public.users` y `public.user_tenants` después de validar `public.tenants`. Sigue pendiente el contrato de login real (`/api/auth/login` o equivalente), emisión de JWT, refresh tokens y protección completa de rutas admin.
 
 ## 4. Health y foundation
 

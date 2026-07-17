@@ -118,6 +118,67 @@ readonly
 ```
 
 
+## 4.0. Provisioning operativo de tenants (Fase 6C.1.1)
+
+Antes de crear el primer usuario owner, el tenant debe existir en `public.tenants` y contar con su schema PostgreSQL por tenant. El procedimiento operativo soportado es exclusivamente CLI backend; no existe endpoint HTTP, self-service signup ni pantalla SaaS de gestión de tenants en esta fase.
+
+El comando idempotente es:
+
+```bash
+python3 -m app.tenancy.create_tenant \
+  --name "Clínica Demo" \
+  --slug clinica-demo
+```
+
+Reglas operativas:
+
+- `schema_name` se genera internamente desde el `slug`; el comando no acepta ni muestra `schema_name`.
+- Si el tenant no existe, crea `public.tenants`, crea el schema tenant y aplica migraciones base y de dominio booking.
+- Si el tenant activo ya existe, no duplica registros ni modifica su `schema_name`; verifica/crea el schema faltante y reaplica migraciones idempotentes.
+- Si el tenant existe inactivo, falla con mensaje claro y no lo reactiva automáticamente.
+- La salida segura contiene solo `tenant_id`, `slug`, `status` y `actions`.
+
+Ejemplo operativo para `tc-dev-01`:
+
+```bash
+cd ~/projects/totalchat/backend
+source .venv/bin/activate
+
+POSTGRES_DB="$(grep '^POSTGRES_DB=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_USER="$(grep '^POSTGRES_USER=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_PASSWORD="$(cat ~/docker/totalchat/secrets/postgres_password.txt)"
+
+export TOTALCHAT_DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}"
+
+python3 -m app.tenancy.create_tenant \
+  --name "Clínica Demo" \
+  --slug clinica-demo
+```
+
+Salida esperada:
+
+```text
+Tenant provisioning completed
+tenant_id=<uuid>
+slug=clinica-demo
+status=active
+actions=tenant_created,schema_created,migrations_applied
+```
+
+Después del provisioning del tenant, crear el owner con el bootstrap operativo existente:
+
+```bash
+export TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD="cambiar-en-operacion"
+
+python3 -m app.auth.create_admin_user \
+  --tenant-slug clinica-demo \
+  --email admin@clinica-demo.com \
+  --full-name "Admin Clínica Demo" \
+  --role owner
+
+unset TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD
+```
+
 ## 4.1. Bootstrap operativo del primer usuario owner (Fase 6C.1)
 
 Antes de habilitar login real, TotalChat permite crear de forma controlada el primer usuario administrativo de un tenant mediante un comando backend interno. Este mecanismo prepara `public.users` y `public.user_tenants`; no crea endpoints públicos, no implementa pantalla de login, no emite JWT y no toca schemas tenant.

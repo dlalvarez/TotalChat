@@ -171,7 +171,19 @@ refund_policy_days = 5
 ```
 
 
-### 3.12.1. Usuario administrativo bootstrap
+### 3.12.1. Provisioning operativo de tenant
+
+Para pruebas de Fase 6C.1.1, el tenant `clinica-demo` se crea con:
+
+```bash
+python3 -m app.tenancy.create_tenant \
+  --name "Clínica Demo" \
+  --slug clinica-demo
+```
+
+La ejecución repetida con el mismo slug debe ser idempotente: no duplica `public.tenants`, no cambia el `schema_name` almacenado, verifica o crea el schema faltante y aplica migraciones pendientes de forma segura. La salida no debe exponer `schema_name`.
+
+### 3.12.2. Usuario administrativo bootstrap
 
 Para pruebas de Fase 6C.1 sobre el tenant `clinica` o fixtures equivalentes:
 
