@@ -1404,3 +1404,28 @@ La serialización de paciente incluye `id`, datos administrativos básicos, `pro
 En `POST /api/admin/appointments`, `location_id` es obligatorio y `modality` no forma parte del contrato externo. El backend deriva `bookings.modality` desde `locations.is_virtual` (`virtual` para sedes virtuales, `in_person` para sedes presenciales). Las sedes virtuales rechazan `room_id`; las sedes presenciales rechazan datos de link virtual.
 
 Los links virtuales MVP son manuales y se guardan en columnas de `bookings`, no en tabla separada. Sin `virtual_meeting_url`, una cita virtual responde `virtual_link_status = pending`; `virtual_meeting_id` y `virtual_access_code` son auxiliares y no bastan por sí solos para considerar creado/enviado el link. Con URL manual, el estado es `created`; marcar enviado exige URL, pasa a `sent` y completa `virtual_link_sent_at`; al cancelar con URL existente, pasa a `cancelled`. Las citas presenciales responden `virtual_link_status = not_applicable`.
+
+### 5.3. Fase 6C.2 — Login administrativo real
+
+`POST /api/auth/login` autentica usuarios existentes en `public.users` con password bcrypt y exige usuario activo, al menos un vínculo activo en `public.user_tenants` y tenant activo. La respuesta MVP entrega solo access token JWT bearer por 30 minutos:
+
+```json
+{
+  "data": {
+    "access_token": "jwt",
+    "token_type": "bearer",
+    "expires_in": 1800
+  }
+}
+```
+
+`GET /api/auth/me` requiere `Authorization: Bearer <token>` y devuelve el usuario más tenants disponibles con `tenant_id`, `tenant_name`, `tenant_slug` y `role`. Nunca devuelve `schema_name` ni `password_hash`.
+
+Las rutas `/api/admin/*` requieren ambos headers:
+
+```http
+Authorization: Bearer <token>
+X-TotalChat-Tenant-Id: <tenant_uuid>
+```
+
+El backend valida pertenencia activa del usuario al tenant seleccionado y resuelve internamente el schema tenant para `SET LOCAL search_path`. El frontend no envía ni recibe `schema_name`. `POST /api/auth/refresh` queda diferido para Fase 6C.3 para mantener acotado este PR.

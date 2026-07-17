@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 
 from app.api.admin import router as admin_router
+from app.api.auth import router as auth_router
 from app.api.errors import domain_error_handler, http_error_handler, validation_error_handler
 from app.api.health import router as health_router
 from app.api.internal import router as internal_router
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
 
     app.include_router(health_router)
+    app.include_router(auth_router)
     app.include_router(admin_router)
     app.include_router(internal_router)
 

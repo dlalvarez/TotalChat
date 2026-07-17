@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { PageHeader } from './components/layout/PageHeader';
@@ -20,7 +20,8 @@ import { AvailabilityPage } from './features/availability/AvailabilityPage';
 import { AppointmentsPage } from './features/appointments/AppointmentsPage';
 import { PatientsPage } from './features/patients/PatientsPage';
 import { PaymentsPage } from './features/payments/PaymentsPage';
-import { DEFAULT_DEVELOPMENT_TENANT, DEVELOPMENT_TENANTS } from './config/tenant';
+import { getMe, type AuthUser } from './api/auth';
+import type { AdminTenant } from './config/tenant';
 
 function PlaceholderPage({ name }: { name: string }) {
   return (
@@ -50,17 +51,37 @@ function PlaceholderPage({ name }: { name: string }) {
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [active, setActive] = useState('Dashboard');
-  const [tenant, setTenant] = useState(DEFAULT_DEVELOPMENT_TENANT);
+  const [tenant, setTenant] = useState<AdminTenant | null>(null);
   const queryClient = useMemo(() => new QueryClient(), []);
 
-  if (!authenticated) {
+  useEffect(() => {
+    const token = window.localStorage.getItem('totalchat_admin_access_token');
+    if (!token) return;
+    getMe(token)
+      .then((loadedUser) => {
+        setUser(loadedUser);
+        const firstTenant = loadedUser.tenants[0];
+        if (firstTenant) setTenant({ id: firstTenant.tenant_id, label: firstTenant.tenant_name, role: firstTenant.role });
+      })
+      .catch(() => window.localStorage.removeItem('totalchat_admin_access_token'));
+  }, []);
+
+  function logout() {
+    window.localStorage.removeItem('totalchat_admin_access_token');
+    setUser(null);
+    setTenant(null);
+    setActive('Dashboard');
+  }
+
+  if (!user || !tenant) {
     return (
       <QueryClientProvider client={queryClient}>
-        <LoginPage onLogin={(tenantId) => {
-          setTenant(DEVELOPMENT_TENANTS.find((candidate) => candidate.id === tenantId) ?? DEFAULT_DEVELOPMENT_TENANT);
-          setAuthenticated(true);
+        <LoginPage onLogin={(_token, loadedUser) => {
+          setUser(loadedUser);
+          const firstTenant = loadedUser.tenants[0];
+          if (firstTenant) setTenant({ id: firstTenant.tenant_id, label: firstTenant.tenant_name, role: firstTenant.role });
         }} />
       </QueryClientProvider>
     );
@@ -68,6 +89,17 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <div className="bg-white px-4 py-2 text-right text-sm">
+        {user.tenants.length > 1 ? (
+          <select className="mr-3 rounded-lg border border-slate-200 px-3 py-2" value={tenant.id} onChange={(event) => {
+            const selected = user.tenants.find((item) => item.tenant_id === event.target.value);
+            if (selected) setTenant({ id: selected.tenant_id, label: selected.tenant_name, role: selected.role });
+          }}>
+            {user.tenants.map((item) => <option key={item.tenant_id} value={item.tenant_id}>{item.tenant_name} · {item.role}</option>)}
+          </select>
+        ) : null}
+        <Button variant="secondary" onClick={logout}>Cerrar sesión</Button>
+      </div>
       <AdminLayout active={active} onNavigate={setActive} tenantLabel={tenant.label}>
         {active === 'Dashboard' ? <DashboardPage /> : null}
         {active === 'Organizaciones' ? <OrganizationsPage tenant={tenant} /> : null}

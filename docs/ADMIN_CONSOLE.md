@@ -583,3 +583,20 @@ En Citas, la UI no muestra selector libre de modalidad. La sede seleccionada def
 - Sede presencial: se muestra un área “Cita presencial”, se conserva consultorio y se ocultan campos de link virtual.
 
 El frontend no envía `modality` en creación de citas.
+
+## 4.2. Login administrativo real (Fase 6C.2)
+
+La consola administrativa reemplaza el login placeholder por autenticación real contra el backend:
+
+1. `POST /api/auth/login` con email y contraseña.
+2. Almacena de forma simple el access token JWT para MVP.
+3. `GET /api/auth/me` carga el usuario y tenants autorizados.
+4. Si hay un tenant, lo selecciona automáticamente; si hay varios, muestra un selector por nombre legible.
+5. Las llamadas admin envían:
+
+```http
+Authorization: Bearer <token>
+X-TotalChat-Tenant-Id: <tenant_uuid>
+```
+
+La UI nunca solicita UUIDs manuales ni muestra `schema_name`. El schema tenant se resuelve solo en backend. La creación de tenants y del owner inicial continúa siendo operativa por CLI (`app.tenancy.create_tenant` y `app.auth.create_admin_user`); no hay self-service signup, invitaciones ni gestión UI de usuarios en esta fase.

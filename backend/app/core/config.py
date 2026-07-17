@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     service_name: str = "totalchat-api"
     database_url: str | None = None
     admin_cors_origins: str = 'http://127.0.0.1:5173,http://localhost:5173'
+    jwt_secret: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
