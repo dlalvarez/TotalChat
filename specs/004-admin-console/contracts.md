@@ -83,3 +83,11 @@ Las respuestas no exponen `schema_name` ni información interna del tenant.
 Para sedes virtuales, `room_id` debe ser `null` y la API acepta únicamente datos manuales de link virtual en columnas de `bookings`: `virtual_meeting_url`, `virtual_meeting_id`, `virtual_access_code`, `virtual_link_status`, `virtual_link_created_mode`, `virtual_link_provider` y `virtual_link_sent_at`. El MVP solo permite `virtual_link_provider = manual` y `virtual_link_created_mode = manual`. `virtual_meeting_url` es el dato mínimo para considerar que el link existe: una cita virtual sin URL queda `pending`; guardar una URL manual queda `created`; marcar enviado exige URL, queda `sent` y completa `virtual_link_sent_at`. `virtual_meeting_id` y `virtual_access_code` son auxiliares y no bastan por sí solos para pasar a `created` o `sent`.
 
 Para sedes presenciales, la API rechaza datos de link virtual y devuelve `virtual_link_status = not_applicable`. Al cancelar una cita virtual con link, el estado del link pasa a `cancelled`.
+
+## Fase 6D.1 — Dashboard administrativo real
+
+`GET /api/admin/dashboard/summary` requiere auth admin real y `X-TotalChat-Tenant-Id`. El backend resuelve el tenant con la dependencia admin existente y ejecuta las consultas dentro del contexto tenant-scoped; no acepta ni serializa `schema_name`.
+
+El contrato devuelve métricas operativas mínimas: `appointments_today`, `upcoming_appointments`, `appointments_pending_payment`, `payment_reviews_pending`, `virtual_appointments_without_link`, `active_services` y `active_practitioners`. `appointments_today` cuenta citas del día actual completo; `upcoming_appointments` cuenta solo citas `scheduled` con `starts_at > now`. Además devuelve listas limitadas y legibles para `today_appointments`, `pending_payment_reviews` y `virtual_link_alerts`.
+
+`payment_reviews_pending` cuenta solo intentos `transfer` con `status = evidence_received` y `evidence_received_at` presente. `virtual_appointments_without_link` cuenta solo citas `scheduled` de modalidad `virtual` sin `virtual_meeting_url`. La pantalla frontend consume este contrato con token y tenant activo existentes.

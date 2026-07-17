@@ -574,3 +574,7 @@ Una sede `Teleconsulta` con `is_virtual = true` debe crear citas con `bookings.m
 ### 3.12.3. Login administrativo real
 
 Para Fase 6C.2, los tests de autenticación usan un usuario activo con password bcrypt en `public.users` y vínculo activo en `public.user_tenants` hacia un tenant activo. Los escenarios mínimos son: login exitoso, password incorrecto, usuario inactivo, ausencia de vínculos activos, `/api/auth/me` sin `schema_name`, rutas admin sin token, token inválido/expirado, tenant no asociado y ruta admin válida con token más `X-TotalChat-Tenant-Id`.
+
+## Fase 6D.1 — Dashboard administrativo real
+
+Los tests del dashboard usan un tenant administrativo autenticado con JWT y un contexto tenant-scoped. Los fixtures mínimos incluyen citas `scheduled` de hoy, futuras, virtuales con y sin `virtual_meeting_url`, intentos de pago `transfer` con `status = evidence_received` y evidencia recibida, además de servicios y profesionales activos/inactivos para validar conteos operativos sin exponer `schema_name`.

@@ -600,3 +600,9 @@ X-TotalChat-Tenant-Id: <tenant_uuid>
 ```
 
 La UI nunca solicita UUIDs manuales ni muestra `schema_name`. El schema tenant se resuelve solo en backend. La creación de tenants y del owner inicial continúa siendo operativa por CLI (`app.tenancy.create_tenant` y `app.auth.create_admin_user`); no hay self-service signup, invitaciones ni gestión UI de usuarios en esta fase.
+
+## 5.2.1. Dashboard real tenant-scoped (Fase 6D.1)
+
+La consola reemplaza el dashboard demo de Fase 6A por un dashboard operativo alimentado por `GET /api/admin/dashboard/summary`. La pantalla usa el tenant activo seleccionado en la sesión administrativa y muestra métricas reales de citas, pagos pendientes de revisión, citas virtuales sin link, servicios activos y profesionales activos.
+
+La UI presenta agenda de hoy, pagos pendientes de revisión y alertas de links virtuales con nombres legibles. No solicita UUIDs al usuario, no muestra `schema_name` y no incorpora recordatorios, confirmación de asistencia, canales, campañas ni pasarelas reales fuera de la fase vigente.

@@ -41,6 +41,7 @@ class Location(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
     organization: Mapped[Organization] = relationship(back_populates="locations")
     rooms: Mapped[list["Room"]] = relationship(back_populates="location")
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="location")
 
 
 class Room(TimestampMixin, Base):
@@ -66,6 +67,7 @@ class Practitioner(TimestampMixin, Base):
     specialties: Mapped[list["PractitionerSpecialty"]] = relationship(back_populates="practitioner")
     organizations: Mapped[list["OrganizationPractitioner"]] = relationship(back_populates="practitioner")
     services: Mapped[list["PractitionerService"]] = relationship(back_populates="practitioner")
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="practitioner")
 
 
 class OrganizationPractitioner(TimestampMixin, Base):
@@ -117,6 +119,7 @@ class PractitionerService(TimestampMixin, Base):
     organization: Mapped[Organization] = relationship(back_populates="practitioner_services")
     practitioner: Mapped[Practitioner] = relationship(back_populates="services")
     prices: Mapped[list["PractitionerServicePrice"]] = relationship(back_populates="practitioner_service")
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="practitioner_service")
 
 
 class ServiceModality(Base):
@@ -189,6 +192,7 @@ class Patient(TimestampMixin, Base):
     created_from_channel: Mapped[str | None] = mapped_column(String(50))
     contacts: Mapped[list["PatientContact"]] = relationship(back_populates="patient")
     payer_profiles: Mapped[list["PatientPayerProfile"]] = relationship(back_populates="patient")
+    bookings: Mapped[list["Booking"]] = relationship(back_populates="patient")
 
 
 class PatientPayerProfile(Base):
@@ -293,6 +297,10 @@ class Booking(TimestampMixin, Base):
     virtual_link_provider: Mapped[str | None] = mapped_column(String(32))
     virtual_link_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     organization: Mapped[Organization] = relationship(back_populates="bookings")
+    patient: Mapped[Patient] = relationship(back_populates="bookings")
+    practitioner: Mapped[Practitioner] = relationship(back_populates="bookings")
+    practitioner_service: Mapped[PractitionerService] = relationship(back_populates="bookings")
+    location: Mapped[Location | None] = relationship(back_populates="bookings")
     payment_attempts: Mapped[list["PaymentAttempt"]] = relationship(back_populates="booking")
 
 

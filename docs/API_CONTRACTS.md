@@ -1429,3 +1429,32 @@ X-TotalChat-Tenant-Id: <tenant_uuid>
 ```
 
 El backend valida pertenencia activa del usuario al tenant seleccionado y resuelve internamente el schema tenant para `SET LOCAL search_path`. El frontend no envía ni recibe `schema_name`. `POST /api/auth/refresh` queda diferido para Fase 6C.3 para mantener acotado este PR.
+
+### 5.3.1. Fase 6D.1 — Dashboard administrativo real
+
+`GET /api/admin/dashboard/summary` devuelve un resumen operativo real del tenant seleccionado. Requiere `Authorization: Bearer <token>` y `X-TotalChat-Tenant-Id`; el backend valida pertenencia activa del usuario al tenant y usa el contexto tenant-scoped existente. La ruta no acepta ni devuelve `schema_name`.
+
+Respuesta:
+
+```json
+{
+  "data": {
+    "metrics": {
+      "appointments_today": 0,
+      "upcoming_appointments": 0,
+      "appointments_pending_payment": 0,
+      "payment_reviews_pending": 0,
+      "virtual_appointments_without_link": 0,
+      "active_services": 0,
+      "active_practitioners": 0
+    },
+    "today_appointments": [],
+    "pending_payment_reviews": [],
+    "virtual_link_alerts": []
+  }
+}
+```
+
+`appointments_today` cuenta citas del día actual completo. `upcoming_appointments` cuenta únicamente citas `scheduled` futuras con `starts_at > now`; no incluye citas pasadas del mismo día.
+
+Las listas usan nombres legibles de paciente, profesional, servicio y sede. Los UUIDs viajan solo como identificadores internos para navegación o keys del frontend, no como experiencia principal administrativa. No incluye recordatorios, confirmación de asistencia, Telegram, LangGraph, Wompi, WhatsApp, campañas ni configuración de bot.
