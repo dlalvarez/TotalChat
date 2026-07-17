@@ -170,6 +170,20 @@ auto_expire_if_review_overdue = false
 refund_policy_days = 5
 ```
 
+
+### 3.12.1. Usuario administrativo bootstrap
+
+Para pruebas de Fase 6C.1 sobre el tenant `clinica` o fixtures equivalentes:
+
+```text
+email = admin@clinica.com
+full_name = Admin Clínica
+role = owner
+password = provista por prompt seguro o TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD
+```
+
+El password debe almacenarse hasheado con bcrypt en `public.users.password_hash`; el valor plano nunca debe quedar en base de datos, logs ni salida del comando.
+
 ### 3.13. Confirmación de asistencia
 
 ```text

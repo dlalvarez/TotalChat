@@ -38,3 +38,10 @@
 - [x] Mantener datos de link virtual manual como columnas de `bookings`.
 - [x] Mostrar UI diferenciada para cita virtual/presencial según sede.
 - [x] Rechazar consultorio en sedes virtuales y datos virtuales en sedes presenciales.
+
+
+## Fase 6C.1 — Bootstrap de usuario owner administrativo
+
+- [x] Crear servicio backend interno para bootstrap de usuario admin en `public.users` y `public.user_tenants`.
+- [x] Crear comando CLI `python3 -m app.auth.create_admin_user` con password por prompt seguro o `TOTALCHAT_BOOTSTRAP_ADMIN_PASSWORD`.
+- [x] Mantener fuera de alcance login UI, endpoint de login, JWT, refresh tokens, gestión de usuarios e invitaciones.

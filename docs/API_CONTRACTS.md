@@ -193,6 +193,11 @@ Aplicar especialmente a:
 - eventos externos;
 - webhooks.
 
+
+### 3.6. Bootstrap administrativo pre-login
+
+La Fase 6C.1 no agrega contrato HTTP. El bootstrap del primer usuario administrativo se ejecuta solo por CLI backend con `python3 -m app.auth.create_admin_user` y escribe en `public.users` y `public.user_tenants` después de validar `public.tenants`. Sigue pendiente el contrato de login real (`/api/auth/login` o equivalente), emisión de JWT, refresh tokens y protección completa de rutas admin.
+
 ## 4. Health y foundation
 
 ### 4.1. GET `/health`
