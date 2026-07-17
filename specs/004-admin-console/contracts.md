@@ -88,6 +88,6 @@ Para sedes presenciales, la API rechaza datos de link virtual y devuelve `virtua
 
 `GET /api/admin/dashboard/summary` requiere auth admin real y `X-TotalChat-Tenant-Id`. El backend resuelve el tenant con la dependencia admin existente y ejecuta las consultas dentro del contexto tenant-scoped; no acepta ni serializa `schema_name`.
 
-El contrato devuelve métricas operativas mínimas: `appointments_today`, `upcoming_appointments`, `appointments_pending_payment`, `payment_reviews_pending`, `virtual_appointments_without_link`, `active_services` y `active_practitioners`. Además devuelve listas limitadas y legibles para `today_appointments`, `pending_payment_reviews` y `virtual_link_alerts`.
+El contrato devuelve métricas operativas mínimas: `appointments_today`, `upcoming_appointments`, `appointments_pending_payment`, `payment_reviews_pending`, `virtual_appointments_without_link`, `active_services` y `active_practitioners`. `appointments_today` cuenta citas del día actual completo; `upcoming_appointments` cuenta solo citas `scheduled` con `starts_at > now`. Además devuelve listas limitadas y legibles para `today_appointments`, `pending_payment_reviews` y `virtual_link_alerts`.
 
 `payment_reviews_pending` cuenta solo intentos `transfer` con `status = evidence_received` y `evidence_received_at` presente. `virtual_appointments_without_link` cuenta solo citas `scheduled` de modalidad `virtual` sin `virtual_meeting_url`. La pantalla frontend consume este contrato con token y tenant activo existentes.

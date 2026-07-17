@@ -141,7 +141,7 @@ def test_dashboard_summary_metrics_lists_and_no_schema_name(dashboard_session, t
     data = response.json()["data"]
     assert data["metrics"] == {
         "appointments_today": 2,
-        "upcoming_appointments": 5,
+        "upcoming_appointments": 4,
         "appointments_pending_payment": 5,
         "payment_reviews_pending": 1,
         "virtual_appointments_without_link": 1,

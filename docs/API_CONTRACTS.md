@@ -1455,4 +1455,6 @@ Respuesta:
 }
 ```
 
+`appointments_today` cuenta citas del día actual completo. `upcoming_appointments` cuenta únicamente citas `scheduled` futuras con `starts_at > now`; no incluye citas pasadas del mismo día.
+
 Las listas usan nombres legibles de paciente, profesional, servicio y sede. Los UUIDs viajan solo como identificadores internos para navegación o keys del frontend, no como experiencia principal administrativa. No incluye recordatorios, confirmación de asistencia, Telegram, LangGraph, Wompi, WhatsApp, campañas ni configuración de bot.
