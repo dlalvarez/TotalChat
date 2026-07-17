@@ -1,94 +1,91 @@
+import { useQuery } from '@tanstack/react-query';
 import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
 import { DataTableShell } from '../../components/ui/DataTable';
-import { EmptyState } from '../../components/ui/States';
-import { FieldWrapper, SearchInput, SearchableSelectPlaceholder, Select } from '../../components/ui/Form';
+import { EmptyState, ErrorState, LoadingState } from '../../components/ui/States';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { Card, SectionCard } from '../../components/ui/Card';
+import { adminDashboardApi, type DashboardSummary } from '../../api/adminResources';
+import type { AdminTenant } from '../../config/tenant';
+import { formatDateTime } from '../payments/paymentUtils';
 
-const metrics = [
-  ['Citas de hoy', '18', 'info'],
-  ['Citas pendientes de pago', '7', 'warning'],
-  ['Pagos pendientes de revisión', '4', 'warning'],
-  ['Revisiones vencidas', '2', 'warning'],
-  ['Citas sin confirmación', '9', 'neutral'],
-  ['Profesionales activos', '12', 'success'],
-  ['Servicios activos', '34', 'success'],
-] as const;
+const metricCards: Array<[keyof DashboardSummary['metrics'], string, string, 'info' | 'warning' | 'success' | 'neutral']> = [
+  ['appointments_today', 'Citas de hoy', 'Agenda del día actual', 'info'],
+  ['upcoming_appointments', 'Próximas scheduled', 'Citas futuras programadas', 'info'],
+  ['appointments_pending_payment', 'Pendientes de pago', 'Citas con pago pendiente', 'warning'],
+  ['payment_reviews_pending', 'Pagos por revisar', 'Transferencias con evidencia', 'warning'],
+  ['virtual_appointments_without_link', 'Virtuales sin link', 'Requieren enlace manual', 'warning'],
+  ['active_services', 'Servicios activos', 'Catálogo operativo', 'success'],
+  ['active_practitioners', 'Profesionales activos', 'Equipo disponible', 'success'],
+];
 
-export function DashboardPage() {
+const paymentStatusTone = (status: string) => (status === 'paid' ? 'success' : status === 'pending' ? 'warning' : 'neutral');
+const money = (amount: number | null, currency: string) => amount === null ? `— ${currency}` : new Intl.NumberFormat('es-CO', { style: 'currency', currency }).format(amount);
+
+export function DashboardPage({ tenant }: { tenant: AdminTenant }) {
+  const summary = useQuery({ queryKey: ['dashboard-summary', tenant.id], queryFn: () => adminDashboardApi.getSummary(tenant.id) });
+  const data = summary.data;
+
   return (
     <>
       <PageHeader
-        eyebrow="Fase 6A · shell MVP"
+        eyebrow="Fase 6D.1 · dashboard real"
         title="Dashboard administrativo"
-        description="Vista inicial con datos demostrativos no sensibles. Los módulos CRUD completos quedan intencionalmente diferidos para Fase 6B–6E."
-        actions={
-          <>
-            <Button variant="secondary">Exportar vista</Button>
-            <Button>Nueva acción</Button>
-          </>
-        }
+        description="Resumen operativo tenant-scoped con citas, pagos, links virtuales, servicios y profesionales reales del tenant actual."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {metrics.map(([label, value, tone]) => (
-          <Card key={label}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm text-slate-500">{label}</p>
-                <p className="mt-2 text-3xl font-bold text-slate-950">{value}</p>
-              </div>
-              <Badge tone={tone}>{tone === 'warning' ? 'Revisar' : 'MVP'}</Badge>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {summary.isLoading ? <LoadingState label="Cargando resumen operativo…" /> : null}
+      {summary.isError ? <ErrorState description={(summary.error as Error).message} /> : null}
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-        <SectionCard
-          title="Agenda prioritaria"
-          description="Tabla shell reutilizable para futuras pantallas de citas y pagos."
-        >
-          <DataTableShell
-            columns={['Paciente', 'Resumen', 'Estado', 'Acción']}
-            rows={[
-              [
-                <strong>Paciente demo</strong>,
-                'Hoy 10:30 · Psicología · Dra. Ana Ruiz',
-                <Badge tone="warning">Pago pendiente</Badge>,
-                <Button variant="secondary">Ver detalle</Button>,
-              ],
-              [
-                'Paciente ejemplo',
-                'Hoy 14:00 · Medicina general · Dr. Carlos Mejía',
-                <Badge tone="success">Confirmada</Badge>,
-                <Button variant="secondary">Ver detalle</Button>,
-              ],
-            ]}
-          />
-        </SectionCard>
-
-        <SectionCard
-          title="Patrones UX reutilizables"
-          description="Relaciones por etiquetas legibles, nunca captura manual de UUIDs."
-        >
-          <div className="space-y-4">
-            <SearchInput />
-            <FieldWrapper label="Profesional">
-              <Select>
-                <option>Dra. Ana Ruiz · Psicología</option>
-                <option>Dr. Carlos Mejía · Medicina general</option>
-              </Select>
-            </FieldWrapper>
-            <SearchableSelectPlaceholder />
-            <EmptyState
-              title="Sin campañas implementadas"
-              description="Los módulos fuera de Fase 6A permanecen deshabilitados u omitidos hasta su fase correspondiente."
-            />
+      {data ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {metricCards.map(([key, label, description, tone]) => (
+              <Card key={key}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-500">{label}</p>
+                    <p className="mt-2 text-3xl font-bold text-slate-950">{data.metrics[key]}</p>
+                    <p className="mt-1 text-xs text-slate-500">{description}</p>
+                  </div>
+                  <Badge tone={tone}>{tone === 'warning' ? 'Revisar' : 'Real'}</Badge>
+                </div>
+              </Card>
+            ))}
           </div>
-        </SectionCard>
-      </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+            <SectionCard title="Agenda de hoy" description="Próximas citas del día actual para el tenant seleccionado.">
+              {data.today_appointments.length === 0 ? <EmptyState title="Sin citas próximas hoy" description="No hay citas restantes para hoy en el tenant actual." /> : null}
+              {data.today_appointments.length > 0 ? <DataTableShell columns={['Hora', 'Paciente', 'Atención', 'Estado']} rows={data.today_appointments.map((item) => [
+                formatDateTime(item.starts_at),
+                <strong>{item.patient_name}</strong>,
+                `${item.service_name} · ${item.practitioner_name} · ${item.location_name ?? 'Sin sede'}`,
+                <div className="flex flex-wrap gap-2"><Badge tone="info">{item.status}</Badge><Badge tone={paymentStatusTone(item.payment_status)}>{item.payment_status}</Badge></div>,
+              ])} /> : null}
+            </SectionCard>
+
+            <SectionCard title="Pagos pendientes de revisión" description="Transferencias con evidencia recibida que esperan decisión manual.">
+              {data.pending_payment_reviews.length === 0 ? <EmptyState title="Sin pagos por revisar" description="No hay evidencias de transferencia pendientes de revisión." /> : null}
+              {data.pending_payment_reviews.length > 0 ? <DataTableShell columns={['Recibido', 'Paciente', 'Servicio', 'Monto']} rows={data.pending_payment_reviews.map((item) => [
+                item.evidence_received_at ? formatDateTime(item.evidence_received_at) : 'Sin fecha',
+                <strong>{item.patient_name}</strong>,
+                `${item.service_name} · ${item.practitioner_name}`,
+                money(item.amount, item.currency),
+              ])} /> : null}
+            </SectionCard>
+
+            <SectionCard title="Alertas de links virtuales" description="Citas virtuales scheduled sin URL de reunión manual registrada.">
+              {data.virtual_link_alerts.length === 0 ? <EmptyState title="Sin links virtuales pendientes" description="Todas las citas virtuales programadas tienen link o no requieren uno." /> : null}
+              {data.virtual_link_alerts.length > 0 ? <DataTableShell columns={['Fecha', 'Paciente', 'Atención', 'Sede']} rows={data.virtual_link_alerts.map((item) => [
+                formatDateTime(item.starts_at),
+                <strong>{item.patient_name}</strong>,
+                `${item.service_name} · ${item.practitioner_name}`,
+                item.location_name ?? 'Teleconsulta',
+              ])} /> : null}
+            </SectionCard>
+          </div>
+        </>
+      ) : null}
     </>
   );
 }

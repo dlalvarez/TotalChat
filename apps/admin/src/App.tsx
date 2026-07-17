@@ -101,7 +101,7 @@ export default function App() {
         <Button variant="secondary" onClick={logout}>Cerrar sesión</Button>
       </div>
       <AdminLayout active={active} onNavigate={setActive} tenantLabel={tenant.label}>
-        {active === 'Dashboard' ? <DashboardPage /> : null}
+        {active === 'Dashboard' ? <DashboardPage tenant={tenant} /> : null}
         {active === 'Organizaciones' ? <OrganizationsPage tenant={tenant} /> : null}
         {active === 'Sedes' ? <LocationsPage tenant={tenant} /> : null}
         {active === 'Consultorios' ? <RoomsPage tenant={tenant} /> : null}

@@ -349,3 +349,48 @@ export const adminPaymentsApi = {
   createTransferPaymentAttempt: (tenantId: string, payload: CreateTransferPaymentAttemptPayload) => apiRequest<PaymentAttemptBasic>('/api/admin/payment-attempts', { tenantId, method: 'POST', body: JSON.stringify({ ...payload, method: 'transfer' }) }),
   registerPaymentEvidence: (tenantId: string, paymentAttemptId: string, payload: RegisterPaymentEvidencePayload) => apiRequest<{ payment_attempt: PaymentAttemptBasic; evidence: PaymentEvidence }>(`/api/admin/payment-attempts/${paymentAttemptId}/evidence`, { tenantId, method: 'POST', body: JSON.stringify(payload) }),
 };
+
+export type DashboardMetrics = {
+  appointments_today: number;
+  upcoming_appointments: number;
+  appointments_pending_payment: number;
+  payment_reviews_pending: number;
+  virtual_appointments_without_link: number;
+  active_services: number;
+  active_practitioners: number;
+};
+
+export type DashboardAppointment = {
+  id: string;
+  starts_at: string;
+  patient_name: string;
+  practitioner_name: string;
+  service_name: string;
+  location_name: string | null;
+  status: string;
+  payment_status: string;
+};
+
+export type DashboardPaymentReview = {
+  id: string;
+  booking_id: string;
+  patient_name: string;
+  practitioner_name: string;
+  service_name: string;
+  amount: number | null;
+  currency: string;
+  evidence_received_at: string | null;
+};
+
+export type DashboardVirtualLinkAlert = Omit<DashboardAppointment, 'status' | 'payment_status'>;
+
+export type DashboardSummary = {
+  metrics: DashboardMetrics;
+  today_appointments: DashboardAppointment[];
+  pending_payment_reviews: DashboardPaymentReview[];
+  virtual_link_alerts: DashboardVirtualLinkAlert[];
+};
+
+export const adminDashboardApi = {
+  getSummary: (tenantId: string) => apiRequest<DashboardSummary>('/api/admin/dashboard/summary', { tenantId }),
+};

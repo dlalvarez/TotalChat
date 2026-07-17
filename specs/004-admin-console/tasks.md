@@ -5,7 +5,8 @@
   - Fase 6C.2 implementa login real con `POST /api/auth/login`, `GET /api/auth/me`, JWT access token de 30 minutos usando `TOTALCHAT_JWT_SECRET` y autorización admin por token + `X-TotalChat-Tenant-Id`.
   - `POST /api/auth/refresh`, gestión UI de usuarios, invitaciones y self-service signup quedan diferidos explícitamente.
 - [x] Crear layout.
-- [ ] Crear dashboard.
+- [x] Crear dashboard.
+  - Fase 6D.1 reemplaza datos demo por `GET /api/admin/dashboard/summary` tenant-scoped con métricas reales, agenda de hoy, pagos pendientes de revisión y alertas de links virtuales sin exponer `schema_name`.
 - [x] CRUD organizaciones.
 - [x] CRUD sedes.
 - [x] CRUD consultorios.
