@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.auth.bootstrap import AdminBootstrapError, AdminUserBootstrapService, verify_password
-from app.db.base import Base
 from app.models.public import Tenant, User, UserTenant
+
+
+PUBLIC_TABLES = [Tenant.__table__, User.__table__, UserTenant.__table__]
 
 
 @pytest.fixture()
@@ -17,13 +17,15 @@ def session() -> Session:
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     with engine.connect() as connection:
         connection.exec_driver_sql("ATTACH DATABASE ':memory:' AS public")
-    Base.metadata.create_all(engine)
+    for table in PUBLIC_TABLES:
+        table.create(engine)
     db = Session(engine)
     try:
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(engine)
+        for table in reversed(PUBLIC_TABLES):
+            table.drop(engine)
         engine.dispose()
 
 
