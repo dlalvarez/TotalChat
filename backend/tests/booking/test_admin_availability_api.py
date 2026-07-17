@@ -10,6 +10,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.admin.availability import get_scheduling_provider
 from app.api.admin.dependencies import get_admin_tenant_context, get_db_session
+from app.auth.jwt import create_access_token
+from app.models.public import Tenant, User
 from app.main import app
 from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, Organization, Patient, Practitioner, PractitionerService, Room, ServiceModality
 from app.services.availability import AvailableSlot
@@ -94,12 +96,23 @@ def test_missing_admin_tenant_header_returns_error():
 
 
 @pytest.mark.parametrize("tenant_status", [None, "inactive"])
-def test_unknown_or_inactive_tenant_returns_tenant_not_found(tenant_status):
+def test_unknown_or_inactive_tenant_returns_tenant_not_found(tenant_status, monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_JWT_SECRET", "test-secret")
+    from app.core.config import get_settings
+    get_settings.cache_clear()
+    user_id = uuid4()
+    selected_tenant_id = uuid4()
+    token, _expires_in = create_access_token(user_id=user_id, email="admin@example.com")
+
     class FakeSession:
-        def get(self, _model, tenant_id):
-            if tenant_status is None:
-                return None
-            return SimpleNamespace(id=tenant_id, slug="inactive", schema_name="tenant_inactive", status=tenant_status)
+        def get(self, model, record_id):
+            if model is User:
+                return SimpleNamespace(id=record_id, email="admin@example.com", status="active")
+            if model is Tenant:
+                if tenant_status is None:
+                    return None
+                return SimpleNamespace(id=record_id, slug="inactive", schema_name="tenant_inactive", status=tenant_status)
+            return None
 
     def override_session():
         yield FakeSession()
@@ -109,10 +122,11 @@ def test_unknown_or_inactive_tenant_returns_tenant_not_found(tenant_status):
         response = TestClient(app).get(
             "/api/admin/availability/slots",
             params={"practitioner_service_id": str(uuid4()), "modality": "in_person", "date_from": "2026-07-13", "date_to": "2026-07-13"},
-            headers={"X-TotalChat-Tenant-Id": str(uuid4())},
+            headers={"Authorization": f"Bearer {token}", "X-TotalChat-Tenant-Id": str(selected_tenant_id)},
         )
     finally:
         clear_overrides()
+        get_settings.cache_clear()
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "TENANT_NOT_FOUND"

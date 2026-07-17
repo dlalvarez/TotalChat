@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -55,7 +57,12 @@ def get_current_admin_user(credentials: HTTPAuthorizationCredentials | None = De
         payload = decode_access_token(credentials.credentials)
     except AuthTokenError as exc:
         raise _api_error("AUTHENTICATION_REQUIRED", str(exc), 401) from exc
-    user = session.get(User, payload["sub"])
+    try:
+        user_id = UUID(str(payload["sub"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _api_error("AUTHENTICATION_REQUIRED", "Invalid authentication token.", 401) from exc
+
+    user = session.get(User, user_id)
     if user is None or user.status != "active":
         raise _api_error("AUTHENTICATION_REQUIRED", "Authenticated user is not active.", 401)
     return user
