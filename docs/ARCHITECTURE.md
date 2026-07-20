@@ -275,29 +275,37 @@ send_confirmation_or_pending_message
 
 ## 8. LLMProvider
 
-El código no debe llamar directamente a OpenAI desde cualquier módulo.
+El código de negocio, LangGraph, canales y tools no debe llamar directamente a ningún proveedor externo.
 
 Debe existir:
 
 ```text
 LLMProvider
+OpenAICompatibleProvider
 OpenAIProvider
 ```
 
-Futuro:
+Adaptadores configurables mediante el contrato OpenAI-compatible:
 
 ```text
-OllamaProvider
-OtherProvider
+OpenAI
+DeepInfra/Qwen
+Kimi (futuro, mediante base_url/model; sin adaptador hardcodeado)
 ```
 
 Variables:
 
 ```text
 TOTALCHAT_LLM_PROVIDER=openai
-TOTALCHAT_LLM_MODEL=...
-TOTALCHAT_EMBEDDINGS_PROVIDER=openai
+TOTALCHAT_LLM_BASE_URL=https://api.openai.com/v1
+TOTALCHAT_LLM_API_KEY=...
+TOTALCHAT_LLM_MODEL=gpt-4o-mini
+TOTALCHAT_LLM_TIMEOUT_SECONDS=30
+TOTALCHAT_EMBEDDINGS_PROVIDER=deepinfra
+TOTALCHAT_EMBEDDINGS_BASE_URL=...
+TOTALCHAT_EMBEDDINGS_API_KEY=...
 TOTALCHAT_EMBEDDINGS_MODEL=...
+TOTALCHAT_EMBEDDING_DIMENSIONS=1536
 ```
 
 ## 9. pgvector
@@ -597,6 +605,8 @@ Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos
 
 ## 7A.1. Providers IA y documentos semánticos
 
-La Fase 7A.1 agrega una capa backend `app.ai` con abstracciones `LLMProvider` y `EmbeddingsProvider`, más `OpenAIProvider` como proveedor inicial. La configuración se lee desde variables `TOTALCHAT_LLM_PROVIDER`, `TOTALCHAT_LLM_MODEL`, `TOTALCHAT_OPENAI_API_KEY`, `TOTALCHAT_EMBEDDINGS_MODEL` y `TOTALCHAT_EMBEDDING_DIMENSIONS`; la falta de API key falla al usar el proveedor, no al importar módulos.
+La Fase 7A.1.1 agrega `OpenAICompatibleProvider` como adaptador común para OpenAI y DeepInfra/Qwen. La selección ocurre mediante configuración genérica, nunca por imports desde lógica futura de LangGraph. Embeddings defaulta provider, base URL y credencial a la configuración LLM. `TOTALCHAT_OPENAI_API_KEY` se admite temporalmente, como legacy/deprecated y solo para `provider=openai`; `TOTALCHAT_LLM_API_KEY` siempre tiene precedencia. Kimi puede configurarse en el futuro por `base_url` y `model`, sin acoplamiento ni fallback automático.
+
+El adaptador normaliza únicamente `choices[0].message.content`. `reasoning_content` no se propaga ni se guarda en logs o UI. Las claves nunca se registran; toda clave expuesta en conversaciones debe rotarse.
 
 Los documentos semánticos se almacenan en `semantic_documents` dentro de cada schema tenant. No viven en `public`, no incluyen `schema_name` y toda operación futura de IA debe recibir el tenant ya resuelto por backend antes de consultar embeddings o tools. Esta fase no agrega LangGraph, tools de dominio, endpoints HTTP, canales ni RAG completo.

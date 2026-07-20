@@ -2,6 +2,7 @@
 
 - [x] Crear LLMProvider.
 - [x] Crear OpenAIProvider.
+- [x] Refactorizar OpenAIProvider sobre OpenAICompatibleProvider multi-proveedor configurable (Fase 7A.1.1).
 - [x] Crear EmbeddingsProvider.
 - [x] Crear semantic_documents.
 - [ ] Crear graph state.

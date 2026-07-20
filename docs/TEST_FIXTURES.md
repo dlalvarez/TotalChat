@@ -583,3 +583,5 @@ Los tests del dashboard usan un tenant administrativo autenticado con JWT y un c
 ## 7. Fixtures IA Fase 7A.1
 
 Las pruebas de providers deben usar fakes/mocks sin invocar OpenAI real. Un tenant demo puede tener documentos semánticos como políticas administrativas o descripciones de servicios, siempre almacenados en su schema tenant en `semantic_documents` con embeddings de dimensión `TOTALCHAT_EMBEDDING_DIMENSIONS`. Las pruebas deben verificar que `public.semantic_documents` no existe y que `schema_name` no se modela ni serializa.
+
+En Fase 7A.1.1, los fakes capturan `base_url`, una API key ficticia, modelo y timeout sin red. Fixtures mínimos cubren OpenAI (`https://api.openai.com/v1`, `gpt-4o-mini`) y DeepInfra (`https://api.deepinfra.com/v1/openai`, `Qwen/Qwen3.6-35B-A3B`), precedencia de la key genérica, fallback legacy exclusivo de OpenAI y exclusión de `reasoning_content`. Nunca se usan tokens reales.

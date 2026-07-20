@@ -1166,8 +1166,10 @@ En MVP:
 SchedulingProvider = InternalSchedulingProvider
 MeetingProvider = ManualMeetingProvider
 PaymentProvider = SimulatedPaymentProvider / ManualTransferProvider
-LLMProvider = OpenAIProvider
+LLMProvider = OpenAICompatibleProvider (OpenAI o DeepInfra por configuración)
 ```
+
+La Fase 7A.1.1 no agrega endpoints HTTP. El contrato interno normaliza completions como `LLMResponse(content, model, provider)` usando solo `choices[0].message.content`; no expone `reasoning_content`. La selección del adaptador usa configuración genérica y no ocurre en LangGraph, canales ni dominio.
 
 ## 20. Endpoints mínimos por fase
 
