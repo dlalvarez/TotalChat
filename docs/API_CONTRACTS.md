@@ -1169,7 +1169,9 @@ PaymentProvider = SimulatedPaymentProvider / ManualTransferProvider
 LLMProvider = OpenAICompatibleProvider (OpenAI o DeepInfra por configuración)
 ```
 
-La Fase 7A.1.1 no agrega endpoints HTTP. El contrato interno normaliza completions como `LLMResponse(content, model, provider)` usando solo `choices[0].message.content`; no expone `reasoning_content`. La selección del adaptador usa configuración genérica y no ocurre en LangGraph, canales ni dominio.
+La Fase 7A.1.1 no agrega endpoints HTTP. El contrato interno normaliza completions como `LLMResponse(content, model, provider, metadata)` usando solo `choices[0].message.content` como contenido visible. `reasoning_content` no forma parte de `content`, no se expone por HTTP, UI o canales y no se guarda ni registra por defecto; solo puede capturarse como metadata interna con `TOTALCHAT_LLM_CAPTURE_REASONING=true`. Ninguna lógica de negocio, tool, pago, cita, disponibilidad, autorización o tenant puede depender de esa metadata. La selección del adaptador usa configuración genérica y no ocurre en LangGraph, canales ni dominio.
+
+LLM y embeddings pueden seleccionar proveedores distintos. El ejemplo MVP usa DeepInfra/Qwen para LLM y OpenAI `text-embedding-3-small` con dimensión 1536 para embeddings. Un cambio a un modelo de embeddings DeepInfra/Qwen requiere validar su dimensión real frente a `semantic_documents.embedding VECTOR(...)` y `TOTALCHAT_EMBEDDING_DIMENSIONS` antes de persistir vectores.
 
 ## 20. Endpoints mínimos por fase
 

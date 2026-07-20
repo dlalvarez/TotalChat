@@ -302,10 +302,10 @@ TOTALCHAT_LLM_API_KEY=...
 TOTALCHAT_LLM_MODEL=gpt-4o-mini
 TOTALCHAT_LLM_TIMEOUT_SECONDS=30
 TOTALCHAT_LLM_CAPTURE_REASONING=false
-TOTALCHAT_EMBEDDINGS_PROVIDER=deepinfra
-TOTALCHAT_EMBEDDINGS_BASE_URL=...
+TOTALCHAT_EMBEDDINGS_PROVIDER=openai
+TOTALCHAT_EMBEDDINGS_BASE_URL=https://api.openai.com/v1
 TOTALCHAT_EMBEDDINGS_API_KEY=...
-TOTALCHAT_EMBEDDINGS_MODEL=...
+TOTALCHAT_EMBEDDINGS_MODEL=text-embedding-3-small
 TOTALCHAT_EMBEDDING_DIMENSIONS=1536
 ```
 
@@ -607,6 +607,8 @@ Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos
 ## 7A.1. Providers IA y documentos semánticos
 
 La Fase 7A.1.1 agrega `OpenAICompatibleProvider` como adaptador común para OpenAI y DeepInfra/Qwen. La selección ocurre mediante configuración genérica, nunca por imports desde lógica futura de LangGraph. Embeddings defaulta provider, base URL y credencial a la configuración LLM. `TOTALCHAT_OPENAI_API_KEY` se admite temporalmente, como legacy/deprecated y solo para `provider=openai`; `TOTALCHAT_LLM_API_KEY` siempre tiene precedencia. Kimi puede configurarse en el futuro por `base_url` y `model`, sin acoplamiento ni fallback automático.
+
+LLM y embeddings pueden usar proveedores distintos. El ejemplo operativo usa DeepInfra/Qwen para LLM y OpenAI `text-embedding-3-small` para embeddings de 1536 dimensiones. Si las variables específicas de embeddings se omiten, heredan provider, URL y credencial del LLM; quien use ese default debe configurar un modelo de embeddings válido para el proveedor efectivo. Cambiar a DeepInfra/Qwen Embedding exige verificar y documentar la dimensión real del modelo antes de guardar vectores o cambiar `TOTALCHAT_EMBEDDING_DIMENSIONS`, porque `semantic_documents.embedding VECTOR(...)` depende de ella y una variación de dimensión requiere tratamiento explícito de los datos existentes.
 
 El adaptador normaliza únicamente `choices[0].message.content` como respuesta visible. `reasoning_content` es metadata técnica opcional: no se mezcla con `content`, no se muestra a usuarios, frontend o canales, y no se guarda ni registra por defecto. Solo puede incluirse en `LLMResponse.metadata` con `TOTALCHAT_LLM_CAPTURE_REASONING=true` para diagnóstico técnico y tuning de prompts; esta fase no implementa su persistencia ni evaluación formal. Ninguna lógica de negocio, tool, pago, cita, disponibilidad, autorización o resolución de tenant puede depender de esa metadata. Las claves nunca se registran; toda clave expuesta en conversaciones debe rotarse.
 

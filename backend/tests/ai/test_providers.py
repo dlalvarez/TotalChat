@@ -1,11 +1,12 @@
 import importlib
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
 from app.ai.providers import EmbeddingRequest, LLMMessage, create_llm_provider
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 
 class FakeClient:
@@ -137,3 +138,37 @@ def test_legacy_key_is_only_fallback_for_openai(monkeypatch):
     monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "openai")
     get_settings.cache_clear()
     assert create_llm_provider().api_key == "legacy"
+
+
+def test_deepinfra_llm_and_openai_embeddings_configuration_is_coherent():
+    settings = Settings(
+        llm_provider="deepinfra",
+        llm_base_url="https://api.deepinfra.com/v1/openai",
+        llm_model="Qwen/Qwen3.6-35B-A3B",
+        embeddings_provider="openai",
+        embeddings_base_url="https://api.openai.com/v1",
+        embeddings_model="text-embedding-3-small",
+        embedding_dimensions=1536,
+    )
+
+    assert settings.llm_provider == "deepinfra"
+    assert settings.llm_base_url == "https://api.deepinfra.com/v1/openai"
+    assert settings.llm_model == "Qwen/Qwen3.6-35B-A3B"
+    assert settings.effective_embeddings_provider == "openai"
+    assert settings.effective_embeddings_base_url == "https://api.openai.com/v1"
+    assert settings.embeddings_model == "text-embedding-3-small"
+    assert settings.embedding_dimensions == 1536
+
+
+def test_documented_example_does_not_pair_openai_embedding_model_with_deepinfra():
+    env_example = Path(__file__).parents[3] / ".env.example"
+    values = dict(
+        line.split("=", maxsplit=1)
+        for line in env_example.read_text().splitlines()
+        if line and not line.startswith("#") and "=" in line
+    )
+
+    assert values["TOTALCHAT_EMBEDDINGS_MODEL"] == "text-embedding-3-small"
+    assert values["TOTALCHAT_EMBEDDINGS_PROVIDER"] == "openai"
+    assert values["TOTALCHAT_EMBEDDINGS_BASE_URL"] == "https://api.openai.com/v1"
+    assert values["TOTALCHAT_EMBEDDING_DIMENSIONS"] == "1536"
