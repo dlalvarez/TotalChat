@@ -16,3 +16,9 @@ No se agregan endpoints HTTP ni contratos de canal. Los contratos internos nuevo
 No existe una clase concreta especial para OpenAI ni para otro proveedor. OpenAI, DeepInfra/Qwen y Kimi futuro son configuraciones de `OpenAICompatibleProvider`; toda integración futura consume `LLMProvider`/`EmbeddingsProvider` mediante las factories internas.
 
 LLM y embeddings pueden usar proveedores distintos. La configuración operativa documentada combina LLM DeepInfra/Qwen con embeddings OpenAI `text-embedding-3-small` y `TOTALCHAT_EMBEDDING_DIMENSIONS=1536`. Adoptar otro modelo, incluido DeepInfra/Qwen Embedding, requiere verificar su dimensión real antes de persistir vectores o modificar la columna `semantic_documents.embedding VECTOR(...)`; no es un cambio trivial de configuración.
+
+## Fase 7A.3
+
+`run_booking_graph(BookingConversationState) -> BookingGraphResult` es el contrato interno del graph base. El resultado contiene una copia actualizada del estado, la siguiente `BookingGraphAction`, los campos pendientes, los nodos estructurales visitados y un `response_code` interno. El flujo es determinista y no muta el estado recibido.
+
+Esta fase no incorpora el runtime LangGraph ni tools reales. No consulta PostgreSQL o Redis, no llama a proveedores LLM, no confirma citas o pagos y no genera precios ni disponibilidad. `tenant_id` llega resuelto por backend y `schema_name` no forma parte de la entrada ni del resultado.

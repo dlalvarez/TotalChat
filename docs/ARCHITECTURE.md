@@ -341,6 +341,12 @@ La verdad siempre está en PostgreSQL.
 
 Este contrato todavía no se conecta a Redis ni a LangGraph. Tampoco consulta PostgreSQL: las referencias no constituyen confirmación de disponibilidad, precio, cita o pago, y PostgreSQL continúa como fuente de verdad.
 
+### 10.2. Booking graph base (Fase 7A.3)
+
+`run_booking_graph` implementa temporalmente un adapter local y determinista previo al runtime LangGraph completo. Sus nodos normalizan una copia del estado, detectan campos faltantes, clasifican y avanzan la etapa, y preparan un `BookingGraphResult` testeable.
+
+El adapter no contiene tools reales ni acceso a DB, Redis, red o LLM. Sus acciones son señales internas de coordinación y no confirman precios, disponibilidad, citas o pagos. El backend entrega `tenant_id` ya resuelto y el graph no recibe ni selecciona `schema_name`.
+
 ## 11. Eventos de dominio
 
 El backend debe emitir eventos.

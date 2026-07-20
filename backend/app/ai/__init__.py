@@ -1,5 +1,12 @@
 """Tenant-scoped AI provider abstractions for TotalChat."""
 
+from app.ai.booking_graph import (
+    BookingGraphAction,
+    BookingGraphNode,
+    BookingGraphResult,
+    run_booking_graph,
+)
+
 from app.ai.conversation_state import (
     BookingConversationState,
     BookingModality,
@@ -25,6 +32,9 @@ from app.ai.semantic_documents import SemanticDocument
 
 __all__ = [
     "BookingConversationState",
+    "BookingGraphAction",
+    "BookingGraphNode",
+    "BookingGraphResult",
     "BookingModality",
     "ChannelType",
     "ConversationIntent",
@@ -42,4 +52,5 @@ __all__ = [
     "SelectedSlot",
     "create_embeddings_provider",
     "create_llm_provider",
+    "run_booking_graph",
 ]

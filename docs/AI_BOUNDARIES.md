@@ -131,3 +131,9 @@ La Fase 7A.1.1 tampoco agrega LangGraph, tools, endpoints HTTP ni resolución de
 El estado del futuro Booking Agent recibe `tenant_id` después de que el backend haya resuelto el tenant. Es estado temporal de coordinación: sus referencias y estados críticos deben contrastarse con PostgreSQL mediante tools y servicios de dominio futuros antes de actuar.
 
 Su representación serializable excluye `schema_name`, `reasoning_content`, credenciales y prompts. La metadata se valida para impedir que esos datos entren indirectamente. La Fase 7A.2 no incluye Redis, LangGraph runtime, tools, llamadas LLM, endpoints ni canales.
+
+## 13. Fase 7A.3 — booking graph base
+
+El booking graph base clasifica de forma determinista la siguiente etapa, detecta campos básicos faltantes y devuelve una acción interna estructurada. Opera sobre una copia de `BookingConversationState`; no ejecuta dominio ni convierte las referencias del estado en hechos confirmados.
+
+Las acciones `review_booking`, `handle_payment` y `complete` describen únicamente el siguiente paso de coordinación. No confirman una cita o un pago. Esta fase no usa tools, PostgreSQL, Redis, red, LLM, prompts, endpoints ni canales, y nunca recibe `schema_name`.

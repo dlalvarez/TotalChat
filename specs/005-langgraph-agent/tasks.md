@@ -6,7 +6,7 @@
 - [x] Crear EmbeddingsProvider.
 - [x] Crear semantic_documents.
 - [x] Crear graph state (Fase 7A.2: estado interno serializable, sin runtime LangGraph ni persistencia).
-- [ ] Crear booking graph.
+- [x] Crear booking graph (Fase 7A.3: flujo estructural determinista, sin tools ni runtime LangGraph).
 - [ ] Crear tools de servicios.
 - [ ] Crear tools de precios.
 - [ ] Crear tools de disponibilidad.
