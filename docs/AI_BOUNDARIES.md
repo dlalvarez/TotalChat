@@ -59,7 +59,6 @@ Debe existir abstracción:
 ```text
 LLMProvider
 OpenAICompatibleProvider
-OpenAIProvider
 ```
 
 Futuro:
@@ -123,6 +122,6 @@ Se deben registrar:
 
 ## 11. Fase 7A.1 — providers y documentos semánticos
 
-La primera entrega de Fase 7 define providers testeables sin red y `semantic_documents` tenant-scoped. El `OpenAIProvider` solo puede usarse después de configuración explícita y no se invoca en tests. Los embeddings preparan almacenamiento para recuperación futura, pero no autorizan al modelo a inventar precios, disponibilidad, pagos, citas ni políticas.
+La primera entrega de Fase 7 define providers testeables sin red y `semantic_documents` tenant-scoped. OpenAI, DeepInfra/Qwen y Kimi futuro son configuraciones de `OpenAICompatibleProvider`, no adaptadores separados. Los consumidores deben usar `LLMProvider`/`EmbeddingsProvider` y factories internas. Los embeddings preparan almacenamiento para recuperación futura, pero no autorizan al modelo a inventar precios, disponibilidad, pagos, citas ni políticas.
 
 La Fase 7A.1.1 tampoco agrega LangGraph, tools, endpoints HTTP ni resolución de tenant por IA. Añade exclusivamente configuración genérica y el adaptador OpenAI-compatible para OpenAI y DeepInfra/Qwen.

@@ -1173,6 +1173,8 @@ La Fase 7A.1.1 no agrega endpoints HTTP. El contrato interno normaliza completio
 
 OpenAI, DeepInfra/Qwen, Kimi futuro y cualquier proveedor OpenAI-compatible reciben su credencial LLM exclusivamente desde `TOTALCHAT_LLM_API_KEY`; no existe fallback a variables específicas de proveedor.
 
+OpenAI no tiene una clase concreta propia: al igual que DeepInfra/Qwen y Kimi futuro, es una configuración de `OpenAICompatibleProvider`. Los consumidores usan exclusivamente `LLMProvider`/`EmbeddingsProvider` y las factories internas.
+
 LLM y embeddings pueden seleccionar proveedores distintos. El ejemplo MVP usa DeepInfra/Qwen para LLM y OpenAI `text-embedding-3-small` con dimensión 1536 para embeddings. Un cambio a un modelo de embeddings DeepInfra/Qwen requiere validar su dimensión real frente a `semantic_documents.embedding VECTOR(...)` y `TOTALCHAT_EMBEDDING_DIMENSIONS` antes de persistir vectores.
 
 ## 20. Endpoints mínimos por fase

@@ -1,6 +1,5 @@
 """Tenant-scoped AI provider abstractions for TotalChat."""
 
-from app.ai.openai_provider import OpenAIProvider
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
 from app.ai.providers import (
     EmbeddingRequest,
@@ -21,7 +20,6 @@ __all__ = [
     "LLMMessage",
     "LLMProvider",
     "LLMResponse",
-    "OpenAIProvider",
     "OpenAICompatibleProvider",
     "SemanticDocument",
     "create_embeddings_provider",

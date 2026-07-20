@@ -177,7 +177,7 @@ Objetivo: agente conversacional.
 Entregables:
 
 - LLMProvider.
-- OpenAIProvider.
+- OpenAICompatibleProvider.
 - EmbeddingsProvider.
 - Graph.
 - Tools.

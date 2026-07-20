@@ -28,7 +28,6 @@ def test_import_ai_modules_without_api_key(monkeypatch):
     monkeypatch.delenv("TOTALCHAT_LLM_API_KEY", raising=False)
     importlib.import_module("app.ai.providers")
     importlib.import_module("app.ai.openai_compatible_provider")
-    importlib.import_module("app.ai.openai_provider")
 
 
 def test_provider_without_generic_api_key_fails_clearly():

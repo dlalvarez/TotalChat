@@ -282,7 +282,6 @@ Debe existir:
 ```text
 LLMProvider
 OpenAICompatibleProvider
-OpenAIProvider
 ```
 
 Adaptadores configurables mediante el contrato OpenAI-compatible:
@@ -607,6 +606,8 @@ Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos
 ## 7A.1. Providers IA y documentos semánticos
 
 La Fase 7A.1.1 agrega `OpenAICompatibleProvider` como adaptador común para OpenAI y DeepInfra/Qwen. La selección ocurre mediante configuración genérica, nunca por imports desde lógica futura de LangGraph. `TOTALCHAT_LLM_API_KEY` es la única variable de credencial LLM para OpenAI, DeepInfra/Qwen, Kimi futuro y cualquier proveedor OpenAI-compatible; no existe fallback a variables específicas de proveedor. Embeddings defaulta provider, base URL y credencial a la configuración LLM. Kimi puede configurarse en el futuro por `base_url` y `model`, sin acoplamiento ni fallback automático.
+
+No existe un adaptador separado para OpenAI. OpenAI, DeepInfra/Qwen y Kimi futuro son configuraciones de `OpenAICompatibleProvider`, no clases concretas distintas. Todo consumidor futuro debe depender de `LLMProvider`/`EmbeddingsProvider` y obtener instancias mediante `create_llm_provider()` o `create_embeddings_provider()`.
 
 LLM y embeddings pueden usar proveedores distintos. El ejemplo operativo usa DeepInfra/Qwen para LLM y OpenAI `text-embedding-3-small` para embeddings de 1536 dimensiones. Si las variables específicas de embeddings se omiten, heredan provider, URL y credencial del LLM; quien use ese default debe configurar un modelo de embeddings válido para el proveedor efectivo. Cambiar a DeepInfra/Qwen Embedding exige verificar y documentar la dimensión real del modelo antes de guardar vectores o cambiar `TOTALCHAT_EMBEDDING_DIMENSIONS`, porque `semantic_documents.embedding VECTOR(...)` depende de ella y una variación de dimensión requiere tratamiento explícito de los datos existentes.
 

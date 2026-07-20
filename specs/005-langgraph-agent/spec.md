@@ -7,7 +7,7 @@ Crear agente conversacional para reservas.
 ## Alcance
 
 - LLMProvider.
-- OpenAIProvider.
+- OpenAICompatibleProvider configurable mediante factories internas.
 - EmbeddingsProvider.
 - LangGraph.
 - Tools.
