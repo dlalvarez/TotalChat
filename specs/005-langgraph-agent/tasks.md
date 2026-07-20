@@ -5,7 +5,7 @@
 - [x] Unificar credenciales LLM exclusivamente en `TOTALCHAT_LLM_API_KEY`.
 - [x] Crear EmbeddingsProvider.
 - [x] Crear semantic_documents.
-- [ ] Crear graph state.
+- [x] Crear graph state (Fase 7A.2: estado interno serializable, sin runtime LangGraph ni persistencia).
 - [ ] Crear booking graph.
 - [ ] Crear tools de servicios.
 - [ ] Crear tools de precios.

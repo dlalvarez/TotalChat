@@ -1,5 +1,15 @@
 """Tenant-scoped AI provider abstractions for TotalChat."""
 
+from app.ai.conversation_state import (
+    BookingConversationState,
+    BookingModality,
+    ChannelType,
+    ConversationIntent,
+    ConversationPaymentStatus,
+    ConversationStage,
+    PendingField,
+    SelectedSlot,
+)
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
 from app.ai.providers import (
     EmbeddingRequest,
@@ -14,6 +24,12 @@ from app.ai.providers import (
 from app.ai.semantic_documents import SemanticDocument
 
 __all__ = [
+    "BookingConversationState",
+    "BookingModality",
+    "ChannelType",
+    "ConversationIntent",
+    "ConversationPaymentStatus",
+    "ConversationStage",
     "EmbeddingRequest",
     "EmbeddingResponse",
     "EmbeddingsProvider",
@@ -21,7 +37,9 @@ __all__ = [
     "LLMProvider",
     "LLMResponse",
     "OpenAICompatibleProvider",
+    "PendingField",
     "SemanticDocument",
+    "SelectedSlot",
     "create_embeddings_provider",
     "create_llm_provider",
 ]

@@ -125,3 +125,9 @@ Se deben registrar:
 La primera entrega de Fase 7 define providers testeables sin red y `semantic_documents` tenant-scoped. OpenAI, DeepInfra/Qwen y Kimi futuro son configuraciones de `OpenAICompatibleProvider`, no adaptadores separados. Los consumidores deben usar `LLMProvider`/`EmbeddingsProvider` y factories internas. Los embeddings preparan almacenamiento para recuperación futura, pero no autorizan al modelo a inventar precios, disponibilidad, pagos, citas ni políticas.
 
 La Fase 7A.1.1 tampoco agrega LangGraph, tools, endpoints HTTP ni resolución de tenant por IA. Añade exclusivamente configuración genérica y el adaptador OpenAI-compatible para OpenAI y DeepInfra/Qwen.
+
+## 12. Fase 7A.2 — estado conversacional base
+
+El estado del futuro Booking Agent recibe `tenant_id` después de que el backend haya resuelto el tenant. Es estado temporal de coordinación: sus referencias y estados críticos deben contrastarse con PostgreSQL mediante tools y servicios de dominio futuros antes de actuar.
+
+Su representación serializable excluye `schema_name`, `reasoning_content`, credenciales y prompts. La metadata se valida para impedir que esos datos entren indirectamente. La Fase 7A.2 no incluye Redis, LangGraph runtime, tools, llamadas LLM, endpoints ni canales.
