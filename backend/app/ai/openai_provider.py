@@ -26,5 +26,6 @@ class OpenAIProvider(OpenAICompatibleProvider):
             model=llm_model or settings.llm_model,
             embeddings_model=embeddings_model or settings.embeddings_model,
             timeout_seconds=settings.llm_timeout_seconds,
+            capture_reasoning=settings.llm_capture_reasoning,
             client_factory=client_factory,
         )

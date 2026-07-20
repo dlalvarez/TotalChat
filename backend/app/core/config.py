@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str = "gpt-4o-mini"
     llm_timeout_seconds: float = 30
+    llm_capture_reasoning: bool = False
     embeddings_provider: str | None = None
     embeddings_base_url: str | None = None
     embeddings_api_key: str | None = None

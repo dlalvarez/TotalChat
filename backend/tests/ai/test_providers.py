@@ -9,8 +9,10 @@ from app.core.config import get_settings
 
 
 class FakeClient:
-    def __init__(self) -> None:
-        message = SimpleNamespace(content="respuesta visible", reasoning_content="razonamiento privado")
+    def __init__(self, *, reasoning_content="razonamiento privado") -> None:
+        message = SimpleNamespace(content="respuesta visible")
+        if reasoning_content is not None:
+            message.reasoning_content = reasoning_content
         self.chat = SimpleNamespace(
             completions=SimpleNamespace(
                 create=lambda **kwargs: SimpleNamespace(choices=[SimpleNamespace(message=message)])
@@ -68,9 +70,47 @@ def test_deepinfra_client_configuration_and_normalized_responses():
     assert response.content == "respuesta visible"
     assert response.model == "Qwen/Qwen3.6-35B-A3B"
     assert response.provider == "deepinfra"
-    assert not hasattr(response, "reasoning_content")
+    assert "reasoning_content" not in response.metadata
     assert embedding.embedding == [0.1, 0.2]
     assert embedding.provider == "deepinfra"
+
+
+def test_reasoning_is_captured_as_metadata_only_when_enabled(monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_LLM_CAPTURE_REASONING", "true")
+    get_settings.cache_clear()
+    provider = OpenAICompatibleProvider(
+        provider_name="deepinfra",
+        base_url="https://api.deepinfra.com/v1/openai",
+        api_key="fake-key",
+        model="Qwen/Qwen3.6-35B-A3B",
+        embeddings_model="embed-model",
+        capture_reasoning=get_settings().llm_capture_reasoning,
+        client_factory=lambda **kwargs: FakeClient(),
+    )
+
+    response = provider.complete([LLMMessage(role="user", content="hola")])
+
+    assert response.content == "respuesta visible"
+    assert response.metadata["reasoning_content"] == "razonamiento privado"
+
+
+def test_capture_enabled_without_reasoning_content_is_safe(monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_LLM_CAPTURE_REASONING", "true")
+    get_settings.cache_clear()
+    provider = OpenAICompatibleProvider(
+        provider_name="openai",
+        base_url="https://api.openai.com/v1",
+        api_key="fake-key",
+        model="gpt-4o-mini",
+        embeddings_model="text-embedding-3-small",
+        capture_reasoning=get_settings().llm_capture_reasoning,
+        client_factory=lambda **kwargs: FakeClient(reasoning_content=None),
+    )
+
+    response = provider.complete([LLMMessage(role="user", content="hola")])
+
+    assert response.content == "respuesta visible"
+    assert "reasoning_content" not in response.metadata
 
 
 def test_factory_selects_openai_with_generic_key_preferred(monkeypatch):

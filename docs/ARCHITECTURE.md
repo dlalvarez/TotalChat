@@ -301,6 +301,7 @@ TOTALCHAT_LLM_BASE_URL=https://api.openai.com/v1
 TOTALCHAT_LLM_API_KEY=...
 TOTALCHAT_LLM_MODEL=gpt-4o-mini
 TOTALCHAT_LLM_TIMEOUT_SECONDS=30
+TOTALCHAT_LLM_CAPTURE_REASONING=false
 TOTALCHAT_EMBEDDINGS_PROVIDER=deepinfra
 TOTALCHAT_EMBEDDINGS_BASE_URL=...
 TOTALCHAT_EMBEDDINGS_API_KEY=...
@@ -607,6 +608,6 @@ Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos
 
 La Fase 7A.1.1 agrega `OpenAICompatibleProvider` como adaptador común para OpenAI y DeepInfra/Qwen. La selección ocurre mediante configuración genérica, nunca por imports desde lógica futura de LangGraph. Embeddings defaulta provider, base URL y credencial a la configuración LLM. `TOTALCHAT_OPENAI_API_KEY` se admite temporalmente, como legacy/deprecated y solo para `provider=openai`; `TOTALCHAT_LLM_API_KEY` siempre tiene precedencia. Kimi puede configurarse en el futuro por `base_url` y `model`, sin acoplamiento ni fallback automático.
 
-El adaptador normaliza únicamente `choices[0].message.content`. `reasoning_content` no se propaga ni se guarda en logs o UI. Las claves nunca se registran; toda clave expuesta en conversaciones debe rotarse.
+El adaptador normaliza únicamente `choices[0].message.content` como respuesta visible. `reasoning_content` es metadata técnica opcional: no se mezcla con `content`, no se muestra a usuarios, frontend o canales, y no se guarda ni registra por defecto. Solo puede incluirse en `LLMResponse.metadata` con `TOTALCHAT_LLM_CAPTURE_REASONING=true` para diagnóstico técnico y tuning de prompts; esta fase no implementa su persistencia ni evaluación formal. Ninguna lógica de negocio, tool, pago, cita, disponibilidad, autorización o resolución de tenant puede depender de esa metadata. Las claves nunca se registran; toda clave expuesta en conversaciones debe rotarse.
 
 Los documentos semánticos se almacenan en `semantic_documents` dentro de cada schema tenant. No viven en `public`, no incluyen `schema_name` y toda operación futura de IA debe recibir el tenant ya resuelto por backend antes de consultar embeddings o tools. Esta fase no agrega LangGraph, tools de dominio, endpoints HTTP, canales ni RAG completo.

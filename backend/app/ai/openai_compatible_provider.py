@@ -18,6 +18,7 @@ class OpenAICompatibleProvider:
         model: str,
         embeddings_model: str,
         timeout_seconds: float = 30,
+        capture_reasoning: bool = False,
         client_factory: Callable[..., Any] | None = None,
     ) -> None:
         self.provider_name = provider_name
@@ -26,6 +27,7 @@ class OpenAICompatibleProvider:
         self.model = model
         self.embeddings_model = embeddings_model
         self.timeout_seconds = timeout_seconds
+        self.capture_reasoning = capture_reasoning
         self._client_factory = client_factory
         self._client: Any | None = None
 
@@ -34,9 +36,18 @@ class OpenAICompatibleProvider:
             model=self.model,
             messages=[{"role": message.role, "content": message.content} for message in messages],
         )
-        # reasoning_content is intentionally neither read nor returned.
-        content = response.choices[0].message.content or ""
-        return LLMResponse(content=content, model=self.model, provider=self.provider_name)
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        metadata: dict[str, Any] = {}
+        reasoning_content = getattr(choice.message, "reasoning_content", None)
+        if self.capture_reasoning and reasoning_content is not None:
+            metadata["reasoning_content"] = reasoning_content
+        return LLMResponse(
+            content=content,
+            model=self.model,
+            provider=self.provider_name,
+            metadata=metadata,
+        )
 
     def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:
         response = self._get_client().embeddings.create(model=self.embeddings_model, input=request.input)

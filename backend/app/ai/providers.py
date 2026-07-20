@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,7 @@ class LLMResponse:
     content: str
     model: str
     provider: str = "unknown"
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ def create_llm_provider() -> LLMProvider:
         model=settings.llm_model,
         embeddings_model=settings.embeddings_model,
         timeout_seconds=settings.llm_timeout_seconds,
+        capture_reasoning=settings.llm_capture_reasoning,
     )
 
 
@@ -68,4 +70,5 @@ def create_embeddings_provider() -> EmbeddingsProvider:
         model=settings.llm_model,
         embeddings_model=settings.embeddings_model,
         timeout_seconds=settings.llm_timeout_seconds,
+        capture_reasoning=settings.llm_capture_reasoning,
     )

@@ -72,7 +72,7 @@ OllamaProvider
 
 OpenAI y DeepInfra/Qwen se configuran detrás de `OpenAICompatibleProvider`. LangGraph, Conversation Engine, canales, tools y dominio solo dependen de `LLMProvider`/`EmbeddingsProvider`: nunca llaman SDKs, endpoints ni contratos de OpenAI, DeepInfra, Kimi u otros directamente. No existe fallback automático ni selección por tenant en esta fase.
 
-El backend resuelve provider, URL, credencial y modelo. El LLM no resuelve tenant ni schema, y `schema_name` no entra en prompts o respuestas. Solo `message.content` es visible; `reasoning_content` se ignora y no se registra en logs normales ni UI. Las API keys no se registran y cualquier key expuesta en una conversación debe rotarse.
+El backend resuelve provider, URL, credencial y modelo. El LLM no resuelve tenant ni schema, y `schema_name` no entra en prompts o respuestas. Solo `message.content` es visible. `reasoning_content` es metadata técnica opcional: no se muestra a usuarios finales, frontend o canales, y no se guarda ni registra por defecto. Puede capturarse exclusivamente en `LLMResponse.metadata` con `TOTALCHAT_LLM_CAPTURE_REASONING=true` para diagnóstico técnico y tuning de prompts, sin persistencia en esta fase. Ninguna lógica de negocio, tool, pago, cita, disponibilidad, autorización o tenant puede depender de ella. Las API keys no se registran y cualquier key expuesta en una conversación debe rotarse.
 
 ## 7. Comprobantes de pago
 
