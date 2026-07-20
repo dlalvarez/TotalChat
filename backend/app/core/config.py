@@ -17,18 +17,12 @@ class Settings(BaseSettings):
     embeddings_provider: str | None = None
     embeddings_base_url: str | None = None
     embeddings_api_key: str | None = None
-    openai_api_key: str | None = None
     embeddings_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
 
     @property
     def effective_llm_api_key(self) -> str | None:
-        """Use the deprecated OpenAI key only for the OpenAI adapter."""
-        if self.llm_api_key:
-            return self.llm_api_key
-        if self.llm_provider.lower() == "openai":
-            return self.openai_api_key
-        return None
+        return self.llm_api_key
 
     @property
     def effective_embeddings_provider(self) -> str:
@@ -40,13 +34,7 @@ class Settings(BaseSettings):
 
     @property
     def effective_embeddings_api_key(self) -> str | None:
-        if self.embeddings_api_key:
-            return self.embeddings_api_key
-        if self.llm_api_key:
-            return self.llm_api_key
-        if self.effective_embeddings_provider.lower() == "openai" and self.llm_provider.lower() == "openai":
-            return self.openai_api_key
-        return None
+        return self.embeddings_api_key or self.llm_api_key
 
     model_config = SettingsConfigDict(
         env_file=".env",

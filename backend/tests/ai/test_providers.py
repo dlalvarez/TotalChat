@@ -26,7 +26,6 @@ class FakeClient:
 
 def test_import_ai_modules_without_api_key(monkeypatch):
     monkeypatch.delenv("TOTALCHAT_LLM_API_KEY", raising=False)
-    monkeypatch.delenv("TOTALCHAT_OPENAI_API_KEY", raising=False)
     importlib.import_module("app.ai.providers")
     importlib.import_module("app.ai.openai_compatible_provider")
     importlib.import_module("app.ai.openai_provider")
@@ -114,11 +113,10 @@ def test_capture_enabled_without_reasoning_content_is_safe(monkeypatch):
     assert "reasoning_content" not in response.metadata
 
 
-def test_factory_selects_openai_with_generic_key_preferred(monkeypatch):
+def test_factory_configures_openai_with_generic_key(monkeypatch):
     monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "openai")
     monkeypatch.setenv("TOTALCHAT_LLM_BASE_URL", "https://api.openai.com/v1")
     monkeypatch.setenv("TOTALCHAT_LLM_API_KEY", "generic")
-    monkeypatch.setenv("TOTALCHAT_OPENAI_API_KEY", "legacy")
     monkeypatch.setenv("TOTALCHAT_LLM_MODEL", "gpt-4o-mini")
     get_settings.cache_clear()
 
@@ -128,16 +126,22 @@ def test_factory_selects_openai_with_generic_key_preferred(monkeypatch):
     assert provider.base_url == "https://api.openai.com/v1"
 
 
-def test_legacy_key_is_only_fallback_for_openai(monkeypatch):
+def test_provider_specific_openai_key_has_no_effect(monkeypatch):
     monkeypatch.delenv("TOTALCHAT_LLM_API_KEY", raising=False)
-    monkeypatch.setenv("TOTALCHAT_OPENAI_API_KEY", "legacy")
-    monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "deepinfra")
+    removed_provider_key = "TOTALCHAT_OPENAI" + "_API_KEY"
+    monkeypatch.setenv(removed_provider_key, "ignored-provider-specific-key")
+    monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "openai")
     get_settings.cache_clear()
     assert create_llm_provider().api_key is None
 
-    monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "openai")
+
+def test_factory_configures_deepinfra_with_generic_key(monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_LLM_API_KEY", "generic-deepinfra-key")
+    monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "deepinfra")
     get_settings.cache_clear()
-    assert create_llm_provider().api_key == "legacy"
+    provider = create_llm_provider()
+    assert provider.provider_name == "deepinfra"
+    assert provider.api_key == "generic-deepinfra-key"
 
 
 def test_deepinfra_llm_and_openai_embeddings_configuration_is_coherent():
