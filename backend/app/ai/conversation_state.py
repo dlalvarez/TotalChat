@@ -84,7 +84,7 @@ class SelectedSlot(BaseModel):
         return self
 
 
-_FORBIDDEN_STATE_KEYS = {
+_FORBIDDEN_STATE_KEY_FRAGMENTS = {
     "api_key",
     "authorization",
     "password",
@@ -98,8 +98,10 @@ _FORBIDDEN_STATE_KEYS = {
 def _reject_forbidden_metadata(value: JsonValue, path: str = "metadata") -> None:
     if isinstance(value, dict):
         for key, nested_value in value.items():
-            normalized_key = str(key).strip().lower()
-            if normalized_key in _FORBIDDEN_STATE_KEYS:
+            normalized_key = str(key).strip().lower().replace("-", "_")
+            if any(
+                fragment in normalized_key for fragment in _FORBIDDEN_STATE_KEY_FRAGMENTS
+            ):
                 raise ValueError(f"{path} cannot contain '{normalized_key}'")
             _reject_forbidden_metadata(nested_value, f"{path}.{key}")
     elif isinstance(value, (list, tuple)):

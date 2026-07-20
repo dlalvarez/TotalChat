@@ -40,9 +40,24 @@ def test_state_round_trip_is_json_safe():
     assert restored.selected_slot.starts_at.tzinfo is not None
 
 
-@pytest.mark.parametrize("forbidden_key", ["schema_name", "reasoning_content", "api_key", "prompt"])
+@pytest.mark.parametrize(
+    "forbidden_key",
+    [
+        "schema_name",
+        "reasoning_content",
+        "api_key",
+        "prompt",
+        "openai_api_key",
+        "totalchat_llm_api_key",
+        "jwt_secret",
+        "system_prompt",
+        "developer_prompt",
+        "authorization_header",
+        "api-key",
+    ],
+)
 def test_metadata_rejects_forbidden_keys_at_any_depth(forbidden_key):
-    with pytest.raises(ValidationError, match=forbidden_key):
+    with pytest.raises(ValidationError, match="cannot contain"):
         make_state(metadata={"nested": [{forbidden_key: "must-not-be-stored"}]})
 
 
