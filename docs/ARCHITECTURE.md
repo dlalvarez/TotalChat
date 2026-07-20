@@ -335,6 +335,12 @@ Usos iniciales:
 
 La verdad siempre está en PostgreSQL.
 
+### 10.1. Contrato de estado conversacional (Fase 7A.2)
+
+`BookingConversationState` define el contrato interno JSON para estado temporal futuro. Contiene el `tenant_id` que el backend ya resolvió y referencias internas necesarias para coordinar una reserva, pero nunca `schema_name`, razonamiento del proveedor, prompts ni secretos. La deserialización valida enums, timestamps, campos permitidos y metadata antes de aceptar el estado.
+
+Este contrato todavía no se conecta a Redis ni a LangGraph. Tampoco consulta PostgreSQL: las referencias no constituyen confirmación de disponibilidad, precio, cita o pago, y PostgreSQL continúa como fuente de verdad.
+
 ## 11. Eventos de dominio
 
 El backend debe emitir eventos.
