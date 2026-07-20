@@ -757,7 +757,7 @@ Contiene conversación común.
 Contiene abstracciones de IA.
 
 - LLMProvider;
-- OpenAIProvider;
+- OpenAICompatibleProvider;
 - EmbeddingsProvider;
 - prompt registry;
 - tool execution framework;
@@ -3518,7 +3518,7 @@ Debe existir:
 
 ```text
 LLMProvider
-OpenAIProvider
+OpenAICompatibleProvider
 ```
 
 Futuro:
@@ -6086,7 +6086,7 @@ En MVP:
 SchedulingProvider = InternalSchedulingProvider
 MeetingProvider = ManualMeetingProvider
 PaymentProvider = SimulatedPaymentProvider / ManualTransferProvider
-LLMProvider = OpenAIProvider
+LLMProvider = OpenAICompatibleProvider
 ```
 
 ## 20. Endpoints mínimos por fase
@@ -9099,7 +9099,7 @@ Debe existir abstracción:
 
 ```text
 LLMProvider
-OpenAIProvider
+OpenAICompatibleProvider
 ```
 
 Futuro:
@@ -9405,7 +9405,7 @@ Objetivo: agente conversacional.
 Entregables:
 
 - LLMProvider.
-- OpenAIProvider.
+- OpenAICompatibleProvider.
 - EmbeddingsProvider.
 - Graph.
 - Tools.
@@ -12397,7 +12397,7 @@ Crear agente conversacional para reservas.
 ## Alcance
 
 - LLMProvider.
-- OpenAIProvider.
+- OpenAICompatibleProvider.
 - EmbeddingsProvider.
 - LangGraph.
 - Tools.
@@ -12441,7 +12441,7 @@ Conversaciones simuladas.
 # Tasks 005 — LangGraph Agent
 
 - [ ] Crear LLMProvider.
-- [ ] Crear OpenAIProvider.
+- [ ] Crear OpenAICompatibleProvider.
 - [ ] Crear EmbeddingsProvider.
 - [ ] Crear semantic_documents.
 - [ ] Crear graph state.

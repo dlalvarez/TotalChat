@@ -275,29 +275,37 @@ send_confirmation_or_pending_message
 
 ## 8. LLMProvider
 
-El código no debe llamar directamente a OpenAI desde cualquier módulo.
+El código de negocio, LangGraph, canales y tools no debe llamar directamente a ningún proveedor externo.
 
 Debe existir:
 
 ```text
 LLMProvider
-OpenAIProvider
+OpenAICompatibleProvider
 ```
 
-Futuro:
+Adaptadores configurables mediante el contrato OpenAI-compatible:
 
 ```text
-OllamaProvider
-OtherProvider
+OpenAI
+DeepInfra/Qwen
+Kimi (futuro, mediante base_url/model; sin adaptador hardcodeado)
 ```
 
 Variables:
 
 ```text
 TOTALCHAT_LLM_PROVIDER=openai
-TOTALCHAT_LLM_MODEL=...
+TOTALCHAT_LLM_BASE_URL=https://api.openai.com/v1
+TOTALCHAT_LLM_API_KEY=...
+TOTALCHAT_LLM_MODEL=gpt-4o-mini
+TOTALCHAT_LLM_TIMEOUT_SECONDS=30
+TOTALCHAT_LLM_CAPTURE_REASONING=false
 TOTALCHAT_EMBEDDINGS_PROVIDER=openai
-TOTALCHAT_EMBEDDINGS_MODEL=...
+TOTALCHAT_EMBEDDINGS_BASE_URL=https://api.openai.com/v1
+TOTALCHAT_EMBEDDINGS_API_KEY=...
+TOTALCHAT_EMBEDDINGS_MODEL=text-embedding-3-small
+TOTALCHAT_EMBEDDING_DIMENSIONS=1536
 ```
 
 ## 9. pgvector
@@ -597,6 +605,12 @@ Campañas es plataforma/core. Los resolvers de audiencia pueden ser específicos
 
 ## 7A.1. Providers IA y documentos semánticos
 
-La Fase 7A.1 agrega una capa backend `app.ai` con abstracciones `LLMProvider` y `EmbeddingsProvider`, más `OpenAIProvider` como proveedor inicial. La configuración se lee desde variables `TOTALCHAT_LLM_PROVIDER`, `TOTALCHAT_LLM_MODEL`, `TOTALCHAT_OPENAI_API_KEY`, `TOTALCHAT_EMBEDDINGS_MODEL` y `TOTALCHAT_EMBEDDING_DIMENSIONS`; la falta de API key falla al usar el proveedor, no al importar módulos.
+La Fase 7A.1.1 agrega `OpenAICompatibleProvider` como adaptador común para OpenAI y DeepInfra/Qwen. La selección ocurre mediante configuración genérica, nunca por imports desde lógica futura de LangGraph. `TOTALCHAT_LLM_API_KEY` es la única variable de credencial LLM para OpenAI, DeepInfra/Qwen, Kimi futuro y cualquier proveedor OpenAI-compatible; no existe fallback a variables específicas de proveedor. Embeddings defaulta provider, base URL y credencial a la configuración LLM. Kimi puede configurarse en el futuro por `base_url` y `model`, sin acoplamiento ni fallback automático.
+
+No existe un adaptador separado para OpenAI. OpenAI, DeepInfra/Qwen y Kimi futuro son configuraciones de `OpenAICompatibleProvider`, no clases concretas distintas. Todo consumidor futuro debe depender de `LLMProvider`/`EmbeddingsProvider` y obtener instancias mediante `create_llm_provider()` o `create_embeddings_provider()`.
+
+LLM y embeddings pueden usar proveedores distintos. El ejemplo operativo usa DeepInfra/Qwen para LLM y OpenAI `text-embedding-3-small` para embeddings de 1536 dimensiones. Si las variables específicas de embeddings se omiten, heredan provider, URL y credencial del LLM; quien use ese default debe configurar un modelo de embeddings válido para el proveedor efectivo. Cambiar a DeepInfra/Qwen Embedding exige verificar y documentar la dimensión real del modelo antes de guardar vectores o cambiar `TOTALCHAT_EMBEDDING_DIMENSIONS`, porque `semantic_documents.embedding VECTOR(...)` depende de ella y una variación de dimensión requiere tratamiento explícito de los datos existentes.
+
+El adaptador normaliza únicamente `choices[0].message.content` como respuesta visible. `reasoning_content` es metadata técnica opcional: no se mezcla con `content`, no se muestra a usuarios, frontend o canales, y no se guarda ni registra por defecto. Solo puede incluirse en `LLMResponse.metadata` con `TOTALCHAT_LLM_CAPTURE_REASONING=true` para diagnóstico técnico y tuning de prompts; esta fase no implementa su persistencia ni evaluación formal. Ninguna lógica de negocio, tool, pago, cita, disponibilidad, autorización o resolución de tenant puede depender de esa metadata. Las claves nunca se registran; toda clave expuesta en conversaciones debe rotarse.
 
 Los documentos semánticos se almacenan en `semantic_documents` dentro de cada schema tenant. No viven en `public`, no incluyen `schema_name` y toda operación futura de IA debe recibir el tenant ya resuelto por backend antes de consultar embeddings o tools. Esta fase no agrega LangGraph, tools de dominio, endpoints HTTP, canales ni RAG completo.

@@ -208,7 +208,7 @@ Contiene conversación común.
 Contiene abstracciones de IA.
 
 - LLMProvider;
-- OpenAIProvider;
+- OpenAICompatibleProvider;
 - EmbeddingsProvider;
 - prompt registry;
 - tool execution framework;

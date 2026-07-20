@@ -1,7 +1,8 @@
 # Tasks 005 — LangGraph Agent
 
 - [x] Crear LLMProvider.
-- [x] Crear OpenAIProvider.
+- [x] Crear OpenAICompatibleProvider multi-proveedor configurable (Fase 7A.1.1).
+- [x] Unificar credenciales LLM exclusivamente en `TOTALCHAT_LLM_API_KEY`.
 - [x] Crear EmbeddingsProvider.
 - [x] Crear semantic_documents.
 - [ ] Crear graph state.
