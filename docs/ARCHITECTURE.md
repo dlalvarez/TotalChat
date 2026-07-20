@@ -347,6 +347,12 @@ Este contrato todavía no se conecta a Redis ni a LangGraph. Tampoco consulta Po
 
 El adapter no contiene tools reales ni acceso a DB, Redis, red o LLM. Sus acciones son señales internas de coordinación y no confirman precios, disponibilidad, citas o pagos. El backend entrega `tenant_id` ya resuelto y el graph no recibe ni selecciona `schema_name`.
 
+### 10.3. Tools de servicios (Fase 7A.4)
+
+`ServiceTools` opera detrás del tenant resolver con un `ServiceRepository` o una sesión SQLAlchemy ya contextualizada al schema tenant. `SQLAlchemyServiceRepository` consulta los modelos reales `practitioner_services`, `practitioners`, `organizations` y `service_modalities`, limitando resultados a recursos activos.
+
+El contrato devuelve modelos internos estructurados con referencias, descripción, duración y modalidades. No cruza la frontera hacia precios, disponibilidad, citas o pagos; tampoco usa LLM, red, endpoints ni `schema_name`.
+
 ## 11. Eventos de dominio
 
 El backend debe emitir eventos.
