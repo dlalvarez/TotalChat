@@ -22,3 +22,11 @@ LLM y embeddings pueden usar proveedores distintos. La configuración operativa 
 `run_booking_graph(BookingConversationState) -> BookingGraphResult` es el contrato interno del graph base. El resultado contiene una copia actualizada del estado, la siguiente `BookingGraphAction`, los campos pendientes, los nodos estructurales visitados y un `response_code` interno. El flujo es determinista y no muta el estado recibido.
 
 Esta fase no incorpora el runtime LangGraph ni tools reales. No consulta PostgreSQL o Redis, no llama a proveedores LLM, no confirma citas o pagos y no genera precios ni disponibilidad. `tenant_id` llega resuelto por backend y `schema_name` no forma parte de la entrada ni del resultado.
+
+## Fase 7A.4
+
+`ServiceTools` define las tools internas `search_services`, `list_active_services` y `get_service_detail`. Recibe el `tenant_id` ya resuelto por el backend y un repository o sesión SQLAlchemy que ya está contextualizado al schema tenant. Ni las entradas ni los resultados aceptan o exponen `schema_name`.
+
+Las búsquedas devuelven únicamente servicios, profesionales y organizaciones activos. Sus resultados estructurados contienen identificadores internos, nombre, descripción, duración, profesional y modalidades activas. No contienen precio, disponibilidad, slots, citas, pagos ni texto conversacional final. El detalle de un servicio inexistente o inactivo devuelve `None`.
+
+Esta fase no agrega endpoints, llamadas LLM, red, RAG ni runtime LangGraph. El port `ServiceRepository` permite tests locales controlados y `SQLAlchemyServiceRepository` consulta `practitioner_services` como fuente de verdad tenant-scoped.

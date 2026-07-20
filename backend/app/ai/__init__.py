@@ -29,6 +29,17 @@ from app.ai.providers import (
     create_llm_provider,
 )
 from app.ai.semantic_documents import SemanticDocument
+from app.ai.service_tools import (
+    SQLAlchemyServiceRepository,
+    ServiceDetail,
+    ServiceListRequest,
+    ServiceRecord,
+    ServiceRepository,
+    ServiceSearchRequest,
+    ServiceSummary,
+    ServiceToolResult,
+    ServiceTools,
+)
 
 __all__ = [
     "BookingConversationState",
@@ -50,6 +61,15 @@ __all__ = [
     "PendingField",
     "SemanticDocument",
     "SelectedSlot",
+    "SQLAlchemyServiceRepository",
+    "ServiceDetail",
+    "ServiceListRequest",
+    "ServiceRecord",
+    "ServiceRepository",
+    "ServiceSearchRequest",
+    "ServiceSummary",
+    "ServiceToolResult",
+    "ServiceTools",
     "create_embeddings_provider",
     "create_llm_provider",
     "run_booking_graph",
