@@ -15,6 +15,8 @@ class RecordingConnection:
             self.versions.add("007_booking_notes")
         if "VALUES ('008_virtual_appointment_links')" in text:
             self.versions.add("008_virtual_appointment_links")
+        if "VALUES ('009_semantic_documents')" in text:
+            self.versions.add("009_semantic_documents")
         return Result(False)
 
 class Result:
@@ -39,3 +41,21 @@ def test_apply_pending_rejects_invalid_schema():
         assert "Invalid tenant schema name" in str(exc)
     else:
         raise AssertionError("expected invalid schema rejection")
+
+
+def test_semantic_documents_is_registered_as_pending_tenant_migration():
+    from app.tenancy.migrate_existing_tenants import TENANT_MIGRATIONS
+
+    assert "009_semantic_documents" in [migration.version for migration in TENANT_MIGRATIONS]
+
+
+def test_apply_pending_semantic_documents_migration_is_idempotent():
+    connection = RecordingConnection()
+    migration = PendingTenantMigration(
+        "009_semantic_documents",
+        lambda conn, schema: conn.execute("VALUES ('009_semantic_documents')"),
+    )
+    applied = apply_pending_migrations_to_schema(connection, "tenant_alpha", (migration,))
+    again = apply_pending_migrations_to_schema(connection, "tenant_alpha", (migration,))
+    assert applied == ["009_semantic_documents"]
+    assert again == []

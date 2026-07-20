@@ -1346,3 +1346,25 @@ Crear desde consola usa `created_from_channel = admin` y `profile_status = minim
 Para citas administrativas, la sede define la modalidad: `locations.is_virtual = true` implica `bookings.modality = virtual`, y `locations.is_virtual = false` implica `bookings.modality = in_person`. No hay selector libre de modalidad en la experiencia admin.
 
 Los datos de link virtual manual permanecen en `bookings` mediante columnas como `virtual_meeting_url`, `virtual_meeting_id`, `virtual_access_code`, `virtual_link_status`, `virtual_link_created_mode`, `virtual_link_provider` y `virtual_link_sent_at`. En el MVP, `virtual_meeting_url` es el dato mínimo para considerar el link creado o enviado; `virtual_meeting_id` y `virtual_access_code` son auxiliares. No se crea `booking_virtual_details` en este MVP.
+
+
+## 12. Documentos semánticos tenant-scoped
+
+`semantic_documents` vive exclusivamente en cada schema tenant y prepara almacenamiento semántico para búsquedas futuras con pgvector. PostgreSQL sigue siendo la fuente de verdad y el LLM no puede resolver tenant ni seleccionar schema.
+
+Campos conceptuales:
+
+```text
+id UUID
+source_type VARCHAR
+source_id UUID nullable
+title VARCHAR
+content TEXT
+embedding VECTOR(TOTALCHAT_EMBEDDING_DIMENSIONS)
+metadata JSONB
+status VARCHAR
+created_at
+updated_at
+```
+
+La tabla no contiene `schema_name` y no debe exponerse a frontend, canales, usuarios finales ni LLMs.

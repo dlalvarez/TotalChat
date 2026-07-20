@@ -28,6 +28,7 @@ REQUIRED_TENANT_MIGRATIONS = frozenset(
         "007_booking_notes",
         "007_organization_practitioners",
         "008_virtual_appointment_links",
+        "009_semantic_documents",
     }
 )
 

@@ -6,9 +6,11 @@ from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.db.base import Base
 import app.models.tenant  # noqa: F401 - register tenant models
+import app.ai.semantic_documents  # noqa: F401 - register tenant AI models
 
 MAX_PG_IDENTIFIER_LENGTH = 63
 PAYMENT_TENANT_TABLES = {"payment_settings", "payment_attempts", "payment_evidence", "payment_reviews"}
+AI_TENANT_TABLES = {"semantic_documents"}
 _SCHEMA_RE = re.compile(r"^tenant_[a-z][a-z0-9_]{0,55}$")
 
 
@@ -68,7 +70,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     tenant_tables = [
         table
         for table in Base.metadata.sorted_tables
-        if table.schema is None and table.name not in PAYMENT_TENANT_TABLES
+        if table.schema is None and table.name not in PAYMENT_TENANT_TABLES | AI_TENANT_TABLES
     ]
     copied_tables = [table.to_metadata(tenant_metadata, schema=schema_name) for table in tenant_tables]
 
@@ -94,6 +96,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     apply_organization_practitioners_tenant_migration(connection, schema_name)
     apply_booking_notes_tenant_migration(connection, schema_name)
     apply_virtual_link_columns_tenant_migration(connection, schema_name)
+    apply_semantic_documents_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -381,5 +384,48 @@ def apply_virtual_link_columns_tenant_migration(connection: Connection, schema_n
             VALUES ('008_virtual_appointment_links')
             ON CONFLICT (version) DO NOTHING
             """
+        )
+    )
+
+
+def apply_semantic_documents_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Create tenant-scoped semantic document storage for future AI retrieval."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+
+    from app.core.config import get_settings
+
+    dimensions = get_settings().embedding_dimensions
+    connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    connection.execute(
+        text(
+            f'''
+            CREATE TABLE IF NOT EXISTS "{schema_name}".semantic_documents (
+                id UUID NOT NULL,
+                source_type VARCHAR(80) NOT NULL,
+                source_id UUID,
+                title VARCHAR(255) NOT NULL,
+                content TEXT NOT NULL,
+                embedding VECTOR({dimensions}),
+                metadata JSONB DEFAULT '{{}}' NOT NULL,
+                status VARCHAR(32) DEFAULT 'active' NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                PRIMARY KEY (id)
+            )
+            '''
+        )
+    )
+    connection.execute(
+        text(f'CREATE INDEX IF NOT EXISTS ix_semantic_documents_source ON "{schema_name}".semantic_documents (source_type, source_id)')
+    )
+    connection.execute(text(f'CREATE INDEX IF NOT EXISTS ix_semantic_documents_status ON "{schema_name}".semantic_documents (status)'))
+    connection.execute(
+        text(
+            f'''
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('009_semantic_documents')
+            ON CONFLICT (version) DO NOTHING
+            '''
         )
     )
