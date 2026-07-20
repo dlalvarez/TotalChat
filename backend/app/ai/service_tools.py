@@ -9,7 +9,13 @@ from uuid import UUID
 from sqlalchemy import Select, exists, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import Organization, Practitioner, PractitionerService, ServiceModality
+from app.models.tenant import (
+    Organization,
+    OrganizationPractitioner,
+    Practitioner,
+    PractitionerService,
+    ServiceModality,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,10 +116,16 @@ class SQLAlchemyServiceRepository:
             select(PractitionerService, Practitioner, Organization)
             .join(Practitioner, Practitioner.id == PractitionerService.practitioner_id)
             .join(Organization, Organization.id == PractitionerService.organization_id)
+            .join(
+                OrganizationPractitioner,
+                (OrganizationPractitioner.organization_id == PractitionerService.organization_id)
+                & (OrganizationPractitioner.practitioner_id == PractitionerService.practitioner_id),
+            )
             .where(
                 PractitionerService.status == "active",
                 Practitioner.status == "active",
                 Organization.status == "active",
+                OrganizationPractitioner.status == "active",
             )
         )
 

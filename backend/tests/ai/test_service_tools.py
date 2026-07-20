@@ -6,12 +6,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.ai.service_tools import ServiceListRequest, ServiceSearchRequest, ServiceTools
-from app.models.tenant import Organization, Practitioner, PractitionerService, ServiceModality
+from app.models.tenant import (
+    Organization,
+    OrganizationPractitioner,
+    Practitioner,
+    PractitionerService,
+    ServiceModality,
+)
 
 
 TABLES = [
     Organization.__table__,
     Practitioner.__table__,
+    OrganizationPractitioner.__table__,
     PractitionerService.__table__,
     ServiceModality.__table__,
 ]
@@ -28,6 +35,20 @@ def service_catalog() -> tuple[Session, UUID, UUID, UUID, UUID]:
     other_practitioner = Practitioner(full_name="Dr. Luis", status="active")
     session.add_all([organization, practitioner, other_practitioner])
     session.flush()
+    session.add_all(
+        [
+            OrganizationPractitioner(
+                organization_id=organization.id,
+                practitioner_id=practitioner.id,
+                status="active",
+            ),
+            OrganizationPractitioner(
+                organization_id=organization.id,
+                practitioner_id=other_practitioner.id,
+                status="active",
+            ),
+        ]
+    )
     active = PractitionerService(
         organization_id=organization.id,
         practitioner_id=practitioner.id,
@@ -108,6 +129,25 @@ def test_missing_or_inactive_service_detail_returns_none(service_catalog) -> Non
     assert tools.get_service_detail(active_id) is not None
 
 
+def test_tools_exclude_services_when_organization_practitioner_relation_is_inactive(service_catalog) -> None:
+    session, organization_id, practitioner_id, active_id, _inactive_id = service_catalog
+    relation = session.get(
+        OrganizationPractitioner,
+        {"organization_id": organization_id, "practitioner_id": practitioner_id},
+    )
+    assert relation is not None
+    relation.status = "inactive"
+    session.commit()
+    tools = make_tools(session)
+
+    search_result = tools.search_services(ServiceSearchRequest(text="psicológica"))
+    list_result = tools.list_active_services()
+
+    assert active_id not in {service.service_id for service in search_result.services}
+    assert active_id not in {service.service_id for service in list_result.services}
+    assert tools.get_service_detail(active_id) is None
+
+
 def test_results_exclude_schema_price_and_availability(service_catalog) -> None:
     session, _organization_id, _practitioner_id, active_id, _inactive_id = service_catalog
 
@@ -147,6 +187,14 @@ def test_separate_tenant_sessions_are_isolated() -> None:
             status="active",
         )
         session.add(service)
+        session.flush()
+        session.add(
+            OrganizationPractitioner(
+                organization_id=organization.id,
+                practitioner_id=practitioner.id,
+                status="active",
+            )
+        )
         session.commit()
         return session, engine
 
