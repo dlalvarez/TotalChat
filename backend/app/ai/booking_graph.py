@@ -84,7 +84,11 @@ def _detect_missing_fields(state: BookingConversationState) -> tuple[PendingFiel
         and state.selected_location_id is None
     ):
         missing.append(PendingField.LOCATION)
-    if state.selected_payer_type_id is None:
+    if (
+        state.selected_payer_type_id is None
+        or state.selected_payer_id is None
+        or state.selected_payer_plan_id is None
+    ):
         missing.append(PendingField.PAYER)
     if state.selected_slot is None:
         missing.append(PendingField.SLOT)

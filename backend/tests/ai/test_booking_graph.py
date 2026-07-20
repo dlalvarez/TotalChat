@@ -33,6 +33,8 @@ def complete_selection(**overrides):
         "selected_practitioner_id": uuid4(),
         "selected_modality": BookingModality.VIRTUAL,
         "selected_payer_type_id": uuid4(),
+        "selected_payer_id": uuid4(),
+        "selected_payer_plan_id": uuid4(),
         "selected_slot": SelectedSlot(
             starts_at=start, ends_at=start + timedelta(minutes=45)
         ),
@@ -78,6 +80,44 @@ def test_location_is_required_only_for_in_person_bookings(
     )
 
     assert result.action is expected_action
+
+
+@pytest.mark.parametrize(
+    ("payer_context", "expected_action"),
+    [
+        (
+            {
+                "selected_payer_type_id": uuid4(),
+                "selected_payer_id": None,
+                "selected_payer_plan_id": None,
+            },
+            BookingGraphAction.ASK_FOR_PAYER,
+        ),
+        (
+            {
+                "selected_payer_type_id": uuid4(),
+                "selected_payer_id": uuid4(),
+                "selected_payer_plan_id": None,
+            },
+            BookingGraphAction.ASK_FOR_PAYER,
+        ),
+        (
+            {
+                "selected_payer_type_id": uuid4(),
+                "selected_payer_id": uuid4(),
+                "selected_payer_plan_id": uuid4(),
+            },
+            BookingGraphAction.REVIEW_BOOKING,
+        ),
+    ],
+)
+def test_graph_requires_complete_payer_context(payer_context, expected_action):
+    result = run_booking_graph(complete_selection(**payer_context))
+
+    assert result.action is expected_action
+    assert (PendingField.PAYER in result.pending_fields) is (
+        expected_action is BookingGraphAction.ASK_FOR_PAYER
+    )
 
 
 def test_graph_structurally_advances_from_review_to_payment_and_complete():
