@@ -4,7 +4,11 @@ from uuid import uuid4
 import pytest
 
 from app.models.public import Tenant
-from app.tenancy.provisioning import TenantProvisioningError, TenantProvisioningService
+from app.tenancy.provisioning import (
+    REQUIRED_TENANT_MIGRATIONS,
+    TenantProvisioningError,
+    TenantProvisioningService,
+)
 
 
 class FakeInspector:
@@ -106,3 +110,18 @@ def test_two_runs_with_same_slug_do_not_duplicate_tenant(monkeypatch: pytest.Mon
     assert len(created) == 1
     assert first.slug == second.slug == "tenant-alpha"
     assert second.actions == ("tenant_exists", "schema_exists", "migrations_current")
+
+
+def test_semantic_documents_migration_is_required_for_current_schema() -> None:
+    assert "009_semantic_documents" in REQUIRED_TENANT_MIGRATIONS
+
+    session = Mock()
+    connection = session.connection.return_value
+    connection.execute.return_value = [
+        (version,) for version in REQUIRED_TENANT_MIGRATIONS - {"009_semantic_documents"}
+    ]
+
+    assert TenantProvisioningService(session)._migrations_current("tenant_tenant_alpha") is False
+
+    connection.execute.return_value = [(version,) for version in REQUIRED_TENANT_MIGRATIONS]
+    assert TenantProvisioningService(session)._migrations_current("tenant_tenant_alpha") is True

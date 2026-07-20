@@ -96,6 +96,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     apply_organization_practitioners_tenant_migration(connection, schema_name)
     apply_booking_notes_tenant_migration(connection, schema_name)
     apply_virtual_link_columns_tenant_migration(connection, schema_name)
+    apply_semantic_documents_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
