@@ -670,3 +670,12 @@ el mensaje en `messages`. El `update_id` de Telegram evita duplicar mensajes.
 Esta entrada no llama al Booking Agent, al LLM, a la red ni a un cliente Telegram;
 tampoco envía respuestas salientes. El payload, las respuestas HTTP y la metadata
 persistida no contienen secretos ni `schema_name`.
+
+## Puente interno Telegram — Fase 8A.2
+
+El `TelegramWebhookService` conserva la frontera HTTP ligera: resuelve tenant,
+persiste el mensaje entrante y delega a un `BookingAgentInvoker`. El adaptador
+determinístico crea el agente 7A.9 con tools SQLAlchemy ya contextualizadas y una
+request interna de campos permitidos. La salida se registra en `messages` como
+`direction=outgoing` y `delivery_status=pending`; no existe todavía cliente
+Telegram saliente, llamada de red, LLM, LangGraph runtime ni transición a enviado.

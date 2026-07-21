@@ -17,3 +17,20 @@ secretos, perfil de usuario ni `schema_name`.
 
 Exclusiones: Booking Agent/LLM, red, cliente Telegram, mensajes salientes,
 comandos y lógica de reservas o pagos.
+
+## Fase 8A.2 — Puente interno al Booking Agent
+
+Después de persistir y confirmar el mensaje `incoming`, el servicio construye una
+`BookingConversationRequest` con una lista cerrada de campos del estado de la
+sesión tenant-scoped y el texto recibido como consulta de servicio. El `tenant_id`
+proviene exclusivamente del resolver de canal. El puente instancia las tools SQL
+tenant-scoped y ejecuta el `BookingAgent` determinístico de 7A.9.
+
+El resultado se guarda como un `Message(direction="outgoing")` interno con
+`delivery_status="pending"`. Este estado significa generado pero **no enviado**.
+Los errores controlados también dejan una respuesta interna genérica pendiente y
+no cambian el `200` del webhook; no se persisten detalles de excepción. Un update
+duplicado no vuelve a invocar el agente.
+
+Exclusiones: cliente o API saliente de Telegram, red, LLM/provider, LangGraph
+runtime y cualquier estado `sent` o confirmación de entrega.

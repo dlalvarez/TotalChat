@@ -65,11 +65,10 @@ def test_webhook_response_does_not_expose_schema_or_secrets() -> None:
     assert "test-only-webhook-secret" not in response.text
 
 
-def test_intake_has_no_agent_or_outbound_network_side_effects(monkeypatch) -> None:
+def test_webhook_has_no_llm_or_outbound_network_side_effects(monkeypatch) -> None:
     def forbidden(*args, **kwargs):
-        raise AssertionError("Agent, LLM, network, and outbound Telegram calls are out of scope")
+        raise AssertionError("LLM, network, and outbound Telegram calls are out of scope")
 
-    monkeypatch.setattr("app.ai.booking_agent.BookingAgent.run", forbidden)
     monkeypatch.setattr("app.ai.openai_compatible_provider.OpenAICompatibleProvider.complete", forbidden)
     monkeypatch.setattr("socket.create_connection", forbidden)
     spy = IntakeSpy()
@@ -92,8 +91,13 @@ def test_service_persists_incoming_message_and_is_idempotent(monkeypatch) -> Non
         lambda self, **kwargs: tenant,
     )
 
+    class Agent:
+        def invoke(self, **kwargs):
+            from app.ai.booking_agent import BookingConversationResult
+            return BookingConversationResult(status="service_not_found", completed_steps=())
+
     with Session(engine) as session:
-        service = TelegramWebhookService(session)
+        service = TelegramWebhookService(session, agent_invoker=Agent())
         update = TelegramUpdate.model_validate(UPDATE)
 
         first = service.process(update, bot_identifier="configured-test-bot")
@@ -105,11 +109,13 @@ def test_service_persists_incoming_message_and_is_idempotent(monkeypatch) -> Non
     assert first == TelegramIntakeResult(accepted=True, duplicate=False)
     assert second == TelegramIntakeResult(accepted=True, duplicate=True)
     assert len(conversations) == 1
-    assert len(messages) == 1
-    assert messages[0].direction == "incoming"
-    assert messages[0].content == "Hola"
-    assert messages[0].external_message_id == str(UPDATE["update_id"])
-    assert "schema_name" not in messages[0].raw_payload
+    assert len(messages) == 2
+    incoming = next(item for item in messages if item.direction == "incoming")
+    outgoing = next(item for item in messages if item.direction == "outgoing")
+    assert incoming.content == "Hola"
+    assert incoming.external_message_id == str(UPDATE["update_id"])
+    assert outgoing.raw_payload["delivery_status"] == "pending"
+    assert all("schema_name" not in item.raw_payload for item in messages)
 
 
 def test_service_does_not_write_when_channel_has_no_tenant(monkeypatch) -> None:
