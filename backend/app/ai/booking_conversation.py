@@ -1,34 +1,42 @@
-"""Conservative LLM-assisted orchestration for an initial Telegram booking flow."""
+"""Conservative, channel-agnostic orchestration for initial booking context."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.orm import Session
+
+from app.ai.conversation_types import ConversationTurnResult
 from app.ai.providers import LLMMessage, LLMProvider
+from app.ai.providers import create_llm_provider
 from app.ai.service_tools import ServiceListRequest, ServiceSearchRequest, ServiceTools
+from app.models.tenant import ConversationSession
 
 
-@dataclass(frozen=True, slots=True)
-class ConversationTurnResult:
-    content: str
-    status: str
-    state: dict[str, Any]
+ALLOWED_STATE_FIELDS = frozenset({
+    "phase", "intent", "selected_service_id", "selected_service_name",
+    "selected_practitioner_id", "date_preference", "time_preference", "modality",
+    "missing_fields", "last_user_message", "last_assistant_message",
+})
+ALLOWED_INTENTS = frozenset({"greeting", "booking", "information", "ambiguous", "other"})
+ALLOWED_MODALITIES = frozenset({"in_person", "virtual"})
+_TEXT_STATE_FIELDS = ALLOWED_STATE_FIELDS - {"missing_fields"}
 
 
-class TelegramConversationOrchestrator:
+class InitialBookingConversationOrchestrator:
     """Interpret one turn, then validate factual selections with backend tools."""
 
     def __init__(self, *, tenant_id: UUID, llm: LLMProvider, service_tools: ServiceTools) -> None:
-        self._tenant_id = tenant_id
+        if not isinstance(tenant_id, UUID):
+            raise TypeError("tenant_id must be a backend-resolved UUID")
         self._llm = llm
         self._services = service_tools
 
     def run(self, *, message_text: str, current_state: dict[str, Any]) -> ConversationTurnResult:
-        interpretation = self._interpret(message_text, current_state)
-        state = self._safe_state(current_state)
+        state = self._sanitize_state(current_state)
+        interpretation = self._interpret(message_text, state)
         state.update({
             "phase": "collecting_booking_context",
             "last_user_message": message_text,
@@ -112,14 +120,26 @@ class TelegramConversationOrchestrator:
             raise ValueError("LLM interpretation must be an object")
         allowed = {"intent", "service_query", "date_preference", "time_preference", "modality"}
         result = {key: value.get(key) if isinstance(value.get(key), str) else None for key in allowed}
-        result["intent"] = result["intent"] or "ambiguous"
-        if result["modality"] not in {None, "in_person", "virtual"}:
+        if result["intent"] not in ALLOWED_INTENTS:
+            result["intent"] = "ambiguous"
+        if result["modality"] not in ALLOWED_MODALITIES:
             result["modality"] = None
         return result
 
     @staticmethod
-    def _safe_state(state: dict[str, Any]) -> dict[str, Any]:
-        return {key: value for key, value in state.items() if key != "schema_name"}
+    def _sanitize_state(state: dict[str, Any]) -> dict[str, str | list[str]]:
+        """Copy only the scalar fields authorized by phase 8A.6."""
+        safe: dict[str, str | list[str]] = {}
+        for key in ALLOWED_STATE_FIELDS:
+            value = state.get(key)
+            if key == "missing_fields":
+                if isinstance(value, list) and all(isinstance(item, str) for item in value):
+                    safe[key] = list(value)
+            elif key in _TEXT_STATE_FIELDS and isinstance(value, (str, UUID)):
+                safe[key] = str(value)
+        # This assertion guards future changes to the allowlist and result assembly.
+        json.dumps(safe, ensure_ascii=False)
+        return safe
 
     @staticmethod
     def _missing(state: dict[str, Any]) -> list[str]:
@@ -130,5 +150,21 @@ class TelegramConversationOrchestrator:
     @staticmethod
     def _result(state: dict[str, Any], status: str, content: str) -> ConversationTurnResult:
         state["last_assistant_message"] = content
-        state["missing_fields"] = TelegramConversationOrchestrator._missing(state)
+        state["missing_fields"] = InitialBookingConversationOrchestrator._missing(state)
         return ConversationTurnResult(content=content, status=status, state=state)
+
+
+class LLMConversationAgentInvoker:
+    """Build the common orchestrator after the backend has scoped the DB session."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def invoke(
+        self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
+    ) -> ConversationTurnResult:
+        return InitialBookingConversationOrchestrator(
+            tenant_id=tenant_id,
+            llm=create_llm_provider(),
+            service_tools=ServiceTools(tenant_id=tenant_id, session=self._session),
+        ).run(message_text=message_text, current_state=conversation.state or {})

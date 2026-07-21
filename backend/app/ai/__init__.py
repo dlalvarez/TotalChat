@@ -38,6 +38,11 @@ from app.ai.conversation_state import (
     PendingField,
     SelectedSlot,
 )
+from app.ai.conversation_types import ConversationTurnResult
+from app.ai.booking_conversation import (
+    InitialBookingConversationOrchestrator,
+    LLMConversationAgentInvoker,
+)
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
 from app.ai.payment_tools import (
     PaymentMethodOption,
@@ -104,13 +109,16 @@ __all__ = [
     "ConversationIntent",
     "ConversationPaymentStatus",
     "ConversationStage",
+    "ConversationTurnResult",
     "EmbeddingRequest",
     "EmbeddingResponse",
     "EmbeddingsProvider",
     "LLMMessage",
+    "LLMConversationAgentInvoker",
     "LLMProvider",
     "LLMResponse",
     "OpenAICompatibleProvider",
+    "InitialBookingConversationOrchestrator",
     "PaymentMethodOption",
     "PaymentPreparationRequest",
     "PaymentRepository",

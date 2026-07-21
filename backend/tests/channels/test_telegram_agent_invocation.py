@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.ai.telegram_conversation import ConversationTurnResult
+from app.ai.conversation_types import ConversationTurnResult
 from app.channels.telegram import TelegramUpdate, TelegramWebhookService
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.context import TenantContext
@@ -127,7 +127,7 @@ def test_empty_state_invokes_conversation_agent(monkeypatch):
     assert conversation.state["phase"] == "collecting_booking_context"
 
 
-def test_incomplete_state_preserves_progress_and_refreshes_missing_fields(monkeypatch):
+def test_invoker_result_replaces_state_without_adapter_domain_logic(monkeypatch):
     agent = AgentSpy()
     state = {"payer_type": "private", "last_user_message": "mensaje anterior"}
     engine, update, _ = make_service(monkeypatch, agent, state=state)
@@ -137,5 +137,4 @@ def test_incomplete_state_preserves_progress_and_refreshes_missing_fields(monkey
         conversation = session.scalars(select(ConversationSession)).one()
 
     assert len(agent.calls) == 1
-    assert conversation.state["payer_type"] == "private"
     assert conversation.state["phase"] == "collecting_booking_context"

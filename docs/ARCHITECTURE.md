@@ -721,14 +721,25 @@ identificadores internos ni errores técnicos al paciente.
 
 ## Orquestación conversacional Telegram — Fase 8A.6
 
-La entrada Telegram delega cada turno, ya tenant-scoped, a un orquestador que usa
-la abstracción `LLMProvider` para obtener una interpretación JSON limitada. El
-orquestador no acepta la interpretación como verdad: resuelve servicios mediante
-`ServiceTools`, conserva el progreso permitido en
+Telegram permanece como adaptador concreto de entrada, persistencia y transporte.
+Delega cada turno, ya tenant-scoped y normalizado, mediante
+`ConversationAgentInvoker` a `InitialBookingConversationOrchestrator`, un
+componente común que no conoce payloads, credenciales, identificadores ni estados
+de entrega del canal. El orquestador usa la abstracción `LLMProvider` para obtener
+una interpretación JSON limitada y no la acepta como verdad: resuelve servicios
+mediante `ServiceTools`, conserva exclusivamente campos allowlisted en
 `conversation_sessions.state` y selecciona la siguiente pregunta determinística.
 
 La respuesta visible se compone desde resultados validados y nunca desde estados
 técnicos del Booking Agent. Las preferencias relativas de fecha y horario siguen
 siendo datos parciales hasta que una tool de disponibilidad pueda validarlas. La
 fase no confirma citas, disponibilidad ni pagos, no expone identificadores
-internos o schemas y mantiene PostgreSQL como fuente de verdad.
+internos, schemas, secretos, prompts o razonamiento interno y mantiene PostgreSQL
+como fuente de verdad.
+
+Este recolector conversacional no reemplaza a `BookingAgent`. El agente
+determinístico 7A.9 y sus tools de precio, disponibilidad, citas y pagos conservan
+la responsabilidad de aplicar reglas y acciones operativas contra PostgreSQL. La
+transformación del contexto parcial de 8A.6 en una solicitud operativa para ese
+agente requiere una fase posterior autorizada; 8A.6 no crea reservas, slots,
+holds o pagos y no incorpora runtime LangGraph ni modifica el roadmap.

@@ -13,9 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ai.service_tools import ServiceTools
-from app.ai.providers import create_llm_provider
-from app.ai.telegram_conversation import ConversationTurnResult, TelegramConversationOrchestrator
+from app.ai.booking_conversation import LLMConversationAgentInvoker
 from app.channels.base import ConversationAgentInvoker
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.resolver import TenantResolver
@@ -82,22 +80,6 @@ class TelegramHTTPClient:
         return message_id
 
 
-class LLMConversationAgentInvoker:
-    """Default channel-independent conversational boundary for phase 8A.6."""
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
-
-    def invoke(
-        self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
-    ) -> ConversationTurnResult:
-        return TelegramConversationOrchestrator(
-            tenant_id=tenant_id,
-            llm=create_llm_provider(),
-            service_tools=ServiceTools(tenant_id=tenant_id, session=self._session),
-        ).run(message_text=message_text, current_state=conversation.state or {})
-
-
 @dataclass(slots=True)
 class TelegramWebhookService:
     session: Session
@@ -161,11 +143,8 @@ class TelegramWebhookService:
                 conversation=conversation,
                 message_text=update.message.text,
             )
-            if isinstance(result, ConversationTurnResult):
-                conversation.state = result.state
-                content = result.content
-            else:  # Compatibility for explicitly injected legacy invokers.
-                content = "No pude interpretar todos los datos. ¿Puedes aclarar qué servicio necesitas?"
+            conversation.state = result.state
+            content = result.content
             agent_status = result.status
         except Exception:
             # The webhook is an acknowledgement boundary. Details are intentionally

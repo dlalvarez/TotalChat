@@ -211,3 +211,18 @@ el adaptador entrega únicamente un `outgoing` ya persistido. Un canal futuro de
 reutilizar este límite y las tools backend existentes, no copiar decisiones de
 tenant, disponibilidad, reservas, pricing o pagos. Esta fase no incorpora nuevos
 canales, LLM ni runtime LangGraph.
+
+## Orquestación conversacional común — Fase 8A.6
+
+Telegram es solo el primer adaptador que consume `ConversationAgentInvoker`. El
+orquestador inicial detrás de esa frontera es agnóstico al canal: recibe tenant ya
+resuelto, texto normalizado, estado allowlisted, `LLMProvider` y `ServiceTools`.
+El LLM extrae intención y preferencias explícitas; las tools validan los hechos
+contra PostgreSQL tenant-scoped. Ni payloads, credenciales, `schema_name`, prompts,
+razonamiento interno ni identificadores internos visibles cruzan esta frontera.
+
+El estado recopilado no constituye una reserva ni disponibilidad confirmada. El
+`BookingAgent` determinístico de 7A.9 continúa siendo la capa prevista para
+coordinar reglas y tools operativas. Delegar hacia él queda expresamente para una
+fase posterior autorizada. Esta fase no crea slots, holds, citas o pagos, no usa
+runtime LangGraph y no modifica el roadmap.

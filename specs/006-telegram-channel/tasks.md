@@ -16,3 +16,5 @@
 - [x] Interpretar intención y datos explícitos mediante el provider LLM configurado (Fase 8A.6).
 - [x] Validar servicios mencionados con tools tenant-scoped y persistir progreso conversacional (Fase 8A.6).
 - [x] Cubrir saludo, servicio único, estado parcial y ambigüedad sin crear reservas (Fase 8A.6).
+- [x] Mantener contratos y orquestador 8A.6 agnósticos al canal con estado allowlisted.
+- [x] Preservar Booking Agent 7A.9 como capa operativa posterior, sin invocarlo desde 8A.6.

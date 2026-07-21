@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from app.ai.telegram_conversation import ConversationTurnResult
+from app.ai.conversation_types import ConversationTurnResult
 from app.models.tenant import ConversationSession
 
 

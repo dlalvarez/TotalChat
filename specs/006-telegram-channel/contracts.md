@@ -96,7 +96,8 @@ Esta fase no interpreta intención ni completa el flujo natural de reserva.
 ## Fase 8A.6 — Orquestación conversacional inicial
 
 Después de resolver el tenant y persistir el mensaje entrante, el adaptador invoca
-una capa conversacional que lee `conversation_sessions.state` y usa el
+mediante `ConversationAgentInvoker` una capa conversacional común, agnóstica al
+canal, que lee una allowlist de `conversation_sessions.state` y usa el
 `LLMProvider` configurado exclusivamente para extraer intención y datos explícitos.
 La interpretación estructurada se valida contra tools tenant-scoped antes de
 persistir referencias a servicios u otros hechos del dominio.
@@ -106,4 +107,10 @@ modalidad. Una coincidencia única de servicio se conserva como referencia inter
 cero o varias coincidencias producen una aclaración basada solo en resultados de
 la tool. Las expresiones relativas se conservan como preferencias y no se
 convierten en disponibilidad confirmada. Esta fase no crea ni confirma citas,
-pagos o slots, y nunca presenta UUIDs ni `schema_name` al paciente.
+pagos, slots o holds, y nunca presenta UUIDs, `schema_name`, secretos, prompts o
+razonamiento interno al paciente.
+
+Este orquestador recopila contexto y no reemplaza al `BookingAgent` determinístico
+7A.9 ni a sus tools operativas. La delegación del contexto recopilado hacia ese
+agente queda para una fase posterior autorizada; 8A.6 no incorpora runtime
+LangGraph, no selecciona tenant y no modifica el roadmap.

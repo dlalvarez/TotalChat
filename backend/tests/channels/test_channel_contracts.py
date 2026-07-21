@@ -16,3 +16,5 @@ def test_common_contract_does_not_import_concrete_adapters() -> None:
     assert "app.channels.telegram" not in source
     assert "whatsapp" not in source
     assert "webchat" not in source
+    assert "telegram_conversation" not in source
+    assert "telegram" not in str(ConversationAgentInvoker.invoke.__annotations__["return"]).lower()
