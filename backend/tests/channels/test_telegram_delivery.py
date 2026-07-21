@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass, field
+from unittest.mock import Mock
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -59,7 +60,10 @@ def test_api_or_network_failure_marks_failed_without_breaking_webhook(monkeypatc
     client = FakeTelegramClient(fail=True)
     engine = make_service(monkeypatch)
     with Session(engine) as session:
-        result = TelegramWebhookService(session, agent_invoker=Agent(), telegram_client=client).process(
+        service = TelegramWebhookService(session, agent_invoker=Agent(), telegram_client=client)
+        select_schema = Mock(wraps=service._select_tenant_schema)
+        service._select_tenant_schema = select_schema
+        result = service.process(
             TelegramUpdate.model_validate(UPDATE), bot_identifier="configured-bot"
         )
         outgoing = session.scalars(select(Message).where(Message.direction == "outgoing")).one()
@@ -67,6 +71,8 @@ def test_api_or_network_failure_marks_failed_without_breaking_webhook(monkeypatc
     assert result.accepted is True
     assert outgoing.raw_payload["delivery_status"] == "failed"
     assert len(client.calls) == 1
+    assert select_schema.call_count == 4
+    assert select_schema.call_args_list[-1].args == ("tenant_delivery_tenant",)
 
 
 def test_duplicate_update_never_sends_twice(monkeypatch):
@@ -90,3 +96,17 @@ def test_no_configured_client_leaves_pending_without_network(monkeypatch):
         outgoing = session.scalars(select(Message).where(Message.direction == "outgoing")).one()
 
     assert outgoing.raw_payload["delivery_status"] == "pending"
+
+
+def test_delivery_reselects_tenant_schema_after_outgoing_commit(monkeypatch):
+    client = FakeTelegramClient()
+    engine = make_service(monkeypatch)
+    with Session(engine) as session:
+        service = TelegramWebhookService(session, agent_invoker=Agent(), telegram_client=client)
+        select_schema = Mock(wraps=service._select_tenant_schema)
+        service._select_tenant_schema = select_schema
+
+        service.process(TelegramUpdate.model_validate(UPDATE), bot_identifier="configured-bot")
+
+    assert select_schema.call_count == 3
+    assert select_schema.call_args_list[-1].args == ("tenant_delivery_tenant",)

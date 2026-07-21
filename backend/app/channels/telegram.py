@@ -233,11 +233,16 @@ class TelegramWebhookService:
         self.session.add(outgoing)
         self.session.commit()
         if self.telegram_client is not None:
-            self._deliver_pending(outgoing.id, chat_id=update.message.chat.id)
+            self._deliver_pending(
+                outgoing.id,
+                chat_id=update.message.chat.id,
+                schema_name=tenant.schema_name,
+            )
         return TelegramIntakeResult(accepted=True)
 
-    def _deliver_pending(self, message_id: UUID, *, chat_id: int) -> None:
+    def _deliver_pending(self, message_id: UUID, *, chat_id: int, schema_name: str) -> None:
         """Attempt one delivery of one durable pending outgoing message."""
+        self._select_tenant_schema(schema_name)
         message = self.session.get(Message, message_id)
         if (
             message is None
@@ -250,6 +255,7 @@ class TelegramWebhookService:
             telegram_message_id = self.telegram_client.send_message(chat_id=chat_id, text=message.content)
         except Exception:
             self.session.rollback()
+            self._select_tenant_schema(schema_name)
             message = self.session.get(Message, message_id)
             if message is not None and message.raw_payload.get("delivery_status") == "pending":
                 message.raw_payload = {**message.raw_payload, "delivery_status": "failed"}
