@@ -46,3 +46,9 @@ Esta fase no crea precios ni convierte monedas. Tampoco agrega disponibilidad, s
 `SQLAlchemyAvailabilityRepository` genera slots determinísticos desde reglas recurrentes activas, duración configurada y modalidades activas. Exige servicio, profesional, organización y relación organización-profesional activos; para atención presencial también respeta sedes y consultorios activos. El resultado deduplica slots equivalentes, aplica `slot_limit` y excluye excepciones activas y reservas solapadas en los estados bloqueantes definidos por `InternalSchedulingProvider`.
 
 Los timestamps conservan la representación local sin zona horaria del modelo de agenda existente; la tool no inventa una zona. El resultado es estructurado y no contiene precios, pagos, citas, holds ni texto final. Esta fase es solo lectura: no agrega endpoints, red, LLM, prompts, canales ni integraciones externas.
+
+## Fase 7A.7
+
+`AppointmentTools.create_appointment(AppointmentRequest) -> AppointmentResult` crea una reserva `tentative` que ocupa realmente el horario, y `get_appointment(UUID)` consulta una reserva existente por ID interno. La solicitud recibe paciente y plan ya seleccionados porque el modelo vigente exige sus snapshots, pero el resultado deliberadamente excluye precio y pago.
+
+La creación vuelve a validar el slot con la lógica tenant-scoped de disponibilidad dentro de la misma transacción. Exige servicio, profesional, organización, relación, modalidad y recursos aplicables activos; rechaza excepciones y reservas bloqueantes, y serializa por profesional para impedir carreras de doble ocupación en PostgreSQL. No acepta ni expone `schema_name`, no crea pagos y no agrega endpoints, LLM, red, canales o integraciones externas.

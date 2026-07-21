@@ -365,6 +365,12 @@ Las tools devuelven cotizaciones estructuradas existentes, nunca un precio gené
 
 La tool valida que servicio, profesional, organización, relación y recursos presenciales estén activos, deduplica resultados equivalentes y aplica un límite determinístico. Sus resultados no incluyen schema, precios o pagos, y consultar un slot no crea una cita ni un hold. No se agregan endpoints, LLM, red, canales ni proveedores externos.
 
+### 10.6. Tools de citas (Fase 7A.7)
+
+`AppointmentTools` opera con un repository o sesión tenant-scoped y vuelve a consultar `SQLAlchemyAvailabilityRepository` antes de insertar una reserva `tentative`. El bloqueo transaccional del profesional serializa creaciones concurrentes en PostgreSQL; reservas en estados bloqueantes representan ocupación real y las canceladas, expiradas o terminales no bloqueantes liberan el horario.
+
+La tool crea los snapshots que exige el modelo de booking usando únicamente datos activos ya seleccionados. Devuelve solo identidad interna, estado y datos del slot: no expone pagos, precio o schema y no incorpora endpoints, LLM, red, canales ni proveedores externos.
+
 ## 11. Eventos de dominio
 
 El backend debe emitir eventos.
