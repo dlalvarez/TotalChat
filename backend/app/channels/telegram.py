@@ -26,6 +26,16 @@ from app.tenancy.resolver import TenantResolver
 from app.tenancy.schema import is_valid_tenant_schema_name
 
 
+BOOKING_CONTEXT_FIELDS = (
+    "patient_id", "payer_type", "payer_name", "plan_name", "preferred_date",
+    "preferred_modality", "payment_method",
+)
+INITIAL_BOOKING_RESPONSE = (
+    "Hola, soy el asistente de MediChat. Puedo ayudarte a iniciar una reserva. "
+    "Para empezar, dime qué servicio necesitas."
+)
+
+
 class TelegramChat(BaseModel):
     id: int
     model_config = ConfigDict(extra="ignore")
@@ -89,10 +99,7 @@ class TelegramHTTPClient:
 class DeterministicBookingAgentInvoker:
     """Build the strictly allow-listed 7A.9 request from backend-owned state."""
 
-    _required_state = (
-        "patient_id", "payer_type", "payer_name", "plan_name", "preferred_date",
-        "preferred_modality", "payment_method",
-    )
+    _required_state = BOOKING_CONTEXT_FIELDS
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -195,25 +202,40 @@ class TelegramWebhookService:
         self._select_tenant_schema(tenant.schema_name)
         conversation = self.session.get(ConversationSession, conversation.id)
         assert conversation is not None
-        try:
-            result = (self.agent_invoker or DeterministicBookingAgentInvoker(self.session)).invoke(
-                tenant_id=tenant.tenant_id,
-                conversation=conversation,
-                message_text=update.message.text,
-            )
-            content = f"BookingAgent: {result.status}"
-            agent_status = result.status
-        except Exception:
-            # The webhook is an acknowledgement boundary. Details are intentionally
-            # not persisted because they could contain schema or secret material.
-            self.session.rollback()
-            self._select_tenant_schema(tenant.schema_name)
-            conversation = self.session.execute(select(ConversationSession).where(
-                ConversationSession.channel_type == "telegram",
-                ConversationSession.external_user_id == external_user_id,
-            )).scalar_one()
-            content = "BookingAgent: unable_to_process"
-            agent_status = "error"
+        state = conversation.state or {}
+        missing_fields = [field for field in BOOKING_CONTEXT_FIELDS if not state.get(field)]
+        if missing_fields:
+            conversation.state = {
+                **state,
+                "phase": "collecting_booking_context",
+                "last_user_message": update.message.text,
+                "missing_fields": missing_fields,
+            }
+            content = INITIAL_BOOKING_RESPONSE
+            agent_status = "collecting_booking_context"
+        else:
+            try:
+                result = (self.agent_invoker or DeterministicBookingAgentInvoker(self.session)).invoke(
+                    tenant_id=tenant.tenant_id,
+                    conversation=conversation,
+                    message_text=update.message.text,
+                )
+                content = f"BookingAgent: {result.status}"
+                agent_status = result.status
+            except Exception:
+                # The webhook is an acknowledgement boundary. Details are intentionally
+                # not persisted because they could contain schema or secret material.
+                self.session.rollback()
+                self._select_tenant_schema(tenant.schema_name)
+                conversation = self.session.execute(select(ConversationSession).where(
+                    ConversationSession.channel_type == "telegram",
+                    ConversationSession.external_user_id == external_user_id,
+                )).scalar_one()
+                content = (
+                    "No pude continuar con la reserva en este momento. "
+                    "Por favor, intenta de nuevo más tarde."
+                )
+                agent_status = "error"
 
         outgoing = Message(
             conversation_session_id=conversation.id,

@@ -49,7 +49,13 @@ def test_pending_outgoing_is_sent_and_confirmation_is_persisted(monkeypatch):
         outgoing = session.scalars(select(Message).where(Message.direction == "outgoing")).one()
 
     assert result.accepted is True
-    assert client.calls == [{"chat_id": 70001, "text": "BookingAgent: service_not_found"}]
+    assert client.calls == [{
+        "chat_id": 70001,
+        "text": (
+            "Hola, soy el asistente de MediChat. Puedo ayudarte a iniciar una reserva. "
+            "Para empezar, dime qué servicio necesitas."
+        ),
+    }]
     assert outgoing.raw_payload["delivery_status"] == "sent"
     assert outgoing.raw_payload["telegram_message_id"] == 9876
     assert "schema_name" not in repr(client.calls)

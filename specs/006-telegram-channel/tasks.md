@@ -10,3 +10,6 @@
 - [x] Extraer el contrato agnóstico de invocación del agente fuera del adaptador Telegram (Fase 8A.4).
 - [x] Documentar fronteras de entrada, persistencia, agente y entrega para canales futuros (Fase 8A.4).
 - [x] Verificar que el contrato común no expone `schema_name` ni depende de adaptadores futuros (Fase 8A.4).
+- [x] Detectar estado vacío o incompleto antes de invocar el agente determinístico (Fase 8A.5).
+- [x] Persistir fase, último mensaje y campos faltantes, y responder de forma conversacional (Fase 8A.5).
+- [x] Cubrir estados vacío e incompleto sin adelantar interpretación o reserva natural (Fase 8A.5).

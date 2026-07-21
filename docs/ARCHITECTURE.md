@@ -706,3 +706,15 @@ de entorno para entregar exactamente ese texto. La confirmación de la Bot API s
 persiste como `sent`; los errores sanitizados se persisten como `failed` sin
 reprocesar el agente ni romper el acuse del webhook. La idempotencia del update
 impide un segundo envío. No se agregan reintentos, jobs, colas, LLM o LangGraph.
+
+## Contexto inicial Telegram — Fase 8A.5
+
+Antes de invocar al agente determinístico, el backend verifica que la sesión
+tenant-scoped tenga su contexto mínimo. Si está vacío o incompleto, conserva el
+progreso existente y persiste `phase=collecting_booking_context`, el último
+mensaje del usuario y los campos faltantes. La respuesta solicita el servicio en
+lenguaje conversacional y continúa por el mismo pipeline durable de entrega.
+
+Este control no interpreta intención ni consulta servicios, precios,
+disponibilidad o citas. Tampoco incorpora LLM o LangGraph, y nunca expone schema,
+identificadores internos ni errores técnicos al paciente.

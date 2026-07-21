@@ -79,3 +79,16 @@ Un canal futuro debe implementar estas fronteras sin copiar reservas, precios,
 disponibilidad, pagos ni selección de tenant al adaptador. Esta fase no agrega
 canales, endpoints, runtime LLM/LangGraph, colas, jobs ni reintentos y no modifica
 el flujo observable de Telegram 8A.1–8A.3.
+
+## Fase 8A.5 — Respuesta inicial con contexto incompleto
+
+Cuando `conversation_sessions.state` no contiene el contexto mínimo requerido
+por el agente determinístico, el backend no lo invoca ni expone su fallback
+técnico. Actualiza el estado tenant-scoped con la fase
+`collecting_booking_context`, el último texto recibido y la lista de campos
+faltantes, y genera una respuesta conversacional que solicita el servicio.
+
+El estado previo permitido se conserva y la respuesta se persiste y entrega con
+la semántica `pending` → `sent | failed` existente. Ni el estado ni el texto
+visible incluyen `schema_name`, UUIDs, precios, disponibilidad o citas inventadas.
+Esta fase no interpreta intención ni completa el flujo natural de reserva.
