@@ -33,6 +33,15 @@ from app.ai.conversation_state import (
     SelectedSlot,
 )
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
+from app.ai.payment_tools import (
+    PaymentMethodOption,
+    PaymentPreparationRequest,
+    PaymentRepository,
+    PaymentStatusRequest,
+    PaymentToolResult,
+    PaymentTools,
+    SQLAlchemyPaymentRepository,
+)
 from app.ai.pricing_tools import (
     PriceQuote,
     PriceRecord,
@@ -92,6 +101,12 @@ __all__ = [
     "LLMProvider",
     "LLMResponse",
     "OpenAICompatibleProvider",
+    "PaymentMethodOption",
+    "PaymentPreparationRequest",
+    "PaymentRepository",
+    "PaymentStatusRequest",
+    "PaymentToolResult",
+    "PaymentTools",
     "PendingField",
     "PriceQuote",
     "PriceRecord",
@@ -106,6 +121,7 @@ __all__ = [
     "SQLAlchemyAppointmentRepository",
     "SQLAlchemyAvailabilityRepository",
     "SQLAlchemyPricingRepository",
+    "SQLAlchemyPaymentRepository",
     "ServiceDetail",
     "ServiceListRequest",
     "ServiceRecord",
