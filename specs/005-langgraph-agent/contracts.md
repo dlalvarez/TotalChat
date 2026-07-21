@@ -38,3 +38,11 @@ Esta fase no agrega endpoints, llamadas LLM, red, RAG ni runtime LangGraph. El p
 Los resultados estructurados representan precios configurados y vigentes con la jerarquía `payer_type → payer → payer_plan → practitioner_service_price`, su monto, moneda y periodo de vigencia. Solo se incluyen precio, servicio, plan, pagador, tipo de pagador, profesional, organización y relación organización-profesional activos. Ante periodos activos superpuestos heredados, se selecciona determinísticamente el de `valid_from` más reciente para cada plan.
 
 Esta fase no crea precios ni convierte monedas. Tampoco agrega disponibilidad, slots, citas, pagos, endpoints, llamadas LLM, red o runtime LangGraph. PostgreSQL tenant-scoped continúa como fuente de verdad; COP es la moneda operativa MVP y la tool devuelve la moneda configurada sin alterarla.
+
+## Fase 7A.6
+
+`AvailabilityTools.get_available_slots(AvailabilityRequest) -> AvailabilityToolResult` es la tool interna de consulta de disponibilidad. Recibe `tenant_id` ya resuelto y un `AvailabilityRepository` o una sesión SQLAlchemy ya contextualizada al schema tenant. La solicitud identifica servicio del profesional, profesional, organización, modalidad, rango de fechas y, opcionalmente, sede y consultorio; no acepta ni expone `schema_name`.
+
+`SQLAlchemyAvailabilityRepository` genera slots determinísticos desde reglas recurrentes activas, duración configurada y modalidades activas. Exige servicio, profesional, organización y relación organización-profesional activos; para atención presencial también respeta sedes y consultorios activos. El resultado deduplica slots equivalentes, aplica `slot_limit` y excluye excepciones activas y reservas solapadas en los estados bloqueantes definidos por `InternalSchedulingProvider`.
+
+Los timestamps conservan la representación local sin zona horaria del modelo de agenda existente; la tool no inventa una zona. El resultado es estructurado y no contiene precios, pagos, citas, holds ni texto final. Esta fase es solo lectura: no agrega endpoints, red, LLM, prompts, canales ni integraciones externas.
