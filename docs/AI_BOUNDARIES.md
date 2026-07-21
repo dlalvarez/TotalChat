@@ -181,3 +181,12 @@ La entrada termina después de que el backend resuelve el tenant desde
 LLM, LangGraph runtime o `BookingAgent`; tampoco entrega el payload a IA, realiza
 llamadas de red o envía mensajes. El LLM no participa en la selección de tenant o
 schema, y `schema_name` no cruza la frontera del backend.
+
+## Puente Telegram al agente — Fase 8A.2
+
+El backend invoca el `BookingAgent` determinístico solo después de resolver el
+tenant y hacer durable el mensaje entrante. La request interna se construye con
+campos permitidos del estado tenant-scoped; el texto entrante se usa como consulta
+de servicio, nunca para seleccionar tenant o schema. El resultado o un error
+controlado se persiste como mensaje saliente `pending`, sin LLM, red ni entrega a
+Telegram. El estado `outgoing` en esta fase no acredita un envío.
