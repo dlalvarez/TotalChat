@@ -11,6 +11,7 @@ import app.ai.semantic_documents  # noqa: F401 - register tenant AI models
 MAX_PG_IDENTIFIER_LENGTH = 63
 PAYMENT_TENANT_TABLES = {"payment_settings", "payment_attempts", "payment_evidence", "payment_reviews"}
 AI_TENANT_TABLES = {"semantic_documents"}
+CONVERSATION_TENANT_TABLES = {"conversation_sessions", "messages"}
 _SCHEMA_RE = re.compile(r"^tenant_[a-z][a-z0-9_]{0,55}$")
 
 
@@ -70,7 +71,8 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     tenant_tables = [
         table
         for table in Base.metadata.sorted_tables
-        if table.schema is None and table.name not in PAYMENT_TENANT_TABLES | AI_TENANT_TABLES
+        if table.schema is None
+        and table.name not in PAYMENT_TENANT_TABLES | AI_TENANT_TABLES | CONVERSATION_TENANT_TABLES
     ]
     copied_tables = [table.to_metadata(tenant_metadata, schema=schema_name) for table in tenant_tables]
 
@@ -97,6 +99,7 @@ def apply_booking_domain_tenant_migration(connection: Connection, schema_name: s
     apply_booking_notes_tenant_migration(connection, schema_name)
     apply_virtual_link_columns_tenant_migration(connection, schema_name)
     apply_semantic_documents_tenant_migration(connection, schema_name)
+    apply_conversation_messages_tenant_migration(connection, schema_name)
 
 
 def apply_admin_cancellation_reason_tenant_migration(connection: Connection, schema_name: str) -> None:
@@ -425,6 +428,74 @@ def apply_semantic_documents_tenant_migration(connection: Connection, schema_nam
             f'''
             INSERT INTO "{schema_name}".tenant_schema_migrations (version)
             VALUES ('009_semantic_documents')
+            ON CONFLICT (version) DO NOTHING
+            '''
+        )
+    )
+
+
+def apply_conversation_messages_tenant_migration(connection: Connection, schema_name: str) -> None:
+    """Create tenant-scoped conversation persistence for channel intake."""
+    if not is_valid_tenant_schema_name(schema_name):
+        raise ValueError("Invalid tenant schema name")
+
+    connection.execute(
+        text(
+            f'''
+            CREATE TABLE IF NOT EXISTS "{schema_name}".conversation_sessions (
+                id UUID NOT NULL,
+                channel_type VARCHAR(50) NOT NULL,
+                external_user_id VARCHAR(255) NOT NULL,
+                patient_id UUID,
+                booking_id UUID,
+                status VARCHAR(32) DEFAULT 'active' NOT NULL,
+                state JSONB DEFAULT '{{}}' NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                PRIMARY KEY (id),
+                CONSTRAINT uq_conversation_sessions_channel_user
+                    UNIQUE (channel_type, external_user_id),
+                FOREIGN KEY(patient_id) REFERENCES "{schema_name}".patients (id),
+                FOREIGN KEY(booking_id) REFERENCES "{schema_name}".bookings (id)
+            )
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            CREATE TABLE IF NOT EXISTS "{schema_name}".messages (
+                id UUID NOT NULL,
+                conversation_session_id UUID NOT NULL,
+                channel_type VARCHAR(50) NOT NULL,
+                external_message_id VARCHAR(255) NOT NULL,
+                direction VARCHAR(20) NOT NULL,
+                message_type VARCHAR(50) NOT NULL,
+                content TEXT NOT NULL,
+                raw_payload JSONB DEFAULT '{{}}' NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                PRIMARY KEY (id),
+                CONSTRAINT uq_messages_channel_external_message
+                    UNIQUE (channel_type, external_message_id),
+                FOREIGN KEY(conversation_session_id)
+                    REFERENCES "{schema_name}".conversation_sessions (id)
+            )
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            CREATE INDEX IF NOT EXISTS ix_messages_conversation_session_id
+            ON "{schema_name}".messages (conversation_session_id)
+            '''
+        )
+    )
+    connection.execute(
+        text(
+            f'''
+            INSERT INTO "{schema_name}".tenant_schema_migrations (version)
+            VALUES ('010_conversation_messages')
             ON CONFLICT (version) DO NOTHING
             '''
         )

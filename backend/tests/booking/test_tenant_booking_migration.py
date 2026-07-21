@@ -7,6 +7,7 @@ from app.tenancy.schema import (
     apply_admin_cancellation_reason_tenant_migration,
     apply_admin_reschedule_reason_tenant_migration,
     apply_booking_domain_tenant_migration,
+    apply_conversation_messages_tenant_migration,
     apply_patient_payer_profiles_tenant_migration,
     apply_manual_payments_tenant_migration,
     apply_virtual_link_columns_tenant_migration,
@@ -66,6 +67,9 @@ def test_booking_domain_migration_creates_tables_in_tenant_schema_only() -> None
     assert "009_semantic_documents" in sql
     assert "public.semantic_documents" not in sql
     assert '"public".semantic_documents' not in sql
+    assert sql.index("009_semantic_documents") < sql.index("010_conversation_messages")
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".conversation_sessions' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".messages' in sql
 
 
 def test_booking_domain_migration_rejects_invalid_schema_name() -> None:
@@ -181,6 +185,29 @@ def test_semantic_documents_migration_rejects_invalid_schema_name():
 
     with pytest.raises(ValueError):
         apply_semantic_documents_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
+
+
+def test_conversation_messages_migration_creates_tenant_tables_and_constraints() -> None:
+    connection = RecordingConnection()
+
+    apply_conversation_messages_tenant_migration(connection, "tenant_alpha")  # type: ignore[arg-type]
+
+    sql = "\n".join(connection.statements)
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".conversation_sessions' in sql
+    assert 'CREATE TABLE IF NOT EXISTS "tenant_alpha".messages' in sql
+    assert "UNIQUE (channel_type, external_user_id)" in sql
+    assert "UNIQUE (channel_type, external_message_id)" in sql
+    assert "CREATE INDEX IF NOT EXISTS ix_messages_conversation_session_id" in sql
+    assert 'ON "tenant_alpha".messages (conversation_session_id)' in sql
+    assert "010_conversation_messages" in sql
+    assert "ON CONFLICT (version) DO NOTHING" in sql
+    assert "public.conversation_sessions" not in sql
+    assert "public.messages" not in sql
+
+
+def test_conversation_messages_migration_rejects_invalid_schema_name() -> None:
+    with pytest.raises(ValueError):
+        apply_conversation_messages_tenant_migration(RecordingConnection(), "public")  # type: ignore[arg-type]
 
 
 def test_new_tenant_booking_provisioning_applies_semantic_documents_idempotently():
