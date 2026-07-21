@@ -353,6 +353,12 @@ El adapter no contiene tools reales ni acceso a DB, Redis, red o LLM. Sus accion
 
 El contrato devuelve modelos internos estructurados con referencias, descripción, duración y modalidades. No cruza la frontera hacia precios, disponibilidad, citas o pagos; tampoco usa LLM, red, endpoints ni `schema_name`.
 
+### 10.4. Tools de precios (Fase 7A.5)
+
+`PricingTools` opera detrás del tenant resolver con `PricingRepository` o una sesión SQLAlchemy ya contextualizada. `SQLAlchemyPricingRepository` consulta la jerarquía comercial real `payer_type → payer → payer_plan → practitioner_service_price` y exige que el precio, el servicio, el profesional, la organización, su relación y toda la jerarquía de pagador estén activos y que el precio esté vigente para la fecha solicitada.
+
+Las tools devuelven cotizaciones estructuradas existentes, nunca un precio genérico o calculado. No seleccionan schema, convierten moneda, consultan disponibilidad, generan slots, crean citas o pagos, ni usan LLM, red o endpoints.
+
 ## 11. Eventos de dominio
 
 El backend debe emitir eventos.
