@@ -6,6 +6,12 @@ from app.ai.booking_graph import (
     BookingGraphResult,
     run_booking_graph,
 )
+from app.ai.booking_agent import (
+    BookingAgent,
+    BookingAgentStep,
+    BookingConversationRequest,
+    BookingConversationResult,
+)
 from app.ai.availability_tools import (
     AvailabilityRepository,
     AvailabilityRequest,
@@ -86,6 +92,10 @@ __all__ = [
     "AvailabilityTools",
     "AvailableSlot",
     "BookingConversationState",
+    "BookingAgent",
+    "BookingAgentStep",
+    "BookingConversationRequest",
+    "BookingConversationResult",
     "BookingGraphAction",
     "BookingGraphNode",
     "BookingGraphResult",

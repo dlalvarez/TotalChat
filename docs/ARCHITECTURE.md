@@ -24,6 +24,10 @@ La arquitectura combina:
 
 El Booking Agent accede al estado de pagos mediante un port de repositorio tenant-scoped. La implementación SQLAlchemy consulta reservas, configuración organizacional e intentos en PostgreSQL y devuelve datos estructurados. Preparar un método permitido solo crea un intento `evidence_required` para transferencia o `pending` para simulación/pago en sitio; no cambia la cita, no ocupa ni libera slots y no constituye aprobación, rechazo o evidencia.
 
+### Fase 7A.9 — coordinador conversacional determinístico
+
+`BookingAgent` representa la coordinación interna mínima y testeable del flujo servicio → precio → disponibilidad → cita → pago. Reutiliza las tools tenant-scoped y sus contratos estructurados, detiene el flujo ante datos ausentes o conflictos y mantiene separadas la ocupación de la cita y la preparación del pago. No incorpora todavía runtime LangGraph, LLM, red, canales, endpoints ni persistencia de conversación.
+
 ## 2. Diagrama lógico
 
 ```text

@@ -58,3 +58,11 @@ La creación vuelve a validar el slot con la lógica tenant-scoped de disponibil
 `PaymentTools.get_payment_status(PaymentStatusRequest) -> PaymentToolResult` consulta el estado financiero de una reserva existente y `prepare_payment(PaymentPreparationRequest) -> PaymentToolResult` crea un intento pendiente para un método expresamente habilitado por la configuración activa de su organización. Sin configuración activa, no se ofrece ningún método.
 
 La transferencia se prepara como `evidence_required`; pago simulado y pago en sitio se preparan como `pending`. Ninguna operación aprueba o rechaza pagos, cambia el estado de la reserva, libera el horario, registra evidencia ni ejecuta expiraciones. Los resultados son instrucciones estructuradas, reciben tenant resuelto, no exponen `schema_name` y no agregan endpoints, LLM, red, Wompi o almacenamiento de archivos.
+
+## Fase 7A.9
+
+`BookingAgent.run(BookingConversationRequest) -> BookingConversationResult` es un coordinador interno determinístico para conversaciones simuladas. Recibe el tenant ya resuelto, busca un servicio y profesional activos, selecciona una tarifa configurada por pagador y plan, consulta disponibilidad, solicita la cita sobre el primer slot retornado y, en un paso separado, prepara únicamente el método de pago solicitado si la configuración lo permite.
+
+El resultado registra los pasos completados y un código estable de desenlace. La creación de cita vuelve a validar el slot mediante `AppointmentTools`; un conflicto detiene el flujo sin preparar pagos. La ausencia de servicio, tarifa o disponibilidad también detiene el flujo conservadoramente. Un método deshabilitado o una reserva no cobrable conserva la cita creada pero no genera intento de pago.
+
+Este contrato no recibe ni expone `schema_name`, no muestra razonamiento, no llama un LLM o la red, no agrega endpoints o canales y no aprueba pagos ni libera cupos. Los UUID del resultado son referencias técnicas internas, no texto conversacional final.
