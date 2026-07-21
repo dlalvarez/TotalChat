@@ -5,8 +5,6 @@ agent dependency. Outbound delivery and agent invocation belong to later work.
 """
 
 from dataclasses import dataclass
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError

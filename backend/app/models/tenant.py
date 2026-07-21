@@ -2,12 +2,15 @@ import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Time, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Time, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.public import TimestampMixin
+
+
+tenant_json_type = JSON().with_variant(JSONB, "postgresql")
 
 
 class Organization(TimestampMixin, Base):
@@ -233,7 +236,7 @@ class ConversationSession(TimestampMixin, Base):
     patient_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"))
     booking_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("bookings.id"))
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
-    state: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    state: Mapped[dict] = mapped_column(tenant_json_type, nullable=False, default=dict, server_default="{}")
     messages: Mapped[list["Message"]] = relationship(back_populates="conversation_session")
 
 
@@ -253,7 +256,7 @@ class Message(Base):
     direction: Mapped[str] = mapped_column(String(20), nullable=False)
     message_type: Mapped[str] = mapped_column(String(50), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    raw_payload: Mapped[dict] = mapped_column(tenant_json_type, nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     conversation_session: Mapped[ConversationSession] = relationship(back_populates="messages")
 

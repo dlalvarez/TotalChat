@@ -1,11 +1,16 @@
+import uuid
 from dataclasses import dataclass, field
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
 from app.api.telegram import get_telegram_service
-from app.channels.telegram import TelegramIntakeResult, TelegramUpdate
+from app.channels.telegram import TelegramIntakeResult, TelegramUpdate, TelegramWebhookService
 from app.core.config import Settings, get_settings
 from app.main import create_app
+from app.models.tenant import ConversationSession, Message
+from app.tenancy.context import TenantContext
 
 UPDATE = {"update_id": 41001, "message": {"message_id": 81, "chat": {"id": 90001, "first_name": "Synthetic"}, "text": "Hola"}}
 
@@ -71,3 +76,59 @@ def test_intake_has_no_agent_or_outbound_network_side_effects(monkeypatch) -> No
     response = make_client(spy).post("/api/webhooks/telegram/test-only-webhook-secret", json=UPDATE)
     assert response.status_code == 200
     assert len(spy.calls) == 1
+
+
+def test_service_persists_incoming_message_and_is_idempotent(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    ConversationSession.__table__.create(engine)
+    Message.__table__.create(engine)
+    tenant = TenantContext(
+        tenant_id=uuid.uuid4(),
+        slug="synthetic-tenant",
+        schema_name="tenant_synthetic_tenant",
+    )
+    monkeypatch.setattr(
+        "app.channels.telegram.TenantResolver.resolve_by_channel",
+        lambda self, **kwargs: tenant,
+    )
+
+    with Session(engine) as session:
+        service = TelegramWebhookService(session)
+        update = TelegramUpdate.model_validate(UPDATE)
+
+        first = service.process(update, bot_identifier="configured-test-bot")
+        second = service.process(update, bot_identifier="configured-test-bot")
+
+        conversations = session.scalars(select(ConversationSession)).all()
+        messages = session.scalars(select(Message)).all()
+
+    assert first == TelegramIntakeResult(accepted=True, duplicate=False)
+    assert second == TelegramIntakeResult(accepted=True, duplicate=True)
+    assert len(conversations) == 1
+    assert len(messages) == 1
+    assert messages[0].direction == "incoming"
+    assert messages[0].content == "Hola"
+    assert messages[0].external_message_id == str(UPDATE["update_id"])
+    assert "schema_name" not in messages[0].raw_payload
+
+
+def test_service_does_not_write_when_channel_has_no_tenant(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    ConversationSession.__table__.create(engine)
+    Message.__table__.create(engine)
+    monkeypatch.setattr(
+        "app.channels.telegram.TenantResolver.resolve_by_channel",
+        lambda self, **kwargs: None,
+    )
+
+    with Session(engine) as session:
+        service = TelegramWebhookService(session)
+        result = service.process(
+            TelegramUpdate.model_validate(UPDATE), bot_identifier="unknown-bot"
+        )
+        conversation_count = len(session.scalars(select(ConversationSession)).all())
+        message_count = len(session.scalars(select(Message)).all())
+
+    assert result == TelegramIntakeResult(accepted=False, duplicate=False)
+    assert conversation_count == 0
+    assert message_count == 0
