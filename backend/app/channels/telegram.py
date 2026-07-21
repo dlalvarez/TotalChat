@@ -20,6 +20,7 @@ from app.ai.booking_agent import BookingAgent, BookingConversationRequest, Booki
 from app.ai.payment_tools import PaymentTools
 from app.ai.pricing_tools import PricingTools
 from app.ai.service_tools import ServiceTools
+from app.channels.base import ConversationAgentInvoker
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.resolver import TenantResolver
 from app.tenancy.schema import is_valid_tenant_schema_name
@@ -47,12 +48,6 @@ class TelegramUpdate(BaseModel):
 class TelegramIntakeResult:
     accepted: bool
     duplicate: bool = False
-
-
-class BookingAgentInvoker(Protocol):
-    def invoke(
-        self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
-    ) -> BookingConversationResult: ...
 
 
 class TelegramDeliveryError(RuntimeError):
@@ -146,7 +141,7 @@ def _optional_uuid(value: object) -> UUID | None:
 @dataclass(slots=True)
 class TelegramWebhookService:
     session: Session
-    agent_invoker: BookingAgentInvoker | None = None
+    agent_invoker: ConversationAgentInvoker | None = None
     telegram_client: TelegramClient | None = None
 
     def process(self, update: TelegramUpdate, *, bot_identifier: str) -> TelegramIntakeResult:
