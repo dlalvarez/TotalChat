@@ -173,3 +173,11 @@ Estas tools nunca aprueban o rechazan un pago, registran evidencia, cambian o li
 El coordinador interno del Booking Agent encadena las tools existentes en el orden servicio, precio, disponibilidad, cita y pago. La selección se basa únicamente en resultados estructurados: no inventa alternativas y la cita revalida el slot antes de ocuparlo. Preparar el pago es un paso posterior e independiente de crear la cita.
 
 Esta simulación no interpreta lenguaje con IA, no llama providers LLM ni usa red. Tampoco aprueba pagos, libera cupos, ejecuta expiraciones o convierte al estado conversacional en fuente de verdad. El tenant continúa resuelto por backend y `schema_name` queda fuera de solicitudes y resultados.
+
+## Entrada Telegram — Fase 8A.1
+
+La entrada termina después de que el backend resuelve el tenant desde
+`tenant_channels` y persiste el mensaje entrante. No importa ni invoca providers
+LLM, LangGraph runtime o `BookingAgent`; tampoco entrega el payload a IA, realiza
+llamadas de red o envía mensajes. El LLM no participa en la selección de tenant o
+schema, y `schema_name` no cruza la frontera del backend.

@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.errors import domain_error_handler, http_error_handler, validation_error_handler
 from app.api.health import router as health_router
 from app.api.internal import router as internal_router
+from app.api.telegram import router as telegram_router
 from app.core.config import get_settings
 from app.services.errors import DomainError
 
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(admin_router)
     app.include_router(internal_router)
+    app.include_router(telegram_router)
 
     @app.get("/")
     def root() -> dict[str, str]:

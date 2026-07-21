@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     embeddings_api_key: str | None = None
     embeddings_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
+    telegram_bot_token: str | None = None
+    telegram_bot_identifier: str | None = None
+    telegram_webhook_secret: str | None = None
 
     @property
     def effective_llm_api_key(self) -> str | None:
