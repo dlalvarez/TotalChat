@@ -15,6 +15,18 @@ from app.services.errors import BusinessRuleViolation, ResourceNotFound
 
 
 PAYMENT_METHODS = ("transfer", "simulated", "pay_on_site")
+PAYMENT_PREPARABLE_BOOKING_STATUSES = frozenset(
+    {
+        "tentative",
+        "pending_payment",
+        "pending_payment_evidence",
+        "pending_manual_payment_review",
+        "review_overdue",
+        "confirmed",
+        "confirmed_without_payment",
+        "rescheduled",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +83,8 @@ class SQLAlchemyPaymentRepository:
 
     def prepare(self, request: PaymentPreparationRequest) -> PaymentToolResult:
         booking = self._booking(request.booking_id)
+        if booking.status not in PAYMENT_PREPARABLE_BOOKING_STATUSES:
+            raise BusinessRuleViolation("Booking status does not allow payment preparation.")
         options = self._available_methods(booking.organization_id)
         if request.method not in {option.method for option in options}:
             raise BusinessRuleViolation("Payment method is disabled by active payment settings.")

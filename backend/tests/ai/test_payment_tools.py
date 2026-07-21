@@ -123,6 +123,38 @@ def test_disabled_transfer_is_rejected_without_attempt(payment_catalog):
 
 
 @pytest.mark.parametrize(
+    "terminal_status",
+    ["cancelled", "cancelled_by_patient", "cancelled_by_admin", "expired", "completed", "no_show"],
+)
+def test_terminal_booking_status_cannot_prepare_payment(payment_catalog, terminal_status):
+    session, organization, booking = payment_catalog
+    settings(session, organization, allow_transfer=True)
+    booking.status = terminal_status
+    session.commit()
+    original_payment_status = booking.payment_status
+
+    with pytest.raises(BusinessRuleViolation, match="status does not allow"):
+        tools(session).prepare_payment(PaymentPreparationRequest(booking.id, "transfer"))
+
+    assert session.scalars(select(PaymentAttempt)).all() == []
+    assert booking.status == terminal_status
+    assert booking.payment_status == original_payment_status
+
+
+def test_terminal_booking_status_remains_queryable(payment_catalog):
+    session, organization, booking = payment_catalog
+    settings(session, organization, allow_transfer=True)
+    booking.status = "completed"
+    session.commit()
+
+    result = tools(session).get_payment_status(PaymentStatusRequest(booking.id))
+
+    assert result.booking_status == "completed"
+    assert result.payment_status == booking.payment_status
+    assert session.scalars(select(PaymentAttempt)).all() == []
+
+
+@pytest.mark.parametrize(
     ("method", "setting", "allowed"),
     [("pay_on_site", "allow_pay_on_site", True), ("simulated", "allow_simulated_payment", True)],
 )
