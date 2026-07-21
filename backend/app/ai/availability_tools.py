@@ -70,6 +70,14 @@ class AvailabilityRepository(Protocol):
 
     def list_available(self, request: AvailabilityRequest) -> Sequence[AvailableSlot]: ...
 
+    def is_slot_available(
+        self,
+        request: AvailabilityRequest,
+        *,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> bool: ...
+
 
 class SQLAlchemyAvailabilityRepository:
     """Calculates slots from authoritative data in a tenant-scoped session.
@@ -113,6 +121,30 @@ class SQLAlchemyAvailabilityRepository:
             if not self._has_exception(slot) and not self._has_blocking_booking(slot)
         ]
         return tuple(sorted(available, key=self._sort_key)[: request.slot_limit])
+
+    def is_slot_available(
+        self,
+        request: AvailabilityRequest,
+        *,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> bool:
+        """Validate one exact slot without applying the presentation limit."""
+        if not request.starts_on <= starts_at.date() <= request.ends_on:
+            return False
+        service = self._active_service(request)
+        if service is None or not self._requested_resources_are_active(request):
+            return False
+
+        for rule in self._rules(request, starts_at.date()):
+            if not self._rule_resources_are_active(request, rule) or not self._rule_has_active_modality(request, rule):
+                continue
+            for slot in self._slots(rule, starts_at.date(), service.duration_minutes, request):
+                if slot.starts_at != starts_at or slot.ends_at != ends_at:
+                    continue
+                if not self._has_exception(slot) and not self._has_blocking_booking(slot):
+                    return True
+        return False
 
     def _active_service(self, request: AvailabilityRequest) -> PractitionerService | None:
         return self._session.scalar(

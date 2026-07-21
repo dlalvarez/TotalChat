@@ -71,6 +71,24 @@ def test_creates_and_reads_structured_tentative_appointment(catalog):
     assert catalog[0].scalar(select(Booking).where(Booking.id == result.appointment_id)).payment_status == "pending"
 
 
+def test_can_create_slot_after_first_100_available_slots(catalog):
+    session, _, _, _, _, service, _, _, _, _ = catalog
+    rule = session.scalar(select(AvailabilityRule))
+    service.duration_minutes = 5
+    rule.start_time = time(8)
+    rule.end_time = time(20)
+    session.commit()
+
+    result = create(
+        catalog,
+        starts_at=datetime(2026, 7, 13, 18),
+        ends_at=datetime(2026, 7, 13, 18, 5),
+    )
+
+    assert result.starts_at == datetime(2026, 7, 13, 18)
+    assert result.ends_at == datetime(2026, 7, 13, 18, 5)
+
+
 @pytest.mark.parametrize("index", [1, 2, 5, 8])
 def test_inactive_domain_context_cannot_create(catalog, index):
     catalog[index].status = "inactive"

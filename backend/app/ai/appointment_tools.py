@@ -89,20 +89,21 @@ class SQLAlchemyAppointmentRepository:
         if practitioner is None:
             raise ResourceNotFound("Practitioner not found")
 
-        available = self._availability.list_available(
-            AvailabilityRequest(
-                practitioner_service_id=request.practitioner_service_id,
-                practitioner_id=request.practitioner_id,
-                organization_id=request.organization_id,
-                modality=request.modality,
-                starts_on=request.starts_at.date(),
-                ends_on=request.starts_at.date(),
-                location_id=request.location_id,
-                room_id=request.room_id,
-                slot_limit=100,
-            )
+        availability_request = AvailabilityRequest(
+            practitioner_service_id=request.practitioner_service_id,
+            practitioner_id=request.practitioner_id,
+            organization_id=request.organization_id,
+            modality=request.modality,
+            starts_on=request.starts_at.date(),
+            ends_on=request.starts_at.date(),
+            location_id=request.location_id,
+            room_id=request.room_id,
         )
-        if not any(slot.starts_at == request.starts_at and slot.ends_at == request.ends_at for slot in available):
+        if not self._availability.is_slot_available(
+            availability_request,
+            starts_at=request.starts_at,
+            ends_at=request.ends_at,
+        ):
             raise SlotNotAvailable("Requested slot is not currently available")
 
         patient = self._session.get(Patient, request.patient_id)
