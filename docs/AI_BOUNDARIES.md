@@ -197,3 +197,17 @@ La entrega saliente consume únicamente el texto ya generado y persistido por el
 puente determinístico. No invoca un LLM, no modifica el contrato del agente y no
 inventa contenido. El cliente Telegram recibe el token solo desde configuración;
 ni el token ni `schema_name` forman parte del mensaje o del estado de entrega.
+
+## Contrato común de canales — Fase 8A.4
+
+El agente se encuentra detrás de `ConversationAgentInvoker`, un límite interno
+agnóstico del proveedor. El adaptador concreto normaliza el texto y el backend
+aporta el `tenant_id` ya resuelto y la conversación tenant-scoped. Payloads,
+credenciales, identificadores de chat, `schema_name` y resultados propios del
+transporte no cruzan hacia el agente.
+
+El agente genera contenido interno, pero no recibe webhooks ni entrega mensajes;
+el adaptador entrega únicamente un `outgoing` ya persistido. Un canal futuro debe
+reutilizar este límite y las tools backend existentes, no copiar decisiones de
+tenant, disponibilidad, reservas, pricing o pagos. Esta fase no incorpora nuevos
+canales, LLM ni runtime LangGraph.

@@ -28,10 +28,29 @@ El Booking Agent accede al estado de pagos mediante un port de repositorio tenan
 
 `BookingAgent` representa la coordinación interna mínima y testeable del flujo servicio → precio → disponibilidad → cita → pago. Reutiliza las tools tenant-scoped y sus contratos estructurados, detiene el flujo ante datos ausentes o conflictos y mantiene separadas la ocupación de la cita y la preparación del pago. No incorpora todavía runtime LangGraph, LLM, red, canales, endpoints ni persistencia de conversación.
 
+### Fase 8A.4 — arquitectura común de canales
+
+Los canales son adaptadores de borde del backend. Telegram es el primer adaptador
+concreto y conserva dentro de `app.channels.telegram` su payload, chat ID,
+credencial, API y semántica de confirmación. El core conversacional solo recibe
+`channel_type`, conversación, mensajes con dirección y estado de entrega.
+
+El backend resuelve el tenant antes de persistir o invocar al agente. El contrato
+`ConversationAgentInvoker` recibe `tenant_id`, conversación tenant-scoped y texto
+normalizado; nunca recibe `schema_name` ni tipos del proveedor. La respuesta del
+agente se hace durable como `outgoing/pending` antes de que el adaptador intente
+entregarla, y únicamente la confirmación del proveedor permite marcarla `sent`;
+un fallo controlado la marca `failed`.
+
+Para agregar un canal futuro se debe crear un adaptador que traduzca sus IDs y
+payloads a ese contrato, resuelva tenant mediante configuración backend y traduzca
+la entrega saliente. No debe duplicar ni alojar lógica de agente, reservas,
+disponibilidad, pricing o pagos. Fase 8A.4 no implementa otro canal.
+
 ## 2. Diagrama lógico
 
 ```text
-Telegram / WhatsApp
+Adaptador de canal (Telegram primero)
         ↓
 FastAPI Webhooks
         ↓

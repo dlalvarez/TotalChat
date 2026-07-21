@@ -46,3 +46,36 @@ mensaje. El token, `schema_name` y los detalles de excepciones no se persisten n
 se incluyen en respuestas.
 
 Exclusiones: reintentos, jobs, colas, LLM, LangGraph runtime y otros canales.
+
+## Fase 8A.4 — Contrato común de canales
+
+Telegram es el primer adaptador concreto de un flujo conversacional propiedad del
+backend; no es el modelo del core. Cada adaptador futuro deberá traducir su
+payload externo a los conceptos internos existentes (`channel_type`, sesión de
+conversación, mensaje, `direction` y estado de entrega) y conservar sus campos,
+credenciales y confirmaciones de transporte dentro del límite del adaptador.
+
+El límite común de invocación al agente es `ConversationAgentInvoker`: recibe
+exclusivamente el `tenant_id` ya resuelto por el backend, la conversación
+tenant-scoped y el texto normalizado. No recibe payloads, tokens, chat IDs,
+`schema_name` ni tipos de Telegram. El adaptador es responsable de la entrada,
+la idempotencia del identificador externo y la traducción de la confirmación de
+entrega a `pending`, `sent` o `failed`; el agente no conoce esos detalles.
+
+Flujo obligatorio:
+
+```text
+canal externo
+  -> adaptador concreto
+  -> resolución backend de tenant
+  -> conversación/mensaje tenant-scoped
+  -> ConversationAgentInvoker
+  -> mensaje outgoing pending
+  -> transporte del adaptador
+  -> sent | failed
+```
+
+Un canal futuro debe implementar estas fronteras sin copiar reservas, precios,
+disponibilidad, pagos ni selección de tenant al adaptador. Esta fase no agrega
+canales, endpoints, runtime LLM/LangGraph, colas, jobs ni reintentos y no modifica
+el flujo observable de Telegram 8A.1–8A.3.
