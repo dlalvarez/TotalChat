@@ -161,3 +161,9 @@ Consultar disponibilidad no reserva ni protege el horario. Esta fase no crea cit
 Las tools de citas reciben el tenant resuelto y crean una reserva tentativa únicamente después de revalidar la disponibilidad real en PostgreSQL. La reserva constituye ocupación real; se rechazan recursos inactivos, modalidades o lugares no aplicables, excepciones y cualquier reserva bloqueante solapada.
 
 El resultado estructurado no expone precio, pago ni `schema_name`. El plan seleccionado solo se usa internamente para completar los snapshots obligatorios del modelo vigente: esta fase no crea, aprueba ni modifica pagos, y tampoco llama LLM, red, endpoints o canales.
+
+## 18. Fase 7A.8 — tools de pagos
+
+Las tools de pagos consultan reservas e intentos desde PostgreSQL tenant-scoped y solo ofrecen métodos habilitados en la configuración activa de la organización. La ausencia de configuración produce el resultado conservador de ningún método disponible. Transferencia requiere evidencia y revisión humana; los demás métodos se preparan pendientes.
+
+Estas tools nunca aprueban o rechazan un pago, registran evidencia, cambian o liberan una reserva, recalculan disponibilidad ni llaman LLM, red, endpoints, canales o pasarelas. El tenant llega resuelto por backend y `schema_name` no forma parte de entradas o resultados.

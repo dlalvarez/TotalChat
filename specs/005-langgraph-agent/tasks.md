@@ -11,5 +11,5 @@
 - [x] Crear tools de precios (Fase 7A.5: precios configurados por servicio del profesional y plan, tenant-scoped y sin disponibilidad).
 - [x] Crear tools de disponibilidad (Fase 7A.6: slots internos tenant-scoped, sin citas ni holds).
 - [x] Crear tools de citas (Fase 7A.7: creación y consulta interna tenant-scoped con ocupación real, sin pagos).
-- [ ] Crear tools de pagos.
+- [x] Crear tools de pagos (Fase 7A.8: consulta y preparación tenant-scoped, sin aprobación ni liberación de cupos).
 - [ ] Crear tests conversacionales.

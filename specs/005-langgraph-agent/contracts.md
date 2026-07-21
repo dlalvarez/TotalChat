@@ -52,3 +52,9 @@ Los timestamps conservan la representación local sin zona horaria del modelo de
 `AppointmentTools.create_appointment(AppointmentRequest) -> AppointmentResult` crea una reserva `tentative` que ocupa realmente el horario, y `get_appointment(UUID)` consulta una reserva existente por ID interno. La solicitud recibe paciente y plan ya seleccionados porque el modelo vigente exige sus snapshots, pero el resultado deliberadamente excluye precio y pago.
 
 La creación vuelve a validar el slot con la lógica tenant-scoped de disponibilidad dentro de la misma transacción. Exige servicio, profesional, organización, relación, modalidad y recursos aplicables activos; rechaza excepciones y reservas bloqueantes, y serializa por profesional para impedir carreras de doble ocupación en PostgreSQL. No acepta ni expone `schema_name`, no crea pagos y no agrega endpoints, LLM, red, canales o integraciones externas.
+
+## Fase 7A.8
+
+`PaymentTools.get_payment_status(PaymentStatusRequest) -> PaymentToolResult` consulta el estado financiero de una reserva existente y `prepare_payment(PaymentPreparationRequest) -> PaymentToolResult` crea un intento pendiente para un método expresamente habilitado por la configuración activa de su organización. Sin configuración activa, no se ofrece ningún método.
+
+La transferencia se prepara como `evidence_required`; pago simulado y pago en sitio se preparan como `pending`. Ninguna operación aprueba o rechaza pagos, cambia el estado de la reserva, libera el horario, registra evidencia ni ejecuta expiraciones. Los resultados son instrucciones estructuradas, reciben tenant resuelto, no exponen `schema_name` y no agregan endpoints, LLM, red, Wompi o almacenamiento de archivos.

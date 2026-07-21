@@ -20,6 +20,10 @@ La arquitectura combina:
 - Wompi futuro.
 - n8n como automatización complementaria.
 
+### Fase 7A.8 — tools internas de pagos
+
+El Booking Agent accede al estado de pagos mediante un port de repositorio tenant-scoped. La implementación SQLAlchemy consulta reservas, configuración organizacional e intentos en PostgreSQL y devuelve datos estructurados. Preparar un método permitido solo crea un intento `evidence_required` para transferencia o `pending` para simulación/pago en sitio; no cambia la cita, no ocupa ni libera slots y no constituye aprobación, rechazo o evidencia.
+
 ## 2. Diagrama lógico
 
 ```text
