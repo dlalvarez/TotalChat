@@ -149,3 +149,9 @@ Estas tools no llaman al LLM ni a la red, y separan estrictamente servicios de p
 Las tools de precios consultan PostgreSQL mediante un repository o sesión tenant-scoped y reciben el tenant ya resuelto. Solo presentan precios activos y vigentes definidos por `practitioner_service + payer_plan`, junto con la información mínima de tipo de pagador, pagador y plan; nunca inventan un precio genérico ni aceptan o exponen `schema_name`.
 
 Esta fase no consulta disponibilidad, genera slots, crea citas o pagos, convierte moneda ni llama a LLM, red, endpoints o canales. Los estados activos del servicio, plan, pagador, tipo de pagador, profesional, organización y su relación se validan antes de exponer una cotización.
+
+## 16. Fase 7A.6 — tools de disponibilidad
+
+Las tools de disponibilidad reciben el tenant resuelto por backend y leen reglas recurrentes, modalidades, excepciones y ocupación desde PostgreSQL tenant-scoped. Devuelven slots estructurados y determinísticos solo cuando servicio, profesional, organización, relación, sede y consultorio aplicables continúan activos; nunca aceptan ni exponen `schema_name`.
+
+Consultar disponibilidad no reserva ni protege el horario. Esta fase no crea citas u holds, no mezcla precios o pagos y no usa LLM, prompts, red, endpoints, canales ni integraciones externas. Como el modelo actual guarda horarios de reglas sin zona asociada, la tool conserva de forma explícita esos valores como hora local del tenant y no inventa una zona horaria.

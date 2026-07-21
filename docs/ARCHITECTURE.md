@@ -359,6 +359,12 @@ El contrato devuelve modelos internos estructurados con referencias, descripció
 
 Las tools devuelven cotizaciones estructuradas existentes, nunca un precio genérico o calculado. No seleccionan schema, convierten moneda, consultan disponibilidad, generan slots, crean citas o pagos, ni usan LLM, red o endpoints.
 
+### 10.5. Tools de disponibilidad (Fase 7A.6)
+
+`AvailabilityTools` opera detrás del tenant resolver con un `AvailabilityRepository` o sesión SQLAlchemy tenant-scoped. El repository interno reutiliza los estados bloqueantes del motor de agenda y calcula slots desde reglas recurrentes, modalidades, duración, excepciones y reservas existentes en PostgreSQL.
+
+La tool valida que servicio, profesional, organización, relación y recursos presenciales estén activos, deduplica resultados equivalentes y aplica un límite determinístico. Sus resultados no incluyen schema, precios o pagos, y consultar un slot no crea una cita ni un hold. No se agregan endpoints, LLM, red, canales ni proveedores externos.
+
 ## 11. Eventos de dominio
 
 El backend debe emitir eventos.

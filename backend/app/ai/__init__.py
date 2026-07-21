@@ -6,6 +6,14 @@ from app.ai.booking_graph import (
     BookingGraphResult,
     run_booking_graph,
 )
+from app.ai.availability_tools import (
+    AvailabilityRepository,
+    AvailabilityRequest,
+    AvailabilityToolResult,
+    AvailabilityTools,
+    AvailableSlot,
+    SQLAlchemyAvailabilityRepository,
+)
 
 from app.ai.conversation_state import (
     BookingConversationState,
@@ -52,6 +60,11 @@ from app.ai.service_tools import (
 )
 
 __all__ = [
+    "AvailabilityRepository",
+    "AvailabilityRequest",
+    "AvailabilityToolResult",
+    "AvailabilityTools",
+    "AvailableSlot",
     "BookingConversationState",
     "BookingGraphAction",
     "BookingGraphNode",
@@ -79,6 +92,7 @@ __all__ = [
     "SemanticDocument",
     "SelectedSlot",
     "SQLAlchemyServiceRepository",
+    "SQLAlchemyAvailabilityRepository",
     "SQLAlchemyPricingRepository",
     "ServiceDetail",
     "ServiceListRequest",
