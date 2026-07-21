@@ -658,3 +658,15 @@ LLM y embeddings pueden usar proveedores distintos. El ejemplo operativo usa Dee
 El adaptador normaliza únicamente `choices[0].message.content` como respuesta visible. `reasoning_content` es metadata técnica opcional: no se mezcla con `content`, no se muestra a usuarios, frontend o canales, y no se guarda ni registra por defecto. Solo puede incluirse en `LLMResponse.metadata` con `TOTALCHAT_LLM_CAPTURE_REASONING=true` para diagnóstico técnico y tuning de prompts; esta fase no implementa su persistencia ni evaluación formal. Ninguna lógica de negocio, tool, pago, cita, disponibilidad, autorización o resolución de tenant puede depender de esa metadata. Las claves nunca se registran; toda clave expuesta en conversaciones debe rotarse.
 
 Los documentos semánticos se almacenan en `semantic_documents` dentro de cada schema tenant. No viven en `public`, no incluyen `schema_name` y toda operación futura de IA debe recibir el tenant ya resuelto por backend antes de consultar embeddings o tools. Esta fase no agrega LangGraph, tools de dominio, endpoints HTTP, canales ni RAG completo.
+
+## Entrada Telegram — Fase 8A.1
+
+`POST /api/webhooks/telegram/{webhook_secret}` valida un secreto configurado por
+entorno y resuelve el tenant mediante el identificador del bot contra
+`public.tenant_channels`. Solo después de esa resolución el backend selecciona
+internamente el schema tenant, crea o reutiliza `conversation_sessions` y guarda
+el mensaje en `messages`. El `update_id` de Telegram evita duplicar mensajes.
+
+Esta entrada no llama al Booking Agent, al LLM, a la red ni a un cliente Telegram;
+tampoco envía respuestas salientes. El payload, las respuestas HTTP y la metadata
+persistida no contienen secretos ni `schema_name`.

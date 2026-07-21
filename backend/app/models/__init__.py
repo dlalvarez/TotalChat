@@ -3,6 +3,7 @@ from app.models.tenant import (
     AvailabilityException,
     AvailabilityRule,
     Booking,
+    ConversationSession,
     Location,
     Organization,
     Patient,
@@ -11,6 +12,7 @@ from app.models.tenant import (
     PaymentEvidence,
     PaymentReview,
     PaymentSettings,
+    Message,
     PatientPayerProfile,
     Payer,
     PayerPlan,
@@ -30,5 +32,5 @@ __all__ = [
     "Organization", "Location", "Room", "Practitioner", "OrganizationPractitioner", "Specialty", "PractitionerSpecialty",
     "PractitionerService", "ServiceModality", "PayerType", "Payer", "PayerPlan",
     "PractitionerServicePrice", "Patient", "PatientContact", "PatientPayerProfile", "AvailabilityRule", "AvailabilityException", "Booking",
-    "PaymentSettings", "PaymentAttempt", "PaymentEvidence", "PaymentReview",
+    "PaymentSettings", "PaymentAttempt", "PaymentEvidence", "PaymentReview", "ConversationSession", "Message",
 ]
