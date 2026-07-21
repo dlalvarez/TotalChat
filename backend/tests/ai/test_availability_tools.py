@@ -119,6 +119,19 @@ def test_filters_modality_and_requires_matching_active_place(catalog) -> None:
     assert slots(catalog) == ()
 
 
+def test_general_rules_apply_when_request_targets_specific_active_place(catalog) -> None:
+    session, _, _, location, room, _, _, _, rule = catalog
+    rule.location_id = None
+    rule.room_id = None
+    session.commit()
+
+    result = slots(catalog)
+
+    assert result
+    assert {slot.location_id for slot in result} == {location.id}
+    assert {slot.room_id for slot in result} == {room.id}
+
+
 def test_active_exception_removes_overlapping_slots(catalog) -> None:
     session, _, practitioner, location, room, *_ = catalog
     session.add(AvailabilityException(

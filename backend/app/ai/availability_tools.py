@@ -173,9 +173,19 @@ class SQLAlchemyAvailabilityRepository:
             AvailabilityRule.modality.in_([request.modality, "both"]),
         )
         if request.location_id is not None:
-            query = query.where(AvailabilityRule.location_id == request.location_id)
+            query = query.where(
+                or_(
+                    AvailabilityRule.location_id.is_(None),
+                    AvailabilityRule.location_id == request.location_id,
+                )
+            )
         if request.room_id is not None:
-            query = query.where(AvailabilityRule.room_id == request.room_id)
+            query = query.where(
+                or_(
+                    AvailabilityRule.room_id.is_(None),
+                    AvailabilityRule.room_id == request.room_id,
+                )
+            )
         return tuple(self._session.scalars(query))
 
     def _rule_resources_are_active(self, request: AvailabilityRequest, rule: AvailabilityRule) -> bool:
@@ -229,8 +239,8 @@ class SQLAlchemyAvailabilityRepository:
                     practitioner_id=request.practitioner_id,
                     practitioner_service_id=request.practitioner_service_id,
                     organization_id=request.organization_id,
-                    location_id=rule.location_id,
-                    room_id=rule.room_id,
+                    location_id=request.location_id or rule.location_id,
+                    room_id=request.room_id or rule.room_id,
                     modality=request.modality,
                 )
             )
