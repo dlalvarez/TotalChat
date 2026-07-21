@@ -13,6 +13,16 @@ from app.tenancy.context import TenantContext
 
 UPDATE = {"update_id": 51001, "message": {"message_id": 91, "chat": {"id": 80001}, "text": "consulta general"}}
 
+COMPLETE_STATE = {
+    "patient_id": str(uuid.uuid4()),
+    "payer_type": "prepaid",
+    "payer_name": "Sura",
+    "plan_name": "Plan básico",
+    "preferred_date": "2026-07-22",
+    "preferred_modality": "in_person",
+    "payment_method": "transfer",
+}
+
 
 @dataclass
 class AgentSpy:
@@ -26,18 +36,26 @@ class AgentSpy:
         return BookingConversationResult(status="service_not_found", completed_steps=())
 
 
-def make_service(monkeypatch, agent):
+def make_service(monkeypatch, agent, *, state=None):
     engine = create_engine("sqlite+pysqlite:///:memory:")
     ConversationSession.__table__.create(engine)
     Message.__table__.create(engine)
     tenant = TenantContext(uuid.uuid4(), "agent-tenant", "tenant_agent_tenant")
     monkeypatch.setattr("app.channels.telegram.TenantResolver.resolve_by_channel", lambda self, **kwargs: tenant)
+    if state is not None:
+        with Session(engine) as session:
+            session.add(ConversationSession(
+                channel_type="telegram",
+                external_user_id=str(UPDATE["message"]["chat"]["id"]),
+                state=state,
+            ))
+            session.commit()
     return engine, TelegramUpdate.model_validate(UPDATE), tenant
 
 
 def test_valid_intake_invokes_agent_with_backend_tenant_and_persists_pending_result(monkeypatch):
     agent = AgentSpy()
-    engine, update, tenant = make_service(monkeypatch, agent)
+    engine, update, tenant = make_service(monkeypatch, agent, state=COMPLETE_STATE)
 
     with Session(engine) as session:
         result = TelegramWebhookService(session, agent_invoker=agent).process(update, bot_identifier="bot")
@@ -58,7 +76,7 @@ def test_valid_intake_invokes_agent_with_backend_tenant_and_persists_pending_res
 
 def test_agent_error_keeps_incoming_and_persists_unsent_controlled_result(monkeypatch):
     agent = AgentSpy(fail=True)
-    engine, update, _ = make_service(monkeypatch, agent)
+    engine, update, _ = make_service(monkeypatch, agent, state=COMPLETE_STATE)
 
     with Session(engine) as session:
         result = TelegramWebhookService(session, agent_invoker=agent).process(update, bot_identifier="bot")
@@ -67,14 +85,17 @@ def test_agent_error_keeps_incoming_and_persists_unsent_controlled_result(monkey
     assert result.accepted is True
     assert len(agent.calls) == 1
     assert [item.direction for item in messages] == ["incoming", "outgoing"]
-    assert messages[1].content == "BookingAgent: unable_to_process"
+    assert messages[1].content == (
+        "No pude continuar con la reserva en este momento. "
+        "Por favor, intenta de nuevo más tarde."
+    )
     assert messages[1].raw_payload["delivery_status"] == "pending"
     assert messages[1].raw_payload["agent_status"] == "error"
 
 
 def test_duplicate_update_does_not_invoke_agent_twice(monkeypatch):
     agent = AgentSpy()
-    engine, update, _ = make_service(monkeypatch, agent)
+    engine, update, _ = make_service(monkeypatch, agent, state=COMPLETE_STATE)
     with Session(engine) as session:
         service = TelegramWebhookService(session, agent_invoker=agent)
         first = service.process(update, bot_identifier="bot")
@@ -125,3 +146,46 @@ def test_default_bridge_builds_controlled_request_and_calls_booking_agent(monkey
     assert not hasattr(request, "schema_name")
     assert outgoing.content == "BookingAgent: no_availability"
     assert outgoing.raw_payload["delivery_status"] == "pending"
+
+
+def test_empty_state_starts_booking_context_without_invoking_agent(monkeypatch):
+    agent = AgentSpy()
+    engine, update, _ = make_service(monkeypatch, agent)
+    update.message.text = "Hola"
+
+    with Session(engine) as session:
+        result = TelegramWebhookService(session, agent_invoker=agent).process(update, bot_identifier="bot")
+        conversation = session.scalars(select(ConversationSession)).one()
+        outgoing = session.scalars(select(Message).where(Message.direction == "outgoing")).one()
+
+    assert result.accepted is True
+    assert agent.calls == []
+    assert outgoing.content == (
+        "Hola, soy el asistente de MediChat. Puedo ayudarte a iniciar una reserva. "
+        "Para empezar, dime qué servicio necesitas."
+    )
+    assert outgoing.raw_payload["agent_status"] == "collecting_booking_context"
+    assert conversation.state == {
+        "phase": "collecting_booking_context",
+        "last_user_message": "Hola",
+        "missing_fields": [
+            "patient_id", "payer_type", "payer_name", "plan_name", "preferred_date",
+            "preferred_modality", "payment_method",
+        ],
+    }
+
+
+def test_incomplete_state_preserves_progress_and_refreshes_missing_fields(monkeypatch):
+    agent = AgentSpy()
+    state = {"payer_type": "private", "last_user_message": "mensaje anterior"}
+    engine, update, _ = make_service(monkeypatch, agent, state=state)
+
+    with Session(engine) as session:
+        TelegramWebhookService(session, agent_invoker=agent).process(update, bot_identifier="bot")
+        conversation = session.scalars(select(ConversationSession)).one()
+
+    assert agent.calls == []
+    assert conversation.state["payer_type"] == "private"
+    assert conversation.state["phase"] == "collecting_booking_context"
+    assert conversation.state["last_user_message"] == "consulta general"
+    assert "payer_type" not in conversation.state["missing_fields"]
