@@ -167,3 +167,9 @@ El resultado estructurado no expone precio, pago ni `schema_name`. El plan selec
 Las tools de pagos consultan reservas e intentos desde PostgreSQL tenant-scoped y solo ofrecen métodos habilitados en la configuración activa de la organización. La ausencia de configuración produce el resultado conservador de ningún método disponible. Transferencia requiere evidencia y revisión humana; los demás métodos se preparan pendientes.
 
 Estas tools nunca aprueban o rechazan un pago, registran evidencia, cambian o liberan una reserva, recalculan disponibilidad ni llaman LLM, red, endpoints, canales o pasarelas. El tenant llega resuelto por backend y `schema_name` no forma parte de entradas o resultados.
+
+## 19. Fase 7A.9 — conversaciones simuladas determinísticas
+
+El coordinador interno del Booking Agent encadena las tools existentes en el orden servicio, precio, disponibilidad, cita y pago. La selección se basa únicamente en resultados estructurados: no inventa alternativas y la cita revalida el slot antes de ocuparlo. Preparar el pago es un paso posterior e independiente de crear la cita.
+
+Esta simulación no interpreta lenguaje con IA, no llama providers LLM ni usa red. Tampoco aprueba pagos, libera cupos, ejecuta expiraciones o convierte al estado conversacional en fuente de verdad. El tenant continúa resuelto por backend y `schema_name` queda fuera de solicitudes y resultados.
