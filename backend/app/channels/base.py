@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from app.ai.booking_agent import BookingConversationResult
+from app.ai.telegram_conversation import ConversationTurnResult
 from app.models.tenant import ConversationSession
 
 
@@ -19,4 +19,4 @@ class ConversationAgentInvoker(Protocol):
 
     def invoke(
         self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
-    ) -> BookingConversationResult: ...
+    ) -> ConversationTurnResult: ...

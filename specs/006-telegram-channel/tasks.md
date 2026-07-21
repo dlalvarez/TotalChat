@@ -13,3 +13,6 @@
 - [x] Detectar estado vacío o incompleto antes de invocar el agente determinístico (Fase 8A.5).
 - [x] Persistir fase, último mensaje y campos faltantes, y responder de forma conversacional (Fase 8A.5).
 - [x] Cubrir estados vacío e incompleto sin adelantar interpretación o reserva natural (Fase 8A.5).
+- [x] Interpretar intención y datos explícitos mediante el provider LLM configurado (Fase 8A.6).
+- [x] Validar servicios mencionados con tools tenant-scoped y persistir progreso conversacional (Fase 8A.6).
+- [x] Cubrir saludo, servicio único, estado parcial y ambigüedad sin crear reservas (Fase 8A.6).

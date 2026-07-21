@@ -92,3 +92,18 @@ El estado previo permitido se conserva y la respuesta se persiste y entrega con
 la semántica `pending` → `sent | failed` existente. Ni el estado ni el texto
 visible incluyen `schema_name`, UUIDs, precios, disponibilidad o citas inventadas.
 Esta fase no interpreta intención ni completa el flujo natural de reserva.
+
+## Fase 8A.6 — Orquestación conversacional inicial
+
+Después de resolver el tenant y persistir el mensaje entrante, el adaptador invoca
+una capa conversacional que lee `conversation_sessions.state` y usa el
+`LLMProvider` configurado exclusivamente para extraer intención y datos explícitos.
+La interpretación estructurada se valida contra tools tenant-scoped antes de
+persistir referencias a servicios u otros hechos del dominio.
+
+El primer flujo recopila servicio, preferencia de fecha, franja horaria y
+modalidad. Una coincidencia única de servicio se conserva como referencia interna;
+cero o varias coincidencias producen una aclaración basada solo en resultados de
+la tool. Las expresiones relativas se conservan como preferencias y no se
+convierten en disponibilidad confirmada. Esta fase no crea ni confirma citas,
+pagos o slots, y nunca presenta UUIDs ni `schema_name` al paciente.

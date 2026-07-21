@@ -1,11 +1,10 @@
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
 
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.ai.booking_agent import BookingConversationResult
+from app.ai.telegram_conversation import ConversationTurnResult
 from app.channels.telegram import TelegramUpdate, TelegramWebhookService
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.context import TenantContext
@@ -33,7 +32,11 @@ class AgentSpy:
         self.calls.append(kwargs)
         if self.fail:
             raise RuntimeError("controlled agent failure")
-        return BookingConversationResult(status="service_not_found", completed_steps=())
+        return ConversationTurnResult(
+            content="¿Qué fecha prefieres?",
+            status="needs_date",
+            state={**(kwargs["conversation"].state or {}), "phase": "collecting_booking_context"},
+        )
 
 
 def make_service(monkeypatch, agent, *, state=None):
@@ -66,10 +69,10 @@ def test_valid_intake_invokes_agent_with_backend_tenant_and_persists_pending_res
     assert agent.calls[0]["tenant_id"] == tenant.tenant_id
     assert agent.calls[0]["message_text"] == "consulta general"
     assert [(item.direction, item.content) for item in messages] == [
-        ("incoming", "consulta general"), ("outgoing", "BookingAgent: service_not_found")
+        ("incoming", "consulta general"), ("outgoing", "¿Qué fecha prefieres?")
     ]
     assert messages[1].raw_payload == {
-        "delivery_status": "pending", "agent_status": "service_not_found", "source_update_id": 51001
+        "delivery_status": "pending", "agent_status": "needs_date", "source_update_id": 51001
     }
     assert "schema_name" not in repr(agent.calls)
 
@@ -107,48 +110,7 @@ def test_duplicate_update_does_not_invoke_agent_twice(monkeypatch):
     assert len(messages) == 2
 
 
-def test_default_bridge_builds_controlled_request_and_calls_booking_agent(monkeypatch):
-    engine, update, tenant = make_service(monkeypatch, AgentSpy())
-    patient_id = uuid.uuid4()
-    captured = []
-
-    def run(agent, request):
-        captured.append(request)
-        return BookingConversationResult(status="no_availability", completed_steps=())
-
-    monkeypatch.setattr("app.channels.telegram.BookingAgent.run", run)
-    with Session(engine) as session:
-        session.add(ConversationSession(
-            channel_type="telegram",
-            external_user_id=str(UPDATE["message"]["chat"]["id"]),
-            state={
-                "patient_id": str(patient_id),
-                "payer_type": "prepaid",
-                "payer_name": "Sura",
-                "plan_name": "Plan básico",
-                "preferred_date": "2026-07-22",
-                "preferred_modality": "in_person",
-                "payment_method": "transfer",
-                "schema_name": "must_be_ignored",
-                "unexpected": "must_be_ignored",
-            },
-        ))
-        session.commit()
-        TelegramWebhookService(session).process(update, bot_identifier="bot")
-        outgoing = session.scalars(select(Message).where(Message.direction == "outgoing")).one()
-
-    assert len(captured) == 1
-    request = captured[0]
-    assert request.tenant_id == tenant.tenant_id
-    assert request.patient_id == patient_id
-    assert request.service_query == "consulta general"
-    assert request.preferred_date == date(2026, 7, 22)
-    assert not hasattr(request, "schema_name")
-    assert outgoing.content == "BookingAgent: no_availability"
-    assert outgoing.raw_payload["delivery_status"] == "pending"
-
-
-def test_empty_state_starts_booking_context_without_invoking_agent(monkeypatch):
+def test_empty_state_invokes_conversation_agent(monkeypatch):
     agent = AgentSpy()
     engine, update, _ = make_service(monkeypatch, agent)
     update.message.text = "Hola"
@@ -159,20 +121,10 @@ def test_empty_state_starts_booking_context_without_invoking_agent(monkeypatch):
         outgoing = session.scalars(select(Message).where(Message.direction == "outgoing")).one()
 
     assert result.accepted is True
-    assert agent.calls == []
-    assert outgoing.content == (
-        "Hola, soy el asistente de MediChat. Puedo ayudarte a iniciar una reserva. "
-        "Para empezar, dime qué servicio necesitas."
-    )
-    assert outgoing.raw_payload["agent_status"] == "collecting_booking_context"
-    assert conversation.state == {
-        "phase": "collecting_booking_context",
-        "last_user_message": "Hola",
-        "missing_fields": [
-            "patient_id", "payer_type", "payer_name", "plan_name", "preferred_date",
-            "preferred_modality", "payment_method",
-        ],
-    }
+    assert len(agent.calls) == 1
+    assert outgoing.content == "¿Qué fecha prefieres?"
+    assert outgoing.raw_payload["agent_status"] == "needs_date"
+    assert conversation.state["phase"] == "collecting_booking_context"
 
 
 def test_incomplete_state_preserves_progress_and_refreshes_missing_fields(monkeypatch):
@@ -184,8 +136,6 @@ def test_incomplete_state_preserves_progress_and_refreshes_missing_fields(monkey
         TelegramWebhookService(session, agent_invoker=agent).process(update, bot_identifier="bot")
         conversation = session.scalars(select(ConversationSession)).one()
 
-    assert agent.calls == []
+    assert len(agent.calls) == 1
     assert conversation.state["payer_type"] == "private"
     assert conversation.state["phase"] == "collecting_booking_context"
-    assert conversation.state["last_user_message"] == "consulta general"
-    assert "payer_type" not in conversation.state["missing_fields"]

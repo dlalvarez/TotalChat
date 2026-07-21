@@ -718,3 +718,17 @@ lenguaje conversacional y continúa por el mismo pipeline durable de entrega.
 Este control no interpreta intención ni consulta servicios, precios,
 disponibilidad o citas. Tampoco incorpora LLM o LangGraph, y nunca expone schema,
 identificadores internos ni errores técnicos al paciente.
+
+## Orquestación conversacional Telegram — Fase 8A.6
+
+La entrada Telegram delega cada turno, ya tenant-scoped, a un orquestador que usa
+la abstracción `LLMProvider` para obtener una interpretación JSON limitada. El
+orquestador no acepta la interpretación como verdad: resuelve servicios mediante
+`ServiceTools`, conserva el progreso permitido en
+`conversation_sessions.state` y selecciona la siguiente pregunta determinística.
+
+La respuesta visible se compone desde resultados validados y nunca desde estados
+técnicos del Booking Agent. Las preferencias relativas de fecha y horario siguen
+siendo datos parciales hasta que una tool de disponibilidad pueda validarlas. La
+fase no confirma citas, disponibilidad ni pagos, no expone identificadores
+internos o schemas y mantiene PostgreSQL como fuente de verdad.
