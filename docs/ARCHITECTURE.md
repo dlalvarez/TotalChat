@@ -679,3 +679,11 @@ determinístico crea el agente 7A.9 con tools SQLAlchemy ya contextualizadas y u
 request interna de campos permitidos. La salida se registra en `messages` como
 `direction=outgoing` y `delivery_status=pending`; no existe todavía cliente
 Telegram saliente, llamada de red, LLM, LangGraph runtime ni transición a enviado.
+
+## Entrega Telegram — Fase 8A.3
+
+Tras hacer durable el `outgoing pending`, el adaptador Telegram usa la credencial
+de entorno para entregar exactamente ese texto. La confirmación de la Bot API se
+persiste como `sent`; los errores sanitizados se persisten como `failed` sin
+reprocesar el agente ni romper el acuse del webhook. La idempotencia del update
+impide un segundo envío. No se agregan reintentos, jobs, colas, LLM o LangGraph.

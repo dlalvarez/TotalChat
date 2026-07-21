@@ -1,14 +1,12 @@
-"""Tenant-scoped Telegram intake and deterministic Booking Agent bridge.
-
-Phase 8A.2 stops at durable, pending outbound messages.  It deliberately has no
-Telegram client, network call, LLM, or outbound delivery capability.
-"""
+"""Tenant-scoped Telegram intake, agent bridge, and controlled delivery."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import json
 from typing import Protocol
+from urllib import error, request
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -55,6 +53,42 @@ class BookingAgentInvoker(Protocol):
     def invoke(
         self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
     ) -> BookingConversationResult: ...
+
+
+class TelegramDeliveryError(RuntimeError):
+    """A sanitized Telegram transport or API failure."""
+
+
+class TelegramClient(Protocol):
+    def send_message(self, *, chat_id: int, text: str) -> int: ...
+
+
+@dataclass(frozen=True, slots=True)
+class TelegramHTTPClient:
+    """Minimal Bot API client whose credential is never persisted or logged."""
+
+    token: str
+    timeout_seconds: float = 10.0
+
+    def send_message(self, *, chat_id: int, text: str) -> int:
+        payload = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
+        outbound = request.Request(
+            f"https://api.telegram.org/bot{self.token}/sendMessage",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(outbound, timeout=self.timeout_seconds) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except (error.URLError, TimeoutError, OSError, ValueError) as exc:
+            raise TelegramDeliveryError("Telegram delivery failed") from exc
+
+        result = body.get("result") if isinstance(body, dict) else None
+        message_id = result.get("message_id") if isinstance(result, dict) else None
+        if not isinstance(body, dict) or body.get("ok") is not True or not isinstance(message_id, int):
+            raise TelegramDeliveryError("Telegram did not confirm delivery")
+        return message_id
 
 
 class DeterministicBookingAgentInvoker:
@@ -113,6 +147,7 @@ def _optional_uuid(value: object) -> UUID | None:
 class TelegramWebhookService:
     session: Session
     agent_invoker: BookingAgentInvoker | None = None
+    telegram_client: TelegramClient | None = None
 
     def process(self, update: TelegramUpdate, *, bot_identifier: str) -> TelegramIntakeResult:
         tenant = TenantResolver(self.session).resolve_by_channel(
@@ -185,7 +220,7 @@ class TelegramWebhookService:
             content = "BookingAgent: unable_to_process"
             agent_status = "error"
 
-        self.session.add(Message(
+        outgoing = Message(
             conversation_session_id=conversation.id,
             channel_type="telegram",
             external_message_id=f"agent:{update.update_id}",
@@ -194,9 +229,39 @@ class TelegramWebhookService:
             content=content,
             raw_payload={"delivery_status": "pending", "agent_status": agent_status,
                          "source_update_id": update.update_id},
-        ))
+        )
+        self.session.add(outgoing)
         self.session.commit()
+        if self.telegram_client is not None:
+            self._deliver_pending(outgoing.id, chat_id=update.message.chat.id)
         return TelegramIntakeResult(accepted=True)
+
+    def _deliver_pending(self, message_id: UUID, *, chat_id: int) -> None:
+        """Attempt one delivery of one durable pending outgoing message."""
+        message = self.session.get(Message, message_id)
+        if (
+            message is None
+            or message.direction != "outgoing"
+            or message.raw_payload.get("delivery_status") != "pending"
+            or self.telegram_client is None
+        ):
+            return
+        try:
+            telegram_message_id = self.telegram_client.send_message(chat_id=chat_id, text=message.content)
+        except Exception:
+            self.session.rollback()
+            message = self.session.get(Message, message_id)
+            if message is not None and message.raw_payload.get("delivery_status") == "pending":
+                message.raw_payload = {**message.raw_payload, "delivery_status": "failed"}
+                self.session.commit()
+            return
+
+        message.raw_payload = {
+            **message.raw_payload,
+            "delivery_status": "sent",
+            "telegram_message_id": telegram_message_id,
+        }
+        self.session.commit()
 
     def _select_tenant_schema(self, schema_name: str) -> None:
         if self.session.get_bind().dialect.name != "sqlite":

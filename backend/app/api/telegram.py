@@ -3,15 +3,18 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.channels.telegram import TelegramUpdate, TelegramWebhookService
+from app.channels.telegram import TelegramHTTPClient, TelegramUpdate, TelegramWebhookService
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
 
 router = APIRouter(prefix="/api/webhooks/telegram", tags=["telegram"])
 
 
-def get_telegram_service(session: Session = Depends(get_db_session)) -> TelegramWebhookService:
-    return TelegramWebhookService(session)
+def get_telegram_service(
+    session: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)
+) -> TelegramWebhookService:
+    client = TelegramHTTPClient(settings.telegram_bot_token) if settings.telegram_bot_token else None
+    return TelegramWebhookService(session, telegram_client=client)
 
 
 @router.post("/{webhook_secret}")

@@ -34,3 +34,15 @@ duplicado no vuelve a invocar el agente.
 
 Exclusiones: cliente o API saliente de Telegram, red, LLM/provider, LangGraph
 runtime y cualquier estado `sent` o confirmación de entrega.
+
+## Fase 8A.3 — Entrega saliente controlada
+
+Después de persistir el mensaje `outgoing` con estado `pending`, el backend usa
+el token configurado por entorno para llamar `sendMessage`. Solo una confirmación
+válida de Telegram cambia el estado a `sent`; una excepción de red o respuesta no
+confirmada cambia el estado a `failed` sin alterar la respuesta exitosa del
+webhook. Un update ya procesado no vuelve a invocar el agente ni a entregar el
+mensaje. El token, `schema_name` y los detalles de excepciones no se persisten ni
+se incluyen en respuestas.
+
+Exclusiones: reintentos, jobs, colas, LLM, LangGraph runtime y otros canales.

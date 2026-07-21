@@ -190,3 +190,10 @@ campos permitidos del estado tenant-scoped; el texto entrante se usa como consul
 de servicio, nunca para seleccionar tenant o schema. El resultado o un error
 controlado se persiste como mensaje saliente `pending`, sin LLM, red ni entrega a
 Telegram. El estado `outgoing` en esta fase no acredita un envío.
+
+## Entrega Telegram — Fase 8A.3
+
+La entrega saliente consume únicamente el texto ya generado y persistido por el
+puente determinístico. No invoca un LLM, no modifica el contrato del agente y no
+inventa contenido. El cliente Telegram recibe el token solo desde configuración;
+ni el token ni `schema_name` forman parte del mensaje o del estado de entrega.
