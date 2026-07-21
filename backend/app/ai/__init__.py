@@ -18,6 +18,16 @@ from app.ai.conversation_state import (
     SelectedSlot,
 )
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
+from app.ai.pricing_tools import (
+    PriceQuote,
+    PriceRecord,
+    PricingOptionsRequest,
+    PricingRepository,
+    PricingRequest,
+    PricingToolResult,
+    PricingTools,
+    SQLAlchemyPricingRepository,
+)
 from app.ai.providers import (
     EmbeddingRequest,
     EmbeddingResponse,
@@ -59,9 +69,17 @@ __all__ = [
     "LLMResponse",
     "OpenAICompatibleProvider",
     "PendingField",
+    "PriceQuote",
+    "PriceRecord",
+    "PricingOptionsRequest",
+    "PricingRepository",
+    "PricingRequest",
+    "PricingToolResult",
+    "PricingTools",
     "SemanticDocument",
     "SelectedSlot",
     "SQLAlchemyServiceRepository",
+    "SQLAlchemyPricingRepository",
     "ServiceDetail",
     "ServiceListRequest",
     "ServiceRecord",

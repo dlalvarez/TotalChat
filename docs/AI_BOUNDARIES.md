@@ -143,3 +143,9 @@ Las acciones `review_booking`, `handle_payment` y `complete` describen únicamen
 Las tools de servicios reciben un tenant ya resuelto y consultan servicios del profesional mediante un repository o sesión tenant-scoped. Solo devuelven datos estructurados de servicios activos; no aceptan ni exponen `schema_name` y no seleccionan tenant.
 
 Estas tools no llaman al LLM ni a la red, y separan estrictamente servicios de precios, disponibilidad, citas y pagos. Los IDs devueltos son referencias internas para el backend, no texto final para el usuario.
+
+## 15. Fase 7A.5 — tools de precios
+
+Las tools de precios consultan PostgreSQL mediante un repository o sesión tenant-scoped y reciben el tenant ya resuelto. Solo presentan precios activos y vigentes definidos por `practitioner_service + payer_plan`, junto con la información mínima de tipo de pagador, pagador y plan; nunca inventan un precio genérico ni aceptan o exponen `schema_name`.
+
+Esta fase no consulta disponibilidad, genera slots, crea citas o pagos, convierte moneda ni llama a LLM, red, endpoints o canales. Los estados activos del servicio, plan, pagador, tipo de pagador, profesional, organización y su relación se validan antes de exponer una cotización.

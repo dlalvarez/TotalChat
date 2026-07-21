@@ -30,3 +30,11 @@ Esta fase no incorpora el runtime LangGraph ni tools reales. No consulta Postgre
 Las búsquedas devuelven únicamente servicios, profesionales y organizaciones activos. Sus resultados estructurados contienen identificadores internos, nombre, descripción, duración, profesional y modalidades activas. No contienen precio, disponibilidad, slots, citas, pagos ni texto conversacional final. El detalle de un servicio inexistente o inactivo devuelve `None`.
 
 Esta fase no agrega endpoints, llamadas LLM, red, RAG ni runtime LangGraph. El port `ServiceRepository` permite tests locales controlados y `SQLAlchemyServiceRepository` consulta `practitioner_services` como fuente de verdad tenant-scoped.
+
+## Fase 7A.5
+
+`PricingTools` define las tools internas `get_service_price` y `get_pricing_options`. Recibe el `tenant_id` ya resuelto por el backend y un `PricingRepository` o sesión SQLAlchemy contextualizada al schema tenant. Las entradas identifican siempre un servicio del profesional y, para una cotización concreta, un plan de pagador; no aceptan ni exponen `schema_name`.
+
+Los resultados estructurados representan precios configurados y vigentes con la jerarquía `payer_type → payer → payer_plan → practitioner_service_price`, su monto, moneda y periodo de vigencia. Solo se incluyen precio, servicio, plan, pagador, tipo de pagador, profesional, organización y relación organización-profesional activos. Ante periodos activos superpuestos heredados, se selecciona determinísticamente el de `valid_from` más reciente para cada plan.
+
+Esta fase no crea precios ni convierte monedas. Tampoco agrega disponibilidad, slots, citas, pagos, endpoints, llamadas LLM, red o runtime LangGraph. PostgreSQL tenant-scoped continúa como fuente de verdad; COP es la moneda operativa MVP y la tool devuelve la moneda configurada sin alterarla.
