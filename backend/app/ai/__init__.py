@@ -14,6 +14,13 @@ from app.ai.availability_tools import (
     AvailableSlot,
     SQLAlchemyAvailabilityRepository,
 )
+from app.ai.appointment_tools import (
+    AppointmentRepository,
+    AppointmentRequest,
+    AppointmentResult,
+    AppointmentTools,
+    SQLAlchemyAppointmentRepository,
+)
 
 from app.ai.conversation_state import (
     BookingConversationState,
@@ -60,6 +67,10 @@ from app.ai.service_tools import (
 )
 
 __all__ = [
+    "AppointmentRepository",
+    "AppointmentRequest",
+    "AppointmentResult",
+    "AppointmentTools",
     "AvailabilityRepository",
     "AvailabilityRequest",
     "AvailabilityToolResult",
@@ -92,6 +103,7 @@ __all__ = [
     "SemanticDocument",
     "SelectedSlot",
     "SQLAlchemyServiceRepository",
+    "SQLAlchemyAppointmentRepository",
     "SQLAlchemyAvailabilityRepository",
     "SQLAlchemyPricingRepository",
     "ServiceDetail",

@@ -155,3 +155,9 @@ Esta fase no consulta disponibilidad, genera slots, crea citas o pagos, conviert
 Las tools de disponibilidad reciben el tenant resuelto por backend y leen reglas recurrentes, modalidades, excepciones y ocupación desde PostgreSQL tenant-scoped. Devuelven slots estructurados y determinísticos solo cuando servicio, profesional, organización, relación, sede y consultorio aplicables continúan activos; nunca aceptan ni exponen `schema_name`.
 
 Consultar disponibilidad no reserva ni protege el horario. Esta fase no crea citas u holds, no mezcla precios o pagos y no usa LLM, prompts, red, endpoints, canales ni integraciones externas. Como el modelo actual guarda horarios de reglas sin zona asociada, la tool conserva de forma explícita esos valores como hora local del tenant y no inventa una zona horaria.
+
+## 17. Fase 7A.7 — tools de citas
+
+Las tools de citas reciben el tenant resuelto y crean una reserva tentativa únicamente después de revalidar la disponibilidad real en PostgreSQL. La reserva constituye ocupación real; se rechazan recursos inactivos, modalidades o lugares no aplicables, excepciones y cualquier reserva bloqueante solapada.
+
+El resultado estructurado no expone precio, pago ni `schema_name`. El plan seleccionado solo se usa internamente para completar los snapshots obligatorios del modelo vigente: esta fase no crea, aprueba ni modifica pagos, y tampoco llama LLM, red, endpoints o canales.
