@@ -144,6 +144,35 @@ def test_lists_only_current_active_pricing_options(pricing_catalog) -> None:
     assert {quote.amount for quote in result.prices} == {Decimal("100000.00"), Decimal("80000.00")}
 
 
+def test_overlapping_active_prices_use_newest_valid_from_per_plan(pricing_catalog) -> None:
+    session, data = pricing_catalog
+    newest = PractitionerServicePrice(
+        practitioner_service_id=data["service"].id,
+        payer_plan_id=data["plan"].id,
+        price=Decimal("120000.00"),
+        currency="COP",
+        valid_from=date(2026, 7, 1),
+        status="active",
+    )
+    session.add(newest)
+    session.commit()
+
+    quote = tools(session).get_service_price(
+        PricingRequest(data["service"].id, data["plan"].id, AS_OF)
+    )
+    options = tools(session).get_pricing_options(
+        PricingOptionsRequest(data["service"].id, AS_OF)
+    )
+    plan_options = [option for option in options.prices if option.payer_plan_id == data["plan"].id]
+
+    assert quote is not None
+    assert quote.price_id == newest.id
+    assert quote.amount == Decimal("120000.00")
+    assert len(plan_options) == 1
+    assert plan_options[0].price_id == newest.id
+    assert plan_options[0].amount == Decimal("120000.00")
+
+
 @pytest.mark.parametrize(
     "resource",
     ["service", "plan", "payer", "payer_type", "practitioner", "organization", "relation"],
