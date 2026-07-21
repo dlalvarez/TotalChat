@@ -208,15 +208,27 @@ class SQLAlchemyAvailabilityRepository:
         return True
 
     def _rule_has_active_modality(self, request: AvailabilityRequest, rule: AvailabilityRule) -> bool:
+        effective_location_id = request.location_id or rule.location_id
+        effective_room_id = request.room_id or rule.room_id
         query = select(ServiceModality.id).where(
             ServiceModality.practitioner_service_id == request.practitioner_service_id,
             ServiceModality.status == "active",
             ServiceModality.modality.in_([request.modality, "both"]),
         )
-        if rule.location_id is not None:
-            query = query.where(or_(ServiceModality.location_id.is_(None), ServiceModality.location_id == rule.location_id))
-        if rule.room_id is not None:
-            query = query.where(or_(ServiceModality.room_id.is_(None), ServiceModality.room_id == rule.room_id))
+        if effective_location_id is not None:
+            query = query.where(
+                or_(
+                    ServiceModality.location_id.is_(None),
+                    ServiceModality.location_id == effective_location_id,
+                )
+            )
+        if effective_room_id is not None:
+            query = query.where(
+                or_(
+                    ServiceModality.room_id.is_(None),
+                    ServiceModality.room_id == effective_room_id,
+                )
+            )
         return self._session.execute(query.limit(1)).first() is not None
 
     @staticmethod

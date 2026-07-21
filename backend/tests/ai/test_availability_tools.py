@@ -132,6 +132,20 @@ def test_general_rules_apply_when_request_targets_specific_active_place(catalog)
     assert {slot.room_id for slot in result} == {room.id}
 
 
+def test_general_rule_does_not_apply_to_place_without_matching_service_modality(catalog) -> None:
+    session, organization, _, _, _, _, _, _, rule = catalog
+    other_location = Location(organization=organization, name="Sur", status="active")
+    other_room = Room(location=other_location, name="202", status="active")
+    rule.location_id = None
+    rule.room_id = None
+    session.add_all([other_location, other_room])
+    session.commit()
+
+    result = slots(catalog, location_id=other_location.id, room_id=other_room.id)
+
+    assert result == ()
+
+
 def test_active_exception_removes_overlapping_slots(catalog) -> None:
     session, _, practitioner, location, room, *_ = catalog
     session.add(AvailabilityException(
