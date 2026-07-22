@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd ~/projects/totalchat/backend
+source .venv/bin/activate
+
+POSTGRES_DB="$(grep '^POSTGRES_DB=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_USER="$(grep '^POSTGRES_USER=' ~/docker/totalchat/.env | cut -d= -f2-)"
+POSTGRES_PASSWORD="$(cat ~/docker/totalchat/secrets/postgres_password.txt)"
+
+export TOTALCHAT_DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}"
+export TOTALCHAT_JWT_SECRET="$(cat ~/docker/totalchat/secrets/jwt_secret.txt)"
+
+export TOTALCHAT_TELEGRAM_BOT_TOKEN="$(cat ~/docker/totalchat/secrets/telegram_bot_token.txt)"
+export TOTALCHAT_TELEGRAM_WEBHOOK_SECRET="$(cat ~/docker/totalchat/secrets/telegram_webhook_secret.txt)"
+export TOTALCHAT_TELEGRAM_BOT_IDENTIFIER="medichat_clinicapediatrica_bot"
+
+export TOTALCHAT_LLM_PROVIDER="deepinfra"
+export TOTALCHAT_LLM_BASE_URL="https://api.deepinfra.com/v1/openai"
+export TOTALCHAT_LLM_API_KEY="$(cat ~/docker/totalchat/secrets/deepinfra_api_key_secret.txt)"
+export TOTALCHAT_LLM_MODEL="Qwen/Qwen3.6-35B-A3B"
+export TOTALCHAT_LLM_TIMEOUT_SECONDS=30
+export TOTALCHAT_LLM_CAPTURE_REASONING="false"
+
+export TOTALCHAT_EMBEDDINGS_PROVIDER="openai"
+export TOTALCHAT_EMBEDDINGS_BASE_URL="https://api.openai.com/v1"
+export TOTALCHAT_EMBEDDINGS_API_KEY="xxxx"
+export TOTALCHAT_EMBEDDINGS_MODEL="text-embedding-3-small"
+export TOTALCHAT_EMBEDDING_DIMENSIONS=1536
+
+python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+
