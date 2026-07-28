@@ -2,6 +2,11 @@ import uuid
 
 import pytest
 
+from app.ai.conversation_prompts import (
+    NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION,
+    ConversationAssistantIdentity,
+    build_natural_conversation_system_prompt,
+)
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
     ConversationTurnRequest,
@@ -30,13 +35,14 @@ class FakeProvider:
         )
 
 
-def request(text="Hola", *, history=(), phase=None):
+def request(text="Hola", *, history=(), phase=None, identity=None):
     return ConversationTurnRequest(
         tenant_id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
         message_text=text,
         recent_messages=history,
         conversation_phase=phase,
+        assistant_identity=identity or ConversationAssistantIdentity(),
     )
 
 
@@ -47,8 +53,35 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
 
     assert result.content == f"natural: {text}"
     assert result.code == "natural_response"
-    assert result.metadata == {"runtime": "natural_conversation"}
+    assert result.metadata == {
+        "runtime": "natural_conversation",
+        "system_prompt_version": "8a7-v1",
+    }
     assert "reasoning" not in repr(result)
+    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
+
+
+def test_first_provider_message_is_built_system_prompt_with_default_identity():
+    provider = FakeProvider()
+    turn = request()
+    NaturalConversationRuntime(provider).run(turn)
+
+    first = provider.calls[0][0]
+    assert first.role == "system"
+    assert first.content == build_natural_conversation_system_prompt(turn.assistant_identity)
+    assert "Sofía" in first.content
+    assert "Sofi" in first.content
+
+
+def test_configured_identity_reaches_system_prompt_without_internal_ids():
+    provider = FakeProvider()
+    turn = request(identity=ConversationAssistantIdentity(display_name="Luna", friendly_name="Lunita"))
+    NaturalConversationRuntime(provider).run(turn)
+
+    prompt = provider.calls[0][0].content
+    assert "Luna" in prompt and "Lunita" in prompt
+    assert str(turn.tenant_id) not in prompt
+    assert str(turn.conversation_id) not in prompt
 
 
 def test_recent_context_is_ordered_bounded_and_current_message_is_last():
@@ -63,6 +96,18 @@ def test_recent_context_is_ordered_bounded_and_current_message_is_last():
     context = [item.content for item in messages if item.role in {"user", "assistant"}]
     assert context == [f"m{index}" for index in range(3, 11)] + ["mensaje actual"]
     assert messages[-1].role == "user"
+
+
+def test_history_keeps_only_authorized_roles():
+    provider = FakeProvider()
+    NaturalConversationRuntime(provider).run(request(history=(
+        ConversationContextMessage(role="tool", content="internal tool output"),
+        ConversationContextMessage(role="assistant", content="visible answer"),
+        ConversationContextMessage(role="unknown", content="internal message"),
+    )))
+    context = [(item.role, item.content) for item in provider.calls[0]]
+    assert ("assistant", "visible answer") in context
+    assert all("internal" not in content for _, content in context)
 
 
 @pytest.mark.parametrize("content", ["", "   ", None])

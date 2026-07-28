@@ -131,3 +131,9 @@ La respuesta fija normal de 8A.5 deja de ser una ruta de ejecución. Solo se
 permite el fallback técnico genérico ante fallos o contenido inválido. Telegram
 no contiene prompts ni configuración LLM y al runtime no llegan token, chat ID,
 payload completo o schema. Esta fase no conecta tools ni datos operacionales.
+
+El historial del invoker se forma exclusivamente con incoming anteriores y
+outgoing confirmados `sent`; `pending`, `failed`, direcciones desconocidas y la
+entrada actual quedan fuera. El límite de ocho se aplica después de ese filtro.
+La identidad Sofía/Sofi predeterminada y cualquier alternativa backend-owned no
+son responsabilidad ni configuración de Telegram.

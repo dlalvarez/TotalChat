@@ -8,7 +8,11 @@ from types import MappingProxyType
 from typing import Any, Mapping
 from uuid import UUID
 
-from app.ai.conversation_prompts import NATURAL_CONVERSATION_SYSTEM_PROMPT
+from app.ai.conversation_prompts import (
+    NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION,
+    ConversationAssistantIdentity,
+    build_natural_conversation_system_prompt,
+)
 from app.ai.providers import LLMMessage, LLMProvider
 
 
@@ -36,6 +40,9 @@ class ConversationTurnRequest:
     message_text: str
     recent_messages: tuple[ConversationContextMessage, ...] = ()
     conversation_phase: str | None = None
+    assistant_identity: ConversationAssistantIdentity = field(
+        default_factory=ConversationAssistantIdentity
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +50,10 @@ class ConversationTurnResult:
     content: str
     code: str
     metadata: Mapping[str, Any] = field(
-        default_factory=lambda: MappingProxyType({"runtime": "natural_conversation"})
+        default_factory=lambda: MappingProxyType({
+            "runtime": "natural_conversation",
+            "system_prompt_version": NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION,
+        })
     )
 
 
@@ -69,7 +79,10 @@ class NaturalConversationRuntime:
         return ConversationTurnResult(content=content, code="natural_response")
 
     def _build_messages(self, request: ConversationTurnRequest) -> list[LLMMessage]:
-        messages = [LLMMessage(role="system", content=NATURAL_CONVERSATION_SYSTEM_PROMPT)]
+        messages = [LLMMessage(
+            role="system",
+            content=build_natural_conversation_system_prompt(request.assistant_identity),
+        )]
         if request.conversation_phase:
             messages.append(LLMMessage(
                 role="system",

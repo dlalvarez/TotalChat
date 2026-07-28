@@ -112,3 +112,9 @@ provider. Error, timeout o contenido inválido producen un fallback técnico fij
 El request contiene tenant y conversación internos ya resueltos, pero esos IDs no
 entran al prompt. Tampoco entran schema, credenciales, payloads o identificadores
 del transporte. No hay tools, hechos operacionales ni LangGraph completo.
+
+El System Prompt `8a7-v1` materializa reglas rectoras inmutables con una identidad
+visible sanitizada y backend-owned. Sus defaults son Sofía/Sofi, género femenino
+y MediChat. El usuario puede usar el apodo autorizado, pero sus mensajes no
+reconfiguran nombre, tenant, permisos, seguridad o capacidades. La configuración
+administrativa y su persistencia quedan fuera de alcance.

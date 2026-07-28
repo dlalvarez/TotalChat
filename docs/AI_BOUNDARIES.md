@@ -227,6 +227,13 @@ tools ni hechos operacionales. Su resultado conserva contenido, código estable 
 metadata mínima, pero descarta metadata y razonamiento del provider. Errores y
 contenido vacío se convierten en un fallback técnico genérico.
 
+El prompt rector `8a7-v1` separa reglas inmutables de identidad visible. La
+identidad backend-owned predeterminada es Sofía/Sofi, femenina y MediChat; una
+identidad alternativa solo puede inyectarse desde composición backend tras
+sanitización, nunca desde texto del usuario. No contiene tenant IDs, UUIDs ni
+schemas configurados. Solo mensajes realmente visibles —incoming previos y
+outgoing `sent`— regresan al LLM; `pending` y `failed` se excluyen.
+
 El LLM no es solo un extractor estructurado: comprende lenguaje libre, identifica
 intención, usa contexto seguro, resuelve ambigüedades, decide si responde o
 propone una tool e interpreta sus resultados. Genera todas las respuestas
