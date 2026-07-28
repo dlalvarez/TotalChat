@@ -47,6 +47,23 @@ payloads a ese contrato, resuelva tenant mediante configuración backend y tradu
 la entrega saliente. No debe duplicar ni alojar lógica de agente, reservas,
 disponibilidad, pricing o pagos. Fase 8A.4 no implementa otro canal.
 
+### Fase 8A.6 — ciclo conversacional grounded
+
+La frontera arquitectónica realineada se define en
+[`CONVERSATION_ORCHESTRATION.md`](CONVERSATION_ORCHESTRATION.md). El LLM comprende,
+mantiene continuidad, decide si responde o solicita una tool y redacta la
+conversación normal. El backend resuelve tenant, prepara contexto seguro, valida
+catálogo y argumentos, autoriza, aplica reglas, transacciones e idempotencia, y
+persiste. Las tools son la única frontera operacional del LLM y devuelven hechos
+estructurados; PostgreSQL continúa como fuente de verdad.
+
+El flujo objetivo es `canal → contexto seguro → LLM → tool request opcional →
+validación backend → tool → resultado estructurado → LLM → persistencia → canal`.
+LangGraph coordinará este ciclo en una fase posterior, sin acceder directamente
+a schemas o SQL. `BookingAgent` se conserva como coordinador operacional
+determinístico y `ConversationAgentInvoker` como frontera agnóstica de canal.
+8A.6 no implementa runtime, nodos, prompts ni tools.
+
 ## 2. Diagrama lógico
 
 ```text
@@ -264,7 +281,11 @@ frontend/
 
 ## 7. LangGraph
 
-El agente conversacional debe usar herramientas controladas.
+El agente conversacional debe usar herramientas controladas. La lista siguiente
+describe capacidades operativas del dominio, no un libreto de frases ni una
+obligación de codificar la conversación como un árbol determinístico. El futuro
+runtime seguirá el ciclo grounded definido en
+[`CONVERSATION_ORCHESTRATION.md`](CONVERSATION_ORCHESTRATION.md).
 
 Flujo base:
 

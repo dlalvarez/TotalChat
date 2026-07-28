@@ -13,3 +13,16 @@
 - [x] Detectar estado vacío o incompleto antes de invocar el agente determinístico (Fase 8A.5).
 - [x] Persistir fase, último mensaje y campos faltantes, y responder de forma conversacional (Fase 8A.5).
 - [x] Cubrir estados vacío e incompleto sin adelantar interpretación o reserva natural (Fase 8A.5).
+- [x] Realinear documentalmente el ciclo conversacional grounded y las fronteras
+  de LLM, backend, tools, canales y PostgreSQL (Fase 8A.6, sin código funcional).
+- [x] Documentar 8A.5 como transición válida, preservando idempotencia,
+  persistencia, entrega y arquitectura común de canales (Fase 8A.6).
+- [x] Prohibir libretos conversacionales normales en adaptadores, handlers,
+  servicios, tools, graphs y orquestadores, salvo mensajes fijos controlados
+  expresamente permitidos (Fase 8A.6).
+- [ ] Implementar runtime conversacional natural, agnóstico de canal y sin tools
+  operativas (Fase 8A.7).
+- [ ] Implementar tool calling tenant-scoped de servicios, solo lectura (Fase
+  8A.8).
+- [ ] Implementar recolección natural y persistente del contexto inicial de
+  reserva (Fase 8A.9).

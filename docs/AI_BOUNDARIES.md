@@ -5,6 +5,11 @@
 
 La IA conversa y orquesta, pero no es la fuente de verdad.
 
+El contrato completo del ciclo grounded está en
+[`CONVERSATION_ORCHESTRATION.md`](CONVERSATION_ORCHESTRATION.md). En síntesis: el
+LLM decide qué necesita; el backend decide si está permitido; la tool consulta o
+ejecuta; y el LLM comunica el resultado naturalmente.
+
 ## 2. Permitido
 
 La IA puede:
@@ -211,3 +216,25 @@ el adaptador entrega únicamente un `outgoing` ya persistido. Un canal futuro de
 reutilizar este límite y las tools backend existentes, no copiar decisiones de
 tenant, disponibilidad, reservas, pricing o pagos. Esta fase no incorpora nuevos
 canales, LLM ni runtime LangGraph.
+
+## Fase 8A.6 — responsabilidad conversacional grounded
+
+El LLM no es solo un extractor estructurado: comprende lenguaje libre, identifica
+intención, usa contexto seguro, resuelve ambigüedades, decide si responde o
+propone una tool e interpreta sus resultados. Genera todas las respuestas
+conversacionales normales, grounded exclusivamente en datos del usuario,
+contexto permitido, resultados reales de tools, políticas reales y hechos de
+PostgreSQL.
+
+El backend conserva autoridad sobre tenant, autorización, catálogo, argumentos,
+reglas, confirmaciones, estado, transacciones, concurrencia, persistencia,
+idempotencia y auditoría. Una tool request es solo una propuesta. Las tools son
+capacidades cerradas tenant-scoped, no aceptan schema o secretos y devuelven
+resultados estructurados sin redactar conversación.
+
+Servicios, tools, orquestadores, graphs, adaptadores y handlers no pueden alojar
+libretos normales para el usuario final. Solo se permiten fallbacks técnicos,
+errores de seguridad, alertas críticas y textos legales, contractuales o
+regulatorios exactos; nunca como sustituto del diálogo normal. La clasificación
+de tools por lectura, preparación y mutación, la secuencia de validación y el
+contexto seguro se especifican en el contrato rector enlazado arriba.

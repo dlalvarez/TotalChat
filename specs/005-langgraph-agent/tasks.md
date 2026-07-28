@@ -13,3 +13,13 @@
 - [x] Crear tools de citas (Fase 7A.7: creación y consulta interna tenant-scoped con ocupación real, sin pagos).
 - [x] Crear tools de pagos (Fase 7A.8: consulta y preparación tenant-scoped, sin aprobación ni liberación de cupos).
 - [x] Crear tests conversacionales (Fase 7A.9: coordinación determinística de tools, sin LLM ni red).
+- [x] Documentar en 8A.6 que el LLM gobierna comprensión, continuidad, decisión
+  responder/tool y redacción natural, sin limitarlo a extracción JSON.
+- [x] Documentar en 8A.6 la validación backend del catálogo, argumentos, tenant,
+  autorización, estado, reglas, confirmaciones, transacciones e idempotencia.
+- [x] Documentar en 8A.6 tools de lectura, preparación y mutación y la secuencia
+  request → validación → ejecución → resultado → respuesta grounded.
+- [x] Conservar `BookingAgent` 7A.9 como coordinador operacional determinístico,
+  complementario al LLM y sin responsabilidad de redacción natural.
+- [ ] Implementar el runtime LangGraph grounded y sus nodos (fase funcional
+  futura expresamente fuera de 8A.6).
