@@ -135,6 +135,9 @@ permisos o reglas. No existe todavía configuración administrativa persistente.
 El historial contiene solo incoming anteriores y outgoing cuya entrega fue
 confirmada como `sent`. Se excluyen `pending`, `failed`, direcciones internas y
 la entrada actual antes de aplicar el límite final de ocho mensajes visibles.
+La lectura recorre PostgreSQL hacia atrás mediante lotes acotados y cursor
+keyset; se detiene al reunir ocho visibles o agotar el historial, sin materializar
+la conversación completa ni usar paginación por offset.
 
 ### 2.5. PostgreSQL: fuente de verdad
 

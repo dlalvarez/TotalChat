@@ -11,7 +11,6 @@ def test_default_identity_and_critical_governing_rules():
 
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a7-v1"
     assert (identity.display_name, identity.friendly_name) == ("Sofía", "Sofi")
-    assert identity.grammatical_gender == "feminine"
     assert identity.vertical_display_name == "MediChat"
     for fragment in (
         "asistente virtual", "no debes fingir serlo", "PostgreSQL", "backend",

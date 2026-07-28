@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import uuid
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from app.ai.conversation_invoker import NaturalConversationAgentInvoker
@@ -105,6 +105,46 @@ def test_invoker_applies_eight_message_limit_after_visibility_filtering():
 
     history = [message.content for message in provider.calls[0] if message.role == "user"]
     assert history == [f"visible-{index}" for index in range(4, 12)] + ["actual"]
+
+
+def test_long_conversation_uses_bounded_keyset_batches_past_recent_failures():
+    engine = make_database()
+    provider = CapturingProvider()
+    message_queries = []
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def capture_message_queries(connection, cursor, statement, parameters, context, executemany):
+        if "FROM messages" in statement:
+            message_queries.append(statement)
+
+    with Session(engine) as session:
+        conversation = ConversationSession(channel_type="telegram", external_user_id="long-chat")
+        other = ConversationSession(channel_type="telegram", external_user_id="other-chat")
+        session.add_all([conversation, other])
+        session.flush()
+        for index in range(10):
+            add_message(
+                session, conversation, offset=index, direction="incoming", content=f"old-visible-{index}"
+            )
+        for index in range(10, 90):
+            add_message(
+                session, conversation, offset=index, direction="outgoing",
+                content=f"recent-failed-{index}", status="failed",
+            )
+        add_message(session, other, offset=95, direction="incoming", content="other-conversation")
+        add_message(session, conversation, offset=100, direction="incoming", content="actual")
+        session.commit()
+
+        NaturalConversationAgentInvoker(session, provider).invoke(
+            tenant_id=uuid.uuid4(), conversation=conversation, message_text="actual"
+        )
+
+    history = [message.content for message in provider.calls[0] if message.role == "user"]
+    assert history == [f"old-visible-{index}" for index in range(2, 10)] + ["actual"]
+    assert "other-conversation" not in repr(provider.calls)
+    assert len(message_queries) >= 4
+    assert all("LIMIT" in statement.upper() for statement in message_queries)
+    assert any("messages.created_at <" in statement for statement in message_queries[1:])
 
 
 def test_backend_configured_identity_reaches_runtime_without_uuid_or_schema():

@@ -137,3 +137,6 @@ outgoing confirmados `sent`; `pending`, `failed`, direcciones desconocidas y la
 entrada actual quedan fuera. El límite de ocho se aplica después de ese filtro.
 La identidad Sofía/Sofi predeterminada y cualquier alternativa backend-owned no
 son responsabilidad ni configuración de Telegram.
+El invoker obtiene ese historial mediante lectura descendente en lotes limitados
+y keyset `(created_at, id)`, deteniéndose al reunir ocho visibles o agotar el
+historial. No carga toda la conversación ni usa `OFFSET`.

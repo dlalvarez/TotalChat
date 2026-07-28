@@ -78,6 +78,9 @@ identidad y el prompt versionado `8a7-v1`. El invoker filtra el historial antes 
 limitarlo: conserva incoming anteriores y outgoing `sent`, pero elimina outgoing
 `pending`/`failed`, direcciones internas y la entrada actual. Una futura pantalla
 administrativa o persistencia de identidad queda fuera de 8A.7.
+La recuperación usa páginas descendentes acotadas por `(created_at, id)` y solo
+continúa hacia atrás cuando el lote filtrado aún no aporta ocho mensajes
+visibles; luego invierte el resultado para entregarlo cronológicamente.
 
 ## 2. Diagrama lógico
 

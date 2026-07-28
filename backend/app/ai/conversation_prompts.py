@@ -32,7 +32,6 @@ class ConversationAssistantIdentity:
 
     display_name: str = _DEFAULT_DISPLAY_NAME
     friendly_name: str | None = _DEFAULT_FRIENDLY_NAME
-    grammatical_gender: str = "feminine"
     organization_display_name: str | None = None
     vertical_display_name: str = _DEFAULT_VERTICAL_NAME
 
