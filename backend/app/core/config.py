@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     llm_timeout_seconds: float = 30
     llm_capture_reasoning: bool = False
-    llm_reasoning_effort: Literal["none", "low", "medium", "high"] = "none"
+    llm_reasoning_effort: Literal["none", "low", "medium", "high"] | None = None
     llm_max_retries: int = Field(default=0, ge=0)
     llm_max_completion_tokens: int = Field(default=256, gt=0)
     embeddings_provider: str | None = None

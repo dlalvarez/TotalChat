@@ -83,11 +83,12 @@ continúa hacia atrás cuando el lote filtrado aún no aporta ocho mensajes
 visibles; luego invierte el resultado para entregarlo cronológicamente.
 
 El mismo composition root configura controles provider-neutral del adaptador
-OpenAI-compatible. Los defaults `reasoning_effort=none`, `max_retries=0` y
-`max_completion_tokens=256` evitan razonamiento innecesario, reintentos que
-multipliquen el timeout y salidas no acotadas. El timeout continúa en 30 segundos.
-Esta configuración es exclusivamente backend-owned y estática por entorno; no
-existe routing, selección dinámica de razonamiento ni cambio de modelo/provider.
+OpenAI-compatible. `reasoning_effort` no tiene default implícito: cuando es `None`
+no se envía `extra_body`; un valor explícito (`none`, `low`, `medium` o `high`) se
+transmite únicamente bajo responsabilidad de la configuración del endpoint.
+`max_retries=0` y `max_completion_tokens=256` siguen acotando reintentos, latencia
+y consumo; el timeout continúa en 30 segundos. No existe detección automática de
+capacidades, routing, selección dinámica ni cambio de modelo/provider.
 
 ## 2. Diagrama lógico
 

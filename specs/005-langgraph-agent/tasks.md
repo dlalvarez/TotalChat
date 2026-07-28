@@ -27,3 +27,5 @@
   fallback técnico, sin tools ni LangGraph completo (Fase 8A.7).
 - [x] Acotar razonamiento, reintentos y tokens de completion mediante
   configuración provider-neutral backend-owned (corrección Fase 8A.7).
+- [x] Omitir `reasoning_effort` cuando no exista configuración explícita para
+  preservar compatibilidad OpenAI-compatible (corrección Fase 8A.7).

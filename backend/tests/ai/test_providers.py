@@ -75,7 +75,6 @@ def test_deepinfra_client_configuration_and_normalized_responses():
         "model": "Qwen/Qwen3.6-35B-A3B",
         "messages": [{"role": "user", "content": "hola"}],
         "max_completion_tokens": 256,
-        "extra_body": {"reasoning_effort": "none"},
     }]
     assert response.content == "respuesta visible"
     assert response.model == "Qwen/Qwen3.6-35B-A3B"
@@ -134,7 +133,7 @@ def test_factory_configures_openai_with_generic_key(monkeypatch):
     assert provider.provider_name == "openai"
     assert provider.api_key == "generic"
     assert provider.base_url == "https://api.openai.com/v1"
-    assert provider.reasoning_effort == "none"
+    assert provider.reasoning_effort is None
     assert provider.max_retries == 0
     assert provider.max_completion_tokens == 256
 
@@ -142,7 +141,7 @@ def test_factory_configures_openai_with_generic_key(monkeypatch):
 def test_llm_operational_defaults_are_safe():
     settings = Settings()
     assert settings.llm_timeout_seconds == 30
-    assert settings.llm_reasoning_effort == "none"
+    assert settings.llm_reasoning_effort is None
     assert settings.llm_max_retries == 0
     assert settings.llm_max_completion_tokens == 256
 
@@ -155,6 +154,12 @@ def test_llm_operational_environment_overrides(monkeypatch):
     assert settings.llm_reasoning_effort == "medium"
     assert settings.llm_max_retries == 2
     assert settings.llm_max_completion_tokens == 512
+
+
+def test_explicit_none_reasoning_effort_is_preserved(monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_LLM_REASONING_EFFORT", "none")
+    settings = Settings()
+    assert settings.llm_reasoning_effort == "none"
 
 
 @pytest.mark.parametrize("reasoning_effort", ["off", "minimal", "", "NONE"])
@@ -212,6 +217,66 @@ def test_custom_operational_controls_reach_client_and_completion():
     assert completion_calls[0]["extra_body"] == {"reasoning_effort": "high"}
 
 
+def test_completion_omits_reasoning_effort_when_not_configured():
+    completion_calls = []
+
+    class StrictCompatibleClient:
+        def __init__(self):
+            message = SimpleNamespace(content="respuesta visible")
+
+            def strict_complete(**kwargs):
+                if "extra_body" in kwargs:
+                    raise AssertionError("strict endpoint rejects extra_body")
+                completion_calls.append(kwargs)
+                return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=strict_complete))
+
+    provider = OpenAICompatibleProvider(
+        provider_name="strict-compatible",
+        base_url="https://compatible.invalid/v1",
+        api_key="fake-key",
+        model="model",
+        embeddings_model="embeddings",
+        client_factory=lambda **kwargs: StrictCompatibleClient(),
+    )
+    provider.complete([LLMMessage(role="user", content="hola")])
+
+    assert "extra_body" not in completion_calls[0]
+    assert "reasoning_effort" not in repr(completion_calls[0])
+
+
+def test_completion_sends_reasoning_effort_none_when_configured(monkeypatch):
+    completion_calls = []
+    monkeypatch.setenv("TOTALCHAT_LLM_REASONING_EFFORT", "none")
+    get_settings.cache_clear()
+    provider = create_llm_provider()
+    provider.api_key = "fake-key"
+    provider._client_factory = lambda **kwargs: FakeClient(completion_calls=completion_calls)
+
+    provider.complete([LLMMessage(role="user", content="hola")])
+
+    assert provider.reasoning_effort == "none"
+    assert completion_calls[0]["extra_body"] == {"reasoning_effort": "none"}
+    get_settings.cache_clear()
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high"])
+def test_supported_reasoning_efforts_are_forwarded_without_transformation(effort):
+    completion_calls = []
+    provider = OpenAICompatibleProvider(
+        provider_name="compatible",
+        base_url="https://compatible.invalid/v1",
+        api_key="fake-key",
+        model="model",
+        embeddings_model="embeddings",
+        reasoning_effort=effort,
+        client_factory=lambda **kwargs: FakeClient(completion_calls=completion_calls),
+    )
+    provider.complete([LLMMessage(role="user", content="hola")])
+    assert completion_calls[0]["extra_body"] == {"reasoning_effort": effort}
+
+
 def test_provider_specific_openai_key_has_no_effect(monkeypatch):
     monkeypatch.delenv("TOTALCHAT_LLM_API_KEY", raising=False)
     removed_provider_key = "TOTALCHAT_OPENAI" + "_API_KEY"
@@ -262,6 +327,6 @@ def test_documented_example_does_not_pair_openai_embedding_model_with_deepinfra(
     assert values["TOTALCHAT_EMBEDDINGS_PROVIDER"] == "openai"
     assert values["TOTALCHAT_EMBEDDINGS_BASE_URL"] == "https://api.openai.com/v1"
     assert values["TOTALCHAT_EMBEDDING_DIMENSIONS"] == "1536"
-    assert values["TOTALCHAT_LLM_REASONING_EFFORT"] == "none"
     assert values["TOTALCHAT_LLM_MAX_RETRIES"] == "0"
     assert values["TOTALCHAT_LLM_MAX_COMPLETION_TOKENS"] == "256"
+    assert "# TOTALCHAT_LLM_REASONING_EFFORT=none" in env_example.read_text()

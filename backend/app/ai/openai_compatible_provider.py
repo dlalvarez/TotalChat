@@ -19,7 +19,7 @@ class OpenAICompatibleProvider:
         embeddings_model: str,
         timeout_seconds: float = 30,
         capture_reasoning: bool = False,
-        reasoning_effort: str = "none",
+        reasoning_effort: str | None = None,
         max_retries: int = 0,
         max_completion_tokens: int = 256,
         client_factory: Callable[..., Any] | None = None,
@@ -38,12 +38,16 @@ class OpenAICompatibleProvider:
         self._client: Any | None = None
 
     def complete(self, messages: list[LLMMessage]) -> LLMResponse:
-        response = self._get_client().chat.completions.create(
-            model=self.model,
-            messages=[{"role": message.role, "content": message.content} for message in messages],
-            max_completion_tokens=self.max_completion_tokens,
-            extra_body={"reasoning_effort": self.reasoning_effort},
-        )
+        completion_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": message.role, "content": message.content} for message in messages
+            ],
+            "max_completion_tokens": self.max_completion_tokens,
+        }
+        if self.reasoning_effort is not None:
+            completion_kwargs["extra_body"] = {"reasoning_effort": self.reasoning_effort}
+        response = self._get_client().chat.completions.create(**completion_kwargs)
         choice = response.choices[0]
         content = choice.message.content or ""
         metadata: dict[str, Any] = {}

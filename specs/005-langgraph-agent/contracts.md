@@ -120,8 +120,9 @@ reconfiguran nombre, tenant, permisos, seguridad o capacidades. La configuració
 administrativa y su persistencia quedan fuera de alcance.
 
 En 8A.7, `OpenAICompatibleProvider` recibe los controles genéricos
-`reasoning_effort`, `max_retries` y `max_completion_tokens`. Sus defaults son
-`none`, `0` y `256`; el timeout sigue en 30 segundos. La factory los obtiene de
-configuración backend-owned y el cliente deshabilita reintentos automáticos. No
-hay condicionales por proveedor, selección dinámica, fallback, cambio de modelo,
-tools ni LangGraph.
+`reasoning_effort`, `max_retries` y `max_completion_tokens`. Reasoning es opcional
+y su default es `None`: el campo se omite por completo. Un valor explícito `none`,
+`low`, `medium` o `high` se envía solo si la configuración backend-owned conoce
+que el endpoint lo soporta. Retries y completion mantienen defaults `0` y `256`;
+el timeout sigue en 30 segundos. No hay detección o condicionales por provider,
+selección dinámica, fallback, cambio de modelo, tools ni LangGraph.

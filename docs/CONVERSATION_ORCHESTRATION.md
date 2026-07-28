@@ -139,13 +139,14 @@ La lectura recorre PostgreSQL hacia atrás mediante lotes acotados y cursor
 keyset; se detiene al reunir ocho visibles o agotar el historial, sin materializar
 la conversación completa ni usar paginación por offset.
 
-Para evitar que razonamiento interno y reintentos multipliquen la latencia, la
-configuración backend-owned de 8A.7 usa por defecto `reasoning_effort=none`,
-`max_retries=0` y `max_completion_tokens=256`, conservando timeout de 30 segundos.
-El adaptador OpenAI-compatible transmite estos controles genéricamente, sin
-selección por intención ni lógica específica de proveedor. Configurar otro nivel
-es una decisión estática de entorno; selección dinámica, cambio de modelo,
-fallback, tools y LangGraph permanecen fuera de alcance.
+Para evitar que reintentos multipliquen la latencia, la configuración backend-owned
+usa `max_retries=0` y `max_completion_tokens=256`, con timeout de 30 segundos.
+`reasoning_effort` es opcional: si falta, el adaptador omite completamente el
+parámetro; `none`, `low`, `medium` o `high` solo se transmiten cuando se configuran
+explícitamente y el endpoint los soporta. La validación DeepInfra/Qwen usa
+explícitamente `none`, no un default universal. No hay detección de capacidades,
+selección dinámica, lógica específica de provider, cambio de modelo, fallback,
+tools o LangGraph.
 
 ### 2.5. PostgreSQL: fuente de verdad
 
