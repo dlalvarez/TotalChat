@@ -64,6 +64,14 @@ a schemas o SQL. `BookingAgent` se conserva como coordinador operacional
 determinístico y `ConversationAgentInvoker` como frontera agnóstica de canal.
 8A.6 no implementa runtime, nodos, prompts ni tools.
 
+### Fase 8A.7 — runtime conversacional natural básico
+
+La implementación natural de `ConversationAgentInvoker` carga historial reciente
+dentro del schema ya seleccionado e invoca `NaturalConversationRuntime`, que
+depende únicamente de `LLMProvider`. Telegram persiste y entrega el contenido
+devuelto sin reescribirlo; el runtime no conoce payloads, chat IDs, tokens ni
+transporte. No se conectan tools en esta fase.
+
 ## 2. Diagrama lógico
 
 ```text

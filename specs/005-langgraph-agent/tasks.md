@@ -23,3 +23,5 @@
   complementario al LLM y sin responsabilidad de redacción natural.
 - [ ] Implementar el runtime LangGraph grounded y sus nodos (fase funcional
   futura expresamente fuera de 8A.6).
+- [x] Implementar runtime natural básico sobre `LLMProvider`, contexto seguro y
+  fallback técnico, sin tools ni LangGraph completo (Fase 8A.7).

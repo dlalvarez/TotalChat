@@ -219,6 +219,14 @@ canales, LLM ni runtime LangGraph.
 
 ## Fase 8A.6 — responsabilidad conversacional grounded
 
+### Implementación 8A.7 sin tools
+
+El runtime básico depende solo de `LLMProvider` y permite al modelo redactar
+conversación social e intención inicial con contexto reciente acotado. No ofrece
+tools ni hechos operacionales. Su resultado conserva contenido, código estable y
+metadata mínima, pero descarta metadata y razonamiento del provider. Errores y
+contenido vacío se convierten en un fallback técnico genérico.
+
 El LLM no es solo un extractor estructurado: comprende lenguaje libre, identifica
 intención, usa contexto seguro, resuelve ambigüedades, decide si responde o
 propone una tool e interpreta sus resultados. Genera todas las respuestas

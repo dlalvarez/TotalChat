@@ -100,3 +100,15 @@ estado permitido, status, auditoría de tool calls y referencias no visibles.
 interpreta lenguaje libre, redacta conversación, conoce Telegram ni reemplaza al
 LLM. LangGraph podrá coordinar el ciclo futuro sin acceder a schemas, SQL o estado
 operacional directamente y sin contener libretos conversacionales.
+
+## Fase 8A.7 — runtime conversacional natural básico
+
+`NaturalConversationRuntime.run(ConversationTurnRequest)` depende exclusivamente
+de `LLMProvider`. Construye un prompt pequeño con contexto reciente acotado y
+roles permitidos, valida contenido visible no vacío y devuelve contenido, código
+estable y metadata técnica mínima. No propaga metadata o razonamiento del
+provider. Error, timeout o contenido inválido producen un fallback técnico fijo.
+
+El request contiene tenant y conversación internos ya resueltos, pero esos IDs no
+entran al prompt. Tampoco entran schema, credenciales, payloads o identificadores
+del transporte. No hay tools, hechos operacionales ni LangGraph completo.

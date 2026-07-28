@@ -116,6 +116,16 @@ busca disponibilidad, crea citas, procesa pagos ni redacta respuestas normales.
 Tampoco decide el tenant desde contenido suministrado por el usuario.
 `ConversationAgentInvoker` permanece agnóstico de canales y providers concretos.
 
+### Fase 8A.7 — runtime natural sin tools
+
+`NaturalConversationRuntime` recibe tenant y conversación ya resueltos, texto
+normalizado, fase permitida y hasta ocho mensajes recientes. Solo roles
+`user`/`assistant`, contenido acotado y fase llegan a `LLMProvider`; IDs, schema,
+credenciales, payloads del canal y razonamiento quedan fuera del prompt y del
+resultado. El provider redacta íntegramente la respuesta normal. El backend
+valida contenido no vacío y usa un fallback técnico genérico ante error o
+timeout. En esta fase no existe tool calling ni acceso a datos operacionales.
+
 ### 2.5. PostgreSQL: fuente de verdad
 
 PostgreSQL es la fuente de verdad operacional para servicios, profesionales,
