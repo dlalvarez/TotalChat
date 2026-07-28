@@ -1,4 +1,7 @@
 from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +17,9 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     llm_timeout_seconds: float = 30
     llm_capture_reasoning: bool = False
+    llm_reasoning_effort: Literal["none", "low", "medium", "high"] = "none"
+    llm_max_retries: int = Field(default=0, ge=0)
+    llm_max_completion_tokens: int = Field(default=256, gt=0)
     embeddings_provider: str | None = None
     embeddings_base_url: str | None = None
     embeddings_api_key: str | None = None

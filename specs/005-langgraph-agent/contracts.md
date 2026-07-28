@@ -118,3 +118,10 @@ visible sanitizada y backend-owned. Sus defaults son Sofía/Sofi, género femeni
 y MediChat. El usuario puede usar el apodo autorizado, pero sus mensajes no
 reconfiguran nombre, tenant, permisos, seguridad o capacidades. La configuración
 administrativa y su persistencia quedan fuera de alcance.
+
+En 8A.7, `OpenAICompatibleProvider` recibe los controles genéricos
+`reasoning_effort`, `max_retries` y `max_completion_tokens`. Sus defaults son
+`none`, `0` y `256`; el timeout sigue en 30 segundos. La factory los obtiene de
+configuración backend-owned y el cliente deshabilita reintentos automáticos. No
+hay condicionales por proveedor, selección dinámica, fallback, cambio de modelo,
+tools ni LangGraph.

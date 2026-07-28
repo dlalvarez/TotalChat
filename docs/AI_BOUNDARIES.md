@@ -234,6 +234,13 @@ sanitización, nunca desde texto del usuario. No contiene tenant IDs, UUIDs ni
 schemas configurados. Solo mensajes realmente visibles —incoming previos y
 outgoing `sent`— regresan al LLM; `pending` y `failed` se excluyen.
 
+Los controles operativos del adaptador son backend-owned: razonamiento se
+deshabilita por defecto (`none`) para proteger latencia, los reintentos quedan en
+cero para no multiplicar el timeout de 30 segundos y las completions se limitan
+a 256 tokens para acotar latencia y consumo. Pueden configurarse estáticamente
+por entorno, pero 8A.7 no selecciona esfuerzo dinámicamente, cambia proveedor o
+modelo, implementa fallback entre providers ni habilita tools.
+
 El LLM no es solo un extractor estructurado: comprende lenguaje libre, identifica
 intención, usa contexto seguro, resuelve ambigüedades, decide si responde o
 propone una tool e interpreta sus resultados. Genera todas las respuestas

@@ -82,6 +82,13 @@ La recuperación usa páginas descendentes acotadas por `(created_at, id)` y sol
 continúa hacia atrás cuando el lote filtrado aún no aporta ocho mensajes
 visibles; luego invierte el resultado para entregarlo cronológicamente.
 
+El mismo composition root configura controles provider-neutral del adaptador
+OpenAI-compatible. Los defaults `reasoning_effort=none`, `max_retries=0` y
+`max_completion_tokens=256` evitan razonamiento innecesario, reintentos que
+multipliquen el timeout y salidas no acotadas. El timeout continúa en 30 segundos.
+Esta configuración es exclusivamente backend-owned y estática por entorno; no
+existe routing, selección dinámica de razonamiento ni cambio de modelo/provider.
+
 ## 2. Diagrama lógico
 
 ```text

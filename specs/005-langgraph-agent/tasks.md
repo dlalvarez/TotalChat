@@ -25,3 +25,5 @@
   futura expresamente fuera de 8A.6).
 - [x] Implementar runtime natural básico sobre `LLMProvider`, contexto seguro y
   fallback técnico, sin tools ni LangGraph completo (Fase 8A.7).
+- [x] Acotar razonamiento, reintentos y tokens de completion mediante
+  configuración provider-neutral backend-owned (corrección Fase 8A.7).

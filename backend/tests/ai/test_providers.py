@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from app.ai.openai_compatible_provider import OpenAICompatibleProvider
 from app.ai.providers import EmbeddingRequest, LLMMessage, create_llm_provider
@@ -10,15 +11,17 @@ from app.core.config import Settings, get_settings
 
 
 class FakeClient:
-    def __init__(self, *, reasoning_content="razonamiento privado") -> None:
+    def __init__(self, *, reasoning_content="razonamiento privado", completion_calls=None) -> None:
         message = SimpleNamespace(content="respuesta visible")
         if reasoning_content is not None:
             message.reasoning_content = reasoning_content
-        self.chat = SimpleNamespace(
-            completions=SimpleNamespace(
-                create=lambda **kwargs: SimpleNamespace(choices=[SimpleNamespace(message=message)])
-            )
-        )
+
+        def complete(**kwargs):
+            if completion_calls is not None:
+                completion_calls.append(kwargs)
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=complete))
         self.embeddings = SimpleNamespace(
             create=lambda **kwargs: SimpleNamespace(data=[SimpleNamespace(embedding=(0.1, 0.2))])
         )
@@ -44,10 +47,11 @@ def test_provider_without_generic_api_key_fails_clearly():
 
 def test_deepinfra_client_configuration_and_normalized_responses():
     captured = {}
+    completion_calls = []
 
     def client_factory(**kwargs):
         captured.update(kwargs)
-        return FakeClient()
+        return FakeClient(completion_calls=completion_calls)
 
     provider = OpenAICompatibleProvider(
         provider_name="deepinfra",
@@ -65,7 +69,14 @@ def test_deepinfra_client_configuration_and_normalized_responses():
         "api_key": "fake-key",
         "base_url": "https://api.deepinfra.com/v1/openai",
         "timeout": 17,
+        "max_retries": 0,
     }
+    assert completion_calls == [{
+        "model": "Qwen/Qwen3.6-35B-A3B",
+        "messages": [{"role": "user", "content": "hola"}],
+        "max_completion_tokens": 256,
+        "extra_body": {"reasoning_effort": "none"},
+    }]
     assert response.content == "respuesta visible"
     assert response.model == "Qwen/Qwen3.6-35B-A3B"
     assert response.provider == "deepinfra"
@@ -123,6 +134,82 @@ def test_factory_configures_openai_with_generic_key(monkeypatch):
     assert provider.provider_name == "openai"
     assert provider.api_key == "generic"
     assert provider.base_url == "https://api.openai.com/v1"
+    assert provider.reasoning_effort == "none"
+    assert provider.max_retries == 0
+    assert provider.max_completion_tokens == 256
+
+
+def test_llm_operational_defaults_are_safe():
+    settings = Settings()
+    assert settings.llm_timeout_seconds == 30
+    assert settings.llm_reasoning_effort == "none"
+    assert settings.llm_max_retries == 0
+    assert settings.llm_max_completion_tokens == 256
+
+
+def test_llm_operational_environment_overrides(monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_LLM_REASONING_EFFORT", "medium")
+    monkeypatch.setenv("TOTALCHAT_LLM_MAX_RETRIES", "2")
+    monkeypatch.setenv("TOTALCHAT_LLM_MAX_COMPLETION_TOKENS", "512")
+    settings = Settings()
+    assert settings.llm_reasoning_effort == "medium"
+    assert settings.llm_max_retries == 2
+    assert settings.llm_max_completion_tokens == 512
+
+
+@pytest.mark.parametrize("reasoning_effort", ["off", "minimal", "", "NONE"])
+def test_invalid_reasoning_effort_is_rejected(reasoning_effort):
+    with pytest.raises(ValidationError):
+        Settings(llm_reasoning_effort=reasoning_effort)
+
+
+def test_negative_max_retries_is_rejected():
+    with pytest.raises(ValidationError):
+        Settings(llm_max_retries=-1)
+
+
+@pytest.mark.parametrize("maximum", [0, -1])
+def test_nonpositive_max_completion_tokens_is_rejected(maximum):
+    with pytest.raises(ValidationError):
+        Settings(llm_max_completion_tokens=maximum)
+
+
+def test_factory_forwards_custom_operational_controls(monkeypatch):
+    monkeypatch.setenv("TOTALCHAT_LLM_REASONING_EFFORT", "low")
+    monkeypatch.setenv("TOTALCHAT_LLM_MAX_RETRIES", "3")
+    monkeypatch.setenv("TOTALCHAT_LLM_MAX_COMPLETION_TOKENS", "384")
+    get_settings.cache_clear()
+    provider = create_llm_provider()
+    assert provider.reasoning_effort == "low"
+    assert provider.max_retries == 3
+    assert provider.max_completion_tokens == 384
+    get_settings.cache_clear()
+
+
+def test_custom_operational_controls_reach_client_and_completion():
+    client_configuration = {}
+    completion_calls = []
+
+    def client_factory(**kwargs):
+        client_configuration.update(kwargs)
+        return FakeClient(completion_calls=completion_calls)
+
+    provider = OpenAICompatibleProvider(
+        provider_name="compatible",
+        base_url="https://compatible.invalid/v1",
+        api_key="fake-key",
+        model="model",
+        embeddings_model="embeddings",
+        reasoning_effort="high",
+        max_retries=4,
+        max_completion_tokens=640,
+        client_factory=client_factory,
+    )
+    provider.complete([LLMMessage(role="user", content="hola")])
+
+    assert client_configuration["max_retries"] == 4
+    assert completion_calls[0]["max_completion_tokens"] == 640
+    assert completion_calls[0]["extra_body"] == {"reasoning_effort": "high"}
 
 
 def test_provider_specific_openai_key_has_no_effect(monkeypatch):
@@ -175,3 +262,6 @@ def test_documented_example_does_not_pair_openai_embedding_model_with_deepinfra(
     assert values["TOTALCHAT_EMBEDDINGS_PROVIDER"] == "openai"
     assert values["TOTALCHAT_EMBEDDINGS_BASE_URL"] == "https://api.openai.com/v1"
     assert values["TOTALCHAT_EMBEDDING_DIMENSIONS"] == "1536"
+    assert values["TOTALCHAT_LLM_REASONING_EFFORT"] == "none"
+    assert values["TOTALCHAT_LLM_MAX_RETRIES"] == "0"
+    assert values["TOTALCHAT_LLM_MAX_COMPLETION_TOKENS"] == "256"
