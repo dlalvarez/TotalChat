@@ -92,3 +92,29 @@ El estado previo permitido se conserva y la respuesta se persiste y entrega con
 la semántica `pending` → `sent | failed` existente. Ni el estado ni el texto
 visible incluyen `schema_name`, UUIDs, precios, disponibilidad o citas inventadas.
 Esta fase no interpreta intención ni completa el flujo natural de reserva.
+
+## Fase 8A.6 — frontera conversacional grounded (documental)
+
+8A.5 permanece válida como implementación transitoria: probó estado incompleto,
+persistencia y entrega, pero su texto fijo no es el diseño conversacional
+definitivo. 8A.6 no modifica ese código. Una fase posterior reemplazará la
+redacción normal hardcodeada por generación LLM y conservará idempotencia,
+persistencia y la semántica `pending → sent | failed`.
+
+Telegram continúa siendo solo el primer adaptador. Recibe, normaliza, persiste,
+invoca `ConversationAgentInvoker` y entrega; no interpreta intención, selecciona
+tools, consulta dominio, crea reservas o pagos, redacta diálogo ni resuelve tenant
+desde texto del usuario. `ConversationAgentInvoker` sigue agnóstico del canal y
+provider concreto.
+
+El futuro input conceptual del agente recibe tenant interno ya resuelto,
+conversación tenant-scoped, texto normalizado, contexto seguro y catálogo de
+tools. No recibe payload externo completo, chat ID, token, `schema_name`, API keys
+o secretos. La salida conversacional natural pertenece al LLM; tools y backend
+solo retornan resultados estructurados o fallbacks técnicos controlados.
+
+El contrato detallado, incluida la prohibición de libretos normales y la
+secuencia de tool calling, está en
+[`docs/CONVERSATION_ORCHESTRATION.md`](../../docs/CONVERSATION_ORCHESTRATION.md).
+Esta fase no introduce runtime, modelos, prompts, tools, endpoints ni cambios de
+Telegram.

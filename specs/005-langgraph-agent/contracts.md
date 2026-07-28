@@ -66,3 +66,37 @@ La transferencia se prepara como `evidence_required`; pago simulado y pago en si
 El resultado registra los pasos completados y un código estable de desenlace. La creación de cita vuelve a validar el slot mediante `AppointmentTools`; un conflicto detiene el flujo sin preparar pagos. La ausencia de servicio, tarifa o disponibilidad también detiene el flujo conservadoramente. Un método deshabilitado o una reserva no cobrable conserva la cita creada pero no genera intento de pago.
 
 Este contrato no recibe ni expone `schema_name`, no muestra razonamiento, no llama un LLM o la red, no agrega endpoints o canales y no aprueba pagos ni libera cupos. Los UUID del resultado son referencias técnicas internas, no texto conversacional final.
+
+## Fase 8A.6 — realineación contractual grounded
+
+Esta fase es documental; no reemplaza los contratos implementados de 7A ni crea
+runtime. El contrato rector es
+[`docs/CONVERSATION_ORCHESTRATION.md`](../../docs/CONVERSATION_ORCHESTRATION.md).
+
+El LLM comprende lenguaje natural, identifica intención, mantiene continuidad
+con contexto seguro, decide si responde directamente o propone una tool y redacta
+la respuesta conversacional normal. El backend resuelve tenant, controla el
+catálogo cerrado, valida argumentos tipados, autoriza, aplica reglas y
+confirmaciones, revalida hechos, ejecuta tenant-scoped y persiste con transacción,
+idempotencia y auditoría. Una solicitud del LLM no autoriza una operación; las
+tools son su única frontera para hechos o acciones y devuelven datos estructurados
+sin texto conversacional. PostgreSQL sigue siendo la fuente de verdad.
+
+El futuro ciclo contractual será `LLM → ConversationToolRequest → validación
+backend → ejecución de tool → ConversationToolResult → respuesta natural LLM`.
+Las tools se clasifican en lectura, preparación y mutación. Las mutaciones exigen
+estado previo válido, confirmación explícita cuando aplique, idempotency key,
+revalidación, transacción, auditoría y concurrencia controlada.
+
+Conceptualmente, `ConversationTurnInput` contiene tenant ya resuelto,
+conversación tenant-scoped, texto normalizado, contexto seguro y catálogo
+permitido; excluye schema, transporte y secretos. `ConversationToolRequest` es
+una propuesta correlacionada con el turno. `ConversationToolResult` separa estado,
+resultado estructurado, error seguro, hechos visibles y referencias internas, sin
+redactar mensajes. `ConversationTurnResult` contiene texto natural del LLM,
+estado permitido, status, auditoría de tool calls y referencias no visibles.
+
+`BookingAgent` 7A.9 se conserva como coordinador operacional determinístico: no
+interpreta lenguaje libre, redacta conversación, conoce Telegram ni reemplaza al
+LLM. LangGraph podrá coordinar el ciclo futuro sin acceder a schemas, SQL o estado
+operacional directamente y sin contener libretos conversacionales.
