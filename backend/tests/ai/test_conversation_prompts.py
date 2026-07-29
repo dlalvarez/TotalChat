@@ -65,3 +65,23 @@ def test_explicitly_absent_friendly_name_is_not_invented():
     assert "Luna" in prompt
     assert "Sofi" not in prompt
     assert "no haya autorizado" in prompt
+
+
+def test_friendly_name_belongs_only_to_assistant_not_user():
+    prompt = build_natural_conversation_system_prompt().lower()
+    assert "pertenece exclusivamente a la asistente" in prompt
+    assert "no lo uses para dirigirte al usuario" in prompt
+    assert "declarado inequívocamente como propio" in prompt
+    assert "ante una ambigüedad, no asumas" in prompt
+
+
+def test_no_tools_rules_forbid_promising_future_operational_work():
+    prompt = build_natural_conversation_system_prompt().lower()
+    for action in ("consultar", "buscar", "verificar", "confirmar posteriormente"):
+        assert action in prompt
+    assert "recopilar y organizar la solicitud" in prompt
+    assert "consulta y la ejecución operacional todavía no están habilitadas" in prompt
+    for forbidden_promise in (
+        "voy a consultar", "podré verificar", "buscaré opciones", "veré en el sistema",
+    ):
+        assert forbidden_promise in prompt

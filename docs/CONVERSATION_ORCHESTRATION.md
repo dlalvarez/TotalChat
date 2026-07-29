@@ -148,6 +148,13 @@ explícitamente `none`, no un default universal. No hay detección de capacidade
 selección dinámica, lógica específica de provider, cambio de modelo, fallback,
 tools o LangGraph.
 
+El nombre cercano Sofi identifica exclusivamente a la asistente, no al usuario.
+Un nombre de usuario solo se usa tras una declaración inequívoca en el contexto
+seguro; no existe perfil ni memoria persistente de nombres. Mientras no haya
+tools, Sofía puede comprender, recopilar y organizar una solicitud, pero no puede
+prometer consultas, búsquedas, verificaciones, confirmaciones o ejecución futura
+de datos operacionales.
+
 ### 2.5. PostgreSQL: fuente de verdad
 
 PostgreSQL es la fuente de verdad operacional para servicios, profesionales,

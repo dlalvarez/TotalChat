@@ -243,6 +243,12 @@ multiplicar el timeout de 30 segundos y las completions se limitan a 256 tokens.
 8A.7 no selecciona esfuerzo dinámicamente, cambia provider/modelo, implementa
 fallback entre providers ni habilita tools.
 
+El nombre cercano configurado pertenece a la asistente y no se infiere como
+nombre del usuario; solo una declaración inequívoca del propio usuario dentro del
+contexto seguro permite dirigirse a él por un nombre. Sin tools, el runtime puede
+comprender, recopilar y organizar solicitudes, pero no promete consultar, buscar,
+verificar o confirmar posteriormente información u operaciones.
+
 El LLM no es solo un extractor estructurado: comprende lenguaje libre, identifica
 intención, usa contexto seguro, resuelve ambigüedades, decide si responde o
 propone una tool e interpreta sus resultados. Genera todas las respuestas

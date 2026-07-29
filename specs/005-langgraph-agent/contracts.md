@@ -126,3 +126,9 @@ y su default es `None`: el campo se omite por completo. Un valor explícito `non
 que el endpoint lo soporta. Retries y completion mantienen defaults `0` y `256`;
 el timeout sigue en 30 segundos. No hay detección o condicionales por provider,
 selección dinámica, fallback, cambio de modelo, tools ni LangGraph.
+
+El nombre cercano backend-owned corresponde exclusivamente a la asistente y no
+autoriza inferir el nombre del usuario. Sin tools operativas, 8A.7 permite
+comprender, recopilar y organizar solicitudes, pero prohíbe prometer consultas,
+búsquedas, verificaciones, confirmaciones o ejecuciones posteriores. No existe
+memoria de perfil, consulta operacional ni cambio de alcance.

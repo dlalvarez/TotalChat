@@ -101,6 +101,7 @@ def test_reasoning_is_captured_as_metadata_only_when_enabled(monkeypatch):
 
     assert response.content == "respuesta visible"
     assert response.metadata["reasoning_content"] == "razonamiento privado"
+    get_settings.cache_clear()
 
 
 def test_capture_enabled_without_reasoning_content_is_safe(monkeypatch):
@@ -120,6 +121,7 @@ def test_capture_enabled_without_reasoning_content_is_safe(monkeypatch):
 
     assert response.content == "respuesta visible"
     assert "reasoning_content" not in response.metadata
+    get_settings.cache_clear()
 
 
 def test_factory_configures_openai_with_generic_key(monkeypatch):
@@ -127,18 +129,31 @@ def test_factory_configures_openai_with_generic_key(monkeypatch):
     monkeypatch.setenv("TOTALCHAT_LLM_BASE_URL", "https://api.openai.com/v1")
     monkeypatch.setenv("TOTALCHAT_LLM_API_KEY", "generic")
     monkeypatch.setenv("TOTALCHAT_LLM_MODEL", "gpt-4o-mini")
+    monkeypatch.delenv("TOTALCHAT_LLM_REASONING_EFFORT", raising=False)
+    monkeypatch.setenv("TOTALCHAT_LLM_MAX_RETRIES", "0")
+    monkeypatch.setenv("TOTALCHAT_LLM_MAX_COMPLETION_TOKENS", "256")
     get_settings.cache_clear()
 
-    provider = create_llm_provider()
-    assert provider.provider_name == "openai"
-    assert provider.api_key == "generic"
-    assert provider.base_url == "https://api.openai.com/v1"
-    assert provider.reasoning_effort is None
-    assert provider.max_retries == 0
-    assert provider.max_completion_tokens == 256
+    try:
+        provider = create_llm_provider()
+        assert provider.provider_name == "openai"
+        assert provider.api_key == "generic"
+        assert provider.base_url == "https://api.openai.com/v1"
+        assert provider.reasoning_effort is None
+        assert provider.max_retries == 0
+        assert provider.max_completion_tokens == 256
+    finally:
+        get_settings.cache_clear()
 
 
-def test_llm_operational_defaults_are_safe():
+def test_llm_operational_defaults_are_safe(monkeypatch):
+    for variable in (
+        "TOTALCHAT_LLM_TIMEOUT_SECONDS",
+        "TOTALCHAT_LLM_REASONING_EFFORT",
+        "TOTALCHAT_LLM_MAX_RETRIES",
+        "TOTALCHAT_LLM_MAX_COMPLETION_TOKENS",
+    ):
+        monkeypatch.delenv(variable, raising=False)
     settings = Settings()
     assert settings.llm_timeout_seconds == 30
     assert settings.llm_reasoning_effort is None
@@ -184,11 +199,13 @@ def test_factory_forwards_custom_operational_controls(monkeypatch):
     monkeypatch.setenv("TOTALCHAT_LLM_MAX_RETRIES", "3")
     monkeypatch.setenv("TOTALCHAT_LLM_MAX_COMPLETION_TOKENS", "384")
     get_settings.cache_clear()
-    provider = create_llm_provider()
-    assert provider.reasoning_effort == "low"
-    assert provider.max_retries == 3
-    assert provider.max_completion_tokens == 384
-    get_settings.cache_clear()
+    try:
+        provider = create_llm_provider()
+        assert provider.reasoning_effort == "low"
+        assert provider.max_retries == 3
+        assert provider.max_completion_tokens == 384
+    finally:
+        get_settings.cache_clear()
 
 
 def test_custom_operational_controls_reach_client_and_completion():
@@ -250,15 +267,15 @@ def test_completion_sends_reasoning_effort_none_when_configured(monkeypatch):
     completion_calls = []
     monkeypatch.setenv("TOTALCHAT_LLM_REASONING_EFFORT", "none")
     get_settings.cache_clear()
-    provider = create_llm_provider()
-    provider.api_key = "fake-key"
-    provider._client_factory = lambda **kwargs: FakeClient(completion_calls=completion_calls)
-
-    provider.complete([LLMMessage(role="user", content="hola")])
-
-    assert provider.reasoning_effort == "none"
-    assert completion_calls[0]["extra_body"] == {"reasoning_effort": "none"}
-    get_settings.cache_clear()
+    try:
+        provider = create_llm_provider()
+        provider.api_key = "fake-key"
+        provider._client_factory = lambda **kwargs: FakeClient(completion_calls=completion_calls)
+        provider.complete([LLMMessage(role="user", content="hola")])
+        assert provider.reasoning_effort == "none"
+        assert completion_calls[0]["extra_body"] == {"reasoning_effort": "none"}
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.parametrize("effort", ["low", "medium", "high"])
@@ -283,16 +300,22 @@ def test_provider_specific_openai_key_has_no_effect(monkeypatch):
     monkeypatch.setenv(removed_provider_key, "ignored-provider-specific-key")
     monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "openai")
     get_settings.cache_clear()
-    assert create_llm_provider().api_key is None
+    try:
+        assert create_llm_provider().api_key is None
+    finally:
+        get_settings.cache_clear()
 
 
 def test_factory_configures_deepinfra_with_generic_key(monkeypatch):
     monkeypatch.setenv("TOTALCHAT_LLM_API_KEY", "generic-deepinfra-key")
     monkeypatch.setenv("TOTALCHAT_LLM_PROVIDER", "deepinfra")
     get_settings.cache_clear()
-    provider = create_llm_provider()
-    assert provider.provider_name == "deepinfra"
-    assert provider.api_key == "generic-deepinfra-key"
+    try:
+        provider = create_llm_provider()
+        assert provider.provider_name == "deepinfra"
+        assert provider.api_key == "generic-deepinfra-key"
+    finally:
+        get_settings.cache_clear()
 
 
 def test_deepinfra_llm_and_openai_embeddings_configuration_is_coherent():

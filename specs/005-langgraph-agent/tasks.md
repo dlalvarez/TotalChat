@@ -29,3 +29,5 @@
   configuración provider-neutral backend-owned (corrección Fase 8A.7).
 - [x] Omitir `reasoning_effort` cuando no exista configuración explícita para
   preservar compatibilidad OpenAI-compatible (corrección Fase 8A.7).
+- [x] Aclarar nombre cercano de la asistente y prohibir promesas operacionales
+  futuras mientras no existan tools (cierre de validación Fase 8A.7).
