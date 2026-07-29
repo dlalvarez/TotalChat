@@ -227,7 +227,7 @@ tools ni hechos operacionales. Su resultado conserva contenido, código estable 
 metadata mínima, pero descarta metadata y razonamiento del provider. Errores y
 contenido vacío se convierten en un fallback técnico genérico.
 
-El prompt rector `8a7-v1` separa reglas inmutables de identidad visible. La
+El prompt rector `8a7-v2` separa reglas inmutables de identidad visible. La
 identidad backend-owned predeterminada es Sofía/Sofi, femenina y MediChat; una
 identidad alternativa solo puede inyectarse desde composición backend tras
 sanitización, nunca desde texto del usuario. No contiene tenant IDs, UUIDs ni

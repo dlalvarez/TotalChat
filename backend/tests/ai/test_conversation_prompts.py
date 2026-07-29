@@ -5,11 +5,15 @@ from app.ai.conversation_prompts import (
 )
 
 
+def _normalized_prompt() -> str:
+    return " ".join(build_natural_conversation_system_prompt().lower().split())
+
+
 def test_default_identity_and_critical_governing_rules():
     identity = ConversationAssistantIdentity()
     prompt = build_natural_conversation_system_prompt(identity)
 
-    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a7-v1"
+    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a7-v2"
     assert (identity.display_name, identity.friendly_name) == ("Sofía", "Sofi")
     assert identity.vertical_display_name == "MediChat"
     for fragment in (
@@ -68,7 +72,7 @@ def test_explicitly_absent_friendly_name_is_not_invented():
 
 
 def test_friendly_name_belongs_only_to_assistant_not_user():
-    prompt = build_natural_conversation_system_prompt().lower()
+    prompt = _normalized_prompt()
     assert "pertenece exclusivamente a la asistente" in prompt
     assert "no lo uses para dirigirte al usuario" in prompt
     assert "declarado inequívocamente como propio" in prompt
@@ -76,7 +80,7 @@ def test_friendly_name_belongs_only_to_assistant_not_user():
 
 
 def test_no_tools_rules_forbid_promising_future_operational_work():
-    prompt = build_natural_conversation_system_prompt().lower()
+    prompt = _normalized_prompt()
     for action in ("consultar", "buscar", "verificar", "confirmar posteriormente"):
         assert action in prompt
     assert "recopilar y organizar la solicitud" in prompt

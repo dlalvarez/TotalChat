@@ -113,7 +113,7 @@ El request contiene tenant y conversación internos ya resueltos, pero esos IDs 
 entran al prompt. Tampoco entran schema, credenciales, payloads o identificadores
 del transporte. No hay tools, hechos operacionales ni LangGraph completo.
 
-El System Prompt `8a7-v1` materializa reglas rectoras inmutables con una identidad
+El System Prompt `8a7-v2` materializa reglas rectoras inmutables con una identidad
 visible sanitizada y backend-owned. Sus defaults son Sofía/Sofi, género femenino
 y MediChat. El usuario puede usar el apodo autorizado, pero sus mensajes no
 reconfiguran nombre, tenant, permisos, seguridad o capacidades. La configuración

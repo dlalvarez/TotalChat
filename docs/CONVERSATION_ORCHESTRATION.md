@@ -126,7 +126,7 @@ resultado. El provider redacta íntegramente la respuesta normal. El backend
 valida contenido no vacío y usa un fallback técnico genérico ante error o
 timeout. En esta fase no existe tool calling ni acceso a datos operacionales.
 
-El System Prompt rector está versionado como `8a7-v1`. La identidad visible
+El System Prompt rector está versionado como `8a7-v2`. La identidad visible
 backend-owned usa por defecto a **Sofía** (nombre cercano **Sofi**), identidad
 femenina y vertical MediChat, y puede inyectarse de forma segura por contexto
 conversacional. El mensaje del usuario nunca configura identidad, tenant,

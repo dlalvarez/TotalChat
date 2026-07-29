@@ -74,7 +74,7 @@ transporte. No se conectan tools en esta fase.
 
 El composition root puede inyectar al invoker una identidad visible sanitizada;
 los defaults son Sofía, Sofi, género femenino y MediChat. Telegram desconoce esa
-identidad y el prompt versionado `8a7-v1`. El invoker filtra el historial antes de
+identidad y el prompt versionado `8a7-v2`. El invoker filtra el historial antes de
 limitarlo: conserva incoming anteriores y outgoing `sent`, pero elimina outgoing
 `pending`/`failed`, direcciones internas y la entrada actual. Una futura pantalla
 administrativa o persistencia de identidad queda fuera de 8A.7.
