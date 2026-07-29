@@ -149,6 +149,15 @@ Las tools de servicios reciben un tenant ya resuelto y consultan servicios del p
 
 Estas tools no llaman al LLM ni a la red, y separan estrictamente servicios de precios, disponibilidad, citas y pagos. Los IDs devueltos son referencias internas para el backend, no texto final para el usuario.
 
+### Fase 8A.8 — exposición conversacional segura de servicios
+
+El catálogo conversacional expone únicamente `search_services`. El LLM propone
+un `query` textual opcional; nunca tenant, schema, SQL, UUID ni filtros
+administrativos. El backend valida el contrato cerrado, ejecuta la tool existente
+en la sesión tenant-scoped y reduce el resultado visible a nombre, descripción y
+duración. Una segunda invocación del LLM redacta el mensaje natural exclusivamente
+desde ese resultado. No se autorizan tools desconocidas ni acciones de reserva.
+
 ## 15. Fase 7A.5 — tools de precios
 
 Las tools de precios consultan PostgreSQL mediante un repository o sesión tenant-scoped y reciben el tenant ya resuelto. Solo presentan precios activos y vigentes definidos por `practitioner_service + payer_plan`, junto con la información mínima de tipo de pagador, pagador y plan; nunca inventan un precio genérico ni aceptan o exponen `schema_name`.

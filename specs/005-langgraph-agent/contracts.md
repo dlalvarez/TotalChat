@@ -113,6 +113,12 @@ El request contiene tenant y conversación internos ya resueltos, pero esos IDs 
 entran al prompt. Tampoco entran schema, credenciales, payloads o identificadores
 del transporte. No hay tools, hechos operacionales ni LangGraph completo.
 
+En 8A.8, el runtime añade un ciclo acotado de tool calling sin LangGraph. Expone
+solo `search_services(query?)`, acepta como máximo una propuesta válida, la
+ejecuta mediante el backend tenant-scoped y realiza una segunda completion para
+redactar desde `name`, `description` y `duration_minutes`. El payload visible no
+contiene UUID, tenant ni schema y no habilita otras operaciones.
+
 El System Prompt `8a7-v2` materializa reglas rectoras inmutables con una identidad
 visible sanitizada y backend-owned. Sus defaults son Sofía/Sofi, género femenino
 y MediChat. El usuario puede usar el apodo autorizado, pero sus mensajes no

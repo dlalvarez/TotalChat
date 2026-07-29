@@ -155,6 +155,25 @@ tools, Sofía puede comprender, recopilar y organizar una solicitud, pero no pue
 prometer consultas, búsquedas, verificaciones, confirmaciones o ejecución futura
 de datos operacionales.
 
+### Fase 8A.8 — tool calling de servicios, solo lectura
+
+El runtime expone al provider exclusivamente la definición cerrada
+`search_services(query?)`. El modelo puede proponer una llamada; el backend
+valida nombre y JSON, rechaza campos adicionales, limita la consulta y la ejecuta
+mediante `ServiceTools` sobre la sesión ya contextualizada al tenant. El tenant
+no forma parte de los argumentos del modelo.
+
+La consulta lee servicios activos desde `practitioner_services`. El resultado
+que vuelve al modelo contiene únicamente `name`, `description` y
+`duration_minutes`; UUID, profesional/organización internos y `schema_name`
+quedan fuera. Después de una única consulta permitida, el LLM redacta la
+respuesta natural grounded. Tools desconocidas, mutaciones, argumentos inválidos
+o más de una llamada producen el fallback técnico controlado y no se ejecutan.
+
+8A.8 no habilita precios, disponibilidad, slots, reservas, pagos, LangGraph,
+memoria avanzada ni nuevos canales. Telegram solo activa el mismo invoker común;
+no selecciona ni ejecuta tools.
+
 ### 2.5. PostgreSQL: fuente de verdad
 
 PostgreSQL es la fuente de verdad operacional para servicios, profesionales,
@@ -335,9 +354,9 @@ código.
 ## 10. Secuencia incremental autorizada
 
 - **8A.6 (documental):** esta realineación de responsabilidades y contratos.
-- **8A.7 (pendiente):** runtime conversacional natural básico, agnóstico de canal
+- **8A.7 (implementada):** runtime conversacional natural básico, agnóstico de canal
   y sin tools operativas.
-- **8A.8 (pendiente):** tool calling tenant-scoped de servicios, solo lectura.
+- **8A.8 (implementada):** tool calling tenant-scoped de servicios, solo lectura.
 - **8A.9 (pendiente):** recolección natural y persistente del contexto inicial de
   reserva.
 

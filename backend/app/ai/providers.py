@@ -1,13 +1,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
 
 
 @dataclass(frozen=True)
 class LLMMessage:
     role: str
-    content: str
+    content: str | None
+    tool_call_id: str | None = None
+    tool_calls: tuple["LLMToolCall", ...] = ()
+
+
+@dataclass(frozen=True)
+class LLMToolDefinition:
+    name: str
+    description: str
+    parameters: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class LLMToolCall:
+    id: str
+    name: str
+    arguments: str
 
 
 @dataclass(frozen=True)
@@ -16,6 +32,7 @@ class LLMResponse:
     model: str
     provider: str = "unknown"
     metadata: dict[str, Any] = field(default_factory=dict)
+    tool_calls: tuple[LLMToolCall, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -31,7 +48,12 @@ class EmbeddingResponse:
 
 
 class LLMProvider(Protocol):
-    def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    def complete(
+        self,
+        messages: list[LLMMessage],
+        *,
+        tools: tuple[LLMToolDefinition, ...] = (),
+    ) -> LLMResponse:
         """Return an LLM completion for an already tenant-scoped operation."""
 
 

@@ -22,7 +22,7 @@
   expresamente permitidos (Fase 8A.6).
 - [x] Implementar runtime conversacional natural, agnóstico de canal y sin tools
   operativas (Fase 8A.7).
-- [ ] Implementar tool calling tenant-scoped de servicios, solo lectura (Fase
+- [x] Implementar tool calling tenant-scoped de servicios, solo lectura (Fase
   8A.8).
 - [ ] Implementar recolección natural y persistente del contexto inicial de
   reserva (Fase 8A.9).

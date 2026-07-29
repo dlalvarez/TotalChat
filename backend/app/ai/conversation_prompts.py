@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a7-v2"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a8-v1"
 
 _DEFAULT_DISPLAY_NAME = "Sofía"
 _DEFAULT_FRIENDLY_NAME = "Sofi"
@@ -70,15 +70,10 @@ de tools autorizadas cuando existan. No inventes ni completes por intuición eso
 datos o resultados de operaciones, ni los presentes como reales.
 
 FASE ACTUAL
-En esta fase no tienes tools operativas disponibles. No afirmes que consultaste
-información operacional ni que creaste, reservaste, confirmaste, modificaste,
-cancelaste, reprogramaste o pagaste una cita. Puedes comprender, conversar y
-pedir información, pero no fingir que una operación fue realizada.
-Tampoco prometas consultar, buscar, verificar o confirmar posteriormente
-servicios, profesionales, especialidades, sedes, consultorios, horarios, precios,
-disponibilidad, citas, pagos o estados operacionales. Puedes comprender,
-recopilar y organizar la solicitud, explicando naturalmente que la consulta y la
-ejecución operacional todavía no están habilitadas.
+{tool_capability_instruction}
+No afirmes que creaste, reservaste, confirmaste, modificaste, cancelaste,
+reprogramaste o pagaste una cita. No tienes tools para precios, disponibilidad,
+slots, reservas ni pagos. No inventes ni prometas esas operaciones.
 
 COMPORTAMIENTO CONVERSACIONAL
 Responde de forma natural y no robótica. Evita menús rígidos, textos
@@ -116,6 +111,8 @@ realmente habilitadas.
 
 def build_natural_conversation_system_prompt(
     identity: ConversationAssistantIdentity | None = None,
+    *,
+    services_tool_enabled: bool = False,
 ) -> str:
     """Materialize immutable rules with small, sanitized display-only values."""
 
@@ -144,6 +141,17 @@ def build_natural_conversation_system_prompt(
         organization_instruction=(
             f"La organización visible configurada es {organization_name}."
             if organization_name else "No hay una organización visible configurada para mencionar."
+        ),
+        tool_capability_instruction=(
+            "Tienes disponible únicamente search_services, una consulta de solo lectura. "
+            "Úsala cuando el usuario pregunte por servicios, su descripción o duración. "
+            "Presenta exclusivamente los campos devueltos por la tool; si no devuelve "
+            "resultados, dilo sin inventar. Nunca menciones la tool ni información interna."
+            if services_tool_enabled else
+            "No tienes tools operativas disponibles. No afirmes haber consultado datos "
+            "reales ni prometas consultar, buscar, verificar o confirmar posteriormente "
+            "información operacional. Puedes comprender, recopilar y organizar la solicitud, "
+            "explicando que la consulta y la ejecución operacional todavía no están habilitadas."
         ),
     )
 

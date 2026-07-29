@@ -16,7 +16,9 @@ def get_telegram_service(
     session: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)
 ) -> TelegramWebhookService:
     client = TelegramHTTPClient(settings.telegram_bot_token) if settings.telegram_bot_token else None
-    invoker = NaturalConversationAgentInvoker(session, create_llm_provider())
+    invoker = NaturalConversationAgentInvoker(
+        session, create_llm_provider(), enable_service_tools=True
+    )
     return TelegramWebhookService(session, agent_invoker=invoker, telegram_client=client)
 
 

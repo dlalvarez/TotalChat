@@ -140,3 +140,16 @@ son responsabilidad ni configuración de Telegram.
 El invoker obtiene ese historial mediante lectura descendente en lotes limitados
 y keyset `(created_at, id)`, deteniéndose al reunir ocho visibles o agotar el
 historial. No carga toda la conversación ni usa `OFFSET`.
+
+## Fase 8A.8 — tool calling tenant-scoped de servicios
+
+El invoker común habilita el catálogo cerrado con una única tool de lectura:
+`search_services({query?})`. La sesión ya seleccionada por el resolver constituye
+el contexto tenant; tenant y `schema_name` nunca son argumentos del LLM. El
+backend valida la solicitud, consulta `practitioner_services` mediante la capa de
+servicios existente y entrega al LLM únicamente nombre, descripción y duración.
+El LLM genera la respuesta visible final.
+
+Telegram no conoce el catálogo, los argumentos ni los resultados. Continúa
+limitándose a persistencia, invocación y entrega. No se habilitan precios,
+disponibilidad, reservas, pagos ni otras tools.
