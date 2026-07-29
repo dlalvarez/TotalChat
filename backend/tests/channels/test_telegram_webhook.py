@@ -93,8 +93,8 @@ def test_service_persists_incoming_message_and_is_idempotent(monkeypatch) -> Non
 
     class Agent:
         def invoke(self, **kwargs):
-            from app.ai.booking_agent import BookingConversationResult
-            return BookingConversationResult(status="service_not_found", completed_steps=())
+            from app.ai.conversation_runtime import ConversationTurnResult
+            return ConversationTurnResult(content="Respuesta natural", code="natural_response")
 
     with Session(engine) as session:
         service = TelegramWebhookService(session, agent_invoker=Agent())

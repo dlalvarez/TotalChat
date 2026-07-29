@@ -116,6 +116,45 @@ busca disponibilidad, crea citas, procesa pagos ni redacta respuestas normales.
 Tampoco decide el tenant desde contenido suministrado por el usuario.
 `ConversationAgentInvoker` permanece agnóstico de canales y providers concretos.
 
+### Fase 8A.7 — runtime natural sin tools
+
+`NaturalConversationRuntime` recibe tenant y conversación ya resueltos, texto
+normalizado, fase permitida y hasta ocho mensajes recientes. Solo roles
+`user`/`assistant`, contenido acotado y fase llegan a `LLMProvider`; IDs, schema,
+credenciales, payloads del canal y razonamiento quedan fuera del prompt y del
+resultado. El provider redacta íntegramente la respuesta normal. El backend
+valida contenido no vacío y usa un fallback técnico genérico ante error o
+timeout. En esta fase no existe tool calling ni acceso a datos operacionales.
+
+El System Prompt rector está versionado como `8a7-v2`. La identidad visible
+backend-owned usa por defecto a **Sofía** (nombre cercano **Sofi**), identidad
+femenina y vertical MediChat, y puede inyectarse de forma segura por contexto
+conversacional. El mensaje del usuario nunca configura identidad, tenant,
+permisos o reglas. No existe todavía configuración administrativa persistente.
+
+El historial contiene solo incoming anteriores y outgoing cuya entrega fue
+confirmada como `sent`. Se excluyen `pending`, `failed`, direcciones internas y
+la entrada actual antes de aplicar el límite final de ocho mensajes visibles.
+La lectura recorre PostgreSQL hacia atrás mediante lotes acotados y cursor
+keyset; se detiene al reunir ocho visibles o agotar el historial, sin materializar
+la conversación completa ni usar paginación por offset.
+
+Para evitar que reintentos multipliquen la latencia, la configuración backend-owned
+usa `max_retries=0` y `max_completion_tokens=256`, con timeout de 30 segundos.
+`reasoning_effort` es opcional: si falta, el adaptador omite completamente el
+parámetro; `none`, `low`, `medium` o `high` solo se transmiten cuando se configuran
+explícitamente y el endpoint los soporta. La validación DeepInfra/Qwen usa
+explícitamente `none`, no un default universal. No hay detección de capacidades,
+selección dinámica, lógica específica de provider, cambio de modelo, fallback,
+tools o LangGraph.
+
+El nombre cercano Sofi identifica exclusivamente a la asistente, no al usuario.
+Un nombre de usuario solo se usa tras una declaración inequívoca en el contexto
+seguro; no existe perfil ni memoria persistente de nombres. Mientras no haya
+tools, Sofía puede comprender, recopilar y organizar una solicitud, pero no puede
+prometer consultas, búsquedas, verificaciones, confirmaciones o ejecución futura
+de datos operacionales.
+
 ### 2.5. PostgreSQL: fuente de verdad
 
 PostgreSQL es la fuente de verdad operacional para servicios, profesionales,

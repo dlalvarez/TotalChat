@@ -100,3 +100,35 @@ estado permitido, status, auditoría de tool calls y referencias no visibles.
 interpreta lenguaje libre, redacta conversación, conoce Telegram ni reemplaza al
 LLM. LangGraph podrá coordinar el ciclo futuro sin acceder a schemas, SQL o estado
 operacional directamente y sin contener libretos conversacionales.
+
+## Fase 8A.7 — runtime conversacional natural básico
+
+`NaturalConversationRuntime.run(ConversationTurnRequest)` depende exclusivamente
+de `LLMProvider`. Construye un prompt pequeño con contexto reciente acotado y
+roles permitidos, valida contenido visible no vacío y devuelve contenido, código
+estable y metadata técnica mínima. No propaga metadata o razonamiento del
+provider. Error, timeout o contenido inválido producen un fallback técnico fijo.
+
+El request contiene tenant y conversación internos ya resueltos, pero esos IDs no
+entran al prompt. Tampoco entran schema, credenciales, payloads o identificadores
+del transporte. No hay tools, hechos operacionales ni LangGraph completo.
+
+El System Prompt `8a7-v2` materializa reglas rectoras inmutables con una identidad
+visible sanitizada y backend-owned. Sus defaults son Sofía/Sofi, género femenino
+y MediChat. El usuario puede usar el apodo autorizado, pero sus mensajes no
+reconfiguran nombre, tenant, permisos, seguridad o capacidades. La configuración
+administrativa y su persistencia quedan fuera de alcance.
+
+En 8A.7, `OpenAICompatibleProvider` recibe los controles genéricos
+`reasoning_effort`, `max_retries` y `max_completion_tokens`. Reasoning es opcional
+y su default es `None`: el campo se omite por completo. Un valor explícito `none`,
+`low`, `medium` o `high` se envía solo si la configuración backend-owned conoce
+que el endpoint lo soporta. Retries y completion mantienen defaults `0` y `256`;
+el timeout sigue en 30 segundos. No hay detección o condicionales por provider,
+selección dinámica, fallback, cambio de modelo, tools ni LangGraph.
+
+El nombre cercano backend-owned corresponde exclusivamente a la asistente y no
+autoriza inferir el nombre del usuario. Sin tools operativas, 8A.7 permite
+comprender, recopilar y organizar solicitudes, pero prohíbe prometer consultas,
+búsquedas, verificaciones, confirmaciones o ejecuciones posteriores. No existe
+memoria de perfil, consulta operacional ni cambio de alcance.

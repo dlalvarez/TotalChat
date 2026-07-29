@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 import json
 from typing import Protocol
 from urllib import error, request
@@ -14,26 +13,11 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ai.appointment_tools import AppointmentTools
-from app.ai.availability_tools import AvailabilityTools
-from app.ai.booking_agent import BookingAgent, BookingConversationRequest, BookingConversationResult
-from app.ai.payment_tools import PaymentTools
-from app.ai.pricing_tools import PricingTools
-from app.ai.service_tools import ServiceTools
+from app.ai.conversation_runtime import TECHNICAL_FALLBACK
 from app.channels.base import ConversationAgentInvoker
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.resolver import TenantResolver
 from app.tenancy.schema import is_valid_tenant_schema_name
-
-
-BOOKING_CONTEXT_FIELDS = (
-    "patient_id", "payer_type", "payer_name", "plan_name", "preferred_date",
-    "preferred_modality", "payment_method",
-)
-INITIAL_BOOKING_RESPONSE = (
-    "Hola, soy el asistente de MediChat. Puedo ayudarte a iniciar una reserva. "
-    "Para empezar, dime qué servicio necesitas."
-)
 
 
 class TelegramChat(BaseModel):
@@ -96,55 +80,6 @@ class TelegramHTTPClient:
         return message_id
 
 
-class DeterministicBookingAgentInvoker:
-    """Build the strictly allow-listed 7A.9 request from backend-owned state."""
-
-    _required_state = BOOKING_CONTEXT_FIELDS
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
-
-    def invoke(
-        self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
-    ) -> BookingConversationResult:
-        state = conversation.state or {}
-        missing = [key for key in self._required_state if not state.get(key)]
-        if missing:
-            raise ValueError("booking context is incomplete")
-
-        request = BookingConversationRequest(
-            tenant_id=tenant_id,
-            patient_id=UUID(str(state["patient_id"])),
-            service_query=message_text,
-            payer_type=str(state["payer_type"]),
-            payer_name=str(state["payer_name"]),
-            plan_name=str(state["plan_name"]),
-            preferred_date=date.fromisoformat(str(state["preferred_date"])),
-            preferred_modality=str(state["preferred_modality"]),
-            payment_method=str(state["payment_method"]),
-            practitioner_name=_optional_text(state.get("practitioner_name")),
-            location_id=_optional_uuid(state.get("location_id")),
-            room_id=_optional_uuid(state.get("room_id")),
-        )
-        agent = BookingAgent(
-            tenant_id=tenant_id,
-            service_tools=ServiceTools(tenant_id=tenant_id, session=self._session),
-            pricing_tools=PricingTools(tenant_id=tenant_id, session=self._session),
-            availability_tools=AvailabilityTools(tenant_id=tenant_id, session=self._session),
-            appointment_tools=AppointmentTools(tenant_id=tenant_id, session=self._session),
-            payment_tools=PaymentTools(tenant_id=tenant_id, session=self._session),
-        )
-        return agent.run(request)
-
-
-def _optional_text(value: object) -> str | None:
-    return str(value) if value is not None else None
-
-
-def _optional_uuid(value: object) -> UUID | None:
-    return UUID(str(value)) if value is not None else None
-
-
 @dataclass(slots=True)
 class TelegramWebhookService:
     session: Session
@@ -202,40 +137,35 @@ class TelegramWebhookService:
         self._select_tenant_schema(tenant.schema_name)
         conversation = self.session.get(ConversationSession, conversation.id)
         assert conversation is not None
+        try:
+            if self.agent_invoker is None:
+                raise RuntimeError("conversation agent is not configured")
+            invoker = self.agent_invoker
+            result = invoker.invoke(
+                tenant_id=tenant.tenant_id,
+                conversation=conversation,
+                message_text=update.message.text,
+            )
+            content = result.content
+            agent_status = result.code
+        except Exception:
+            # Keep the acknowledgement boundary and never persist exception details.
+            self.session.rollback()
+            self._select_tenant_schema(tenant.schema_name)
+            conversation = self.session.execute(select(ConversationSession).where(
+                ConversationSession.channel_type == "telegram",
+                ConversationSession.external_user_id == external_user_id,
+            )).scalar_one()
+            content = TECHNICAL_FALLBACK
+            agent_status = "runtime_error"
+
         state = conversation.state or {}
-        missing_fields = [field for field in BOOKING_CONTEXT_FIELDS if not state.get(field)]
-        if missing_fields:
-            conversation.state = {
-                **state,
-                "phase": "collecting_booking_context",
-                "last_user_message": update.message.text,
-                "missing_fields": missing_fields,
-            }
-            content = INITIAL_BOOKING_RESPONSE
-            agent_status = "collecting_booking_context"
-        else:
-            try:
-                result = (self.agent_invoker or DeterministicBookingAgentInvoker(self.session)).invoke(
-                    tenant_id=tenant.tenant_id,
-                    conversation=conversation,
-                    message_text=update.message.text,
-                )
-                content = f"BookingAgent: {result.status}"
-                agent_status = result.status
-            except Exception:
-                # The webhook is an acknowledgement boundary. Details are intentionally
-                # not persisted because they could contain schema or secret material.
-                self.session.rollback()
-                self._select_tenant_schema(tenant.schema_name)
-                conversation = self.session.execute(select(ConversationSession).where(
-                    ConversationSession.channel_type == "telegram",
-                    ConversationSession.external_user_id == external_user_id,
-                )).scalar_one()
-                content = (
-                    "No pude continuar con la reserva en este momento. "
-                    "Por favor, intenta de nuevo más tarde."
-                )
-                agent_status = "error"
+        conversation.state = {
+            **state,
+            "phase": "natural_conversation",
+            "last_user_message": update.message.text,
+            "last_assistant_response": content,
+        }
 
         outgoing = Message(
             conversation_session_id=conversation.id,

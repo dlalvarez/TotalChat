@@ -3,6 +3,8 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.ai.conversation_invoker import NaturalConversationAgentInvoker
+from app.ai.providers import create_llm_provider
 from app.channels.telegram import TelegramHTTPClient, TelegramUpdate, TelegramWebhookService
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
@@ -14,7 +16,8 @@ def get_telegram_service(
     session: Session = Depends(get_db_session), settings: Settings = Depends(get_settings)
 ) -> TelegramWebhookService:
     client = TelegramHTTPClient(settings.telegram_bot_token) if settings.telegram_bot_token else None
-    return TelegramWebhookService(session, telegram_client=client)
+    invoker = NaturalConversationAgentInvoker(session, create_llm_provider())
+    return TelegramWebhookService(session, agent_invoker=invoker, telegram_client=client)
 
 
 @router.post("/{webhook_secret}")

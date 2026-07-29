@@ -23,3 +23,11 @@
   complementario al LLM y sin responsabilidad de redacción natural.
 - [ ] Implementar el runtime LangGraph grounded y sus nodos (fase funcional
   futura expresamente fuera de 8A.6).
+- [x] Implementar runtime natural básico sobre `LLMProvider`, contexto seguro y
+  fallback técnico, sin tools ni LangGraph completo (Fase 8A.7).
+- [x] Acotar razonamiento, reintentos y tokens de completion mediante
+  configuración provider-neutral backend-owned (corrección Fase 8A.7).
+- [x] Omitir `reasoning_effort` cuando no exista configuración explícita para
+  preservar compatibilidad OpenAI-compatible (corrección Fase 8A.7).
+- [x] Aclarar nombre cercano de la asistente y prohibir promesas operacionales
+  futuras mientras no existan tools (cierre de validación Fase 8A.7).

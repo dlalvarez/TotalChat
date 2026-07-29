@@ -118,3 +118,25 @@ secuencia de tool calling, está en
 [`docs/CONVERSATION_ORCHESTRATION.md`](../../docs/CONVERSATION_ORCHESTRATION.md).
 Esta fase no introduce runtime, modelos, prompts, tools, endpoints ni cambios de
 Telegram.
+
+## Fase 8A.7 — runtime conversacional natural básico
+
+Telegram invoca siempre `ConversationAgentInvoker` después de hacer durable el
+incoming. Su implementación natural carga historial reciente tenant-scoped,
+invoca el runtime basado en `LLMProvider` y devuelve el texto visible completo.
+El adaptador lo persiste sin reescritura como `outgoing/pending` y conserva la
+entrega `sent | failed`. Un update duplicado termina antes de invocar o entregar.
+
+La respuesta fija normal de 8A.5 deja de ser una ruta de ejecución. Solo se
+permite el fallback técnico genérico ante fallos o contenido inválido. Telegram
+no contiene prompts ni configuración LLM y al runtime no llegan token, chat ID,
+payload completo o schema. Esta fase no conecta tools ni datos operacionales.
+
+El historial del invoker se forma exclusivamente con incoming anteriores y
+outgoing confirmados `sent`; `pending`, `failed`, direcciones desconocidas y la
+entrada actual quedan fuera. El límite de ocho se aplica después de ese filtro.
+La identidad Sofía/Sofi predeterminada y cualquier alternativa backend-owned no
+son responsabilidad ni configuración de Telegram.
+El invoker obtiene ese historial mediante lectura descendente en lotes limitados
+y keyset `(created_at, id)`, deteniéndose al reunir ocho visibles o agotar el
+historial. No carga toda la conversación ni usa `OFFSET`.

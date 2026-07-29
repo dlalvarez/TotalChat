@@ -64,6 +64,32 @@ a schemas o SQL. `BookingAgent` se conserva como coordinador operacional
 determinístico y `ConversationAgentInvoker` como frontera agnóstica de canal.
 8A.6 no implementa runtime, nodos, prompts ni tools.
 
+### Fase 8A.7 — runtime conversacional natural básico
+
+La implementación natural de `ConversationAgentInvoker` carga historial reciente
+dentro del schema ya seleccionado e invoca `NaturalConversationRuntime`, que
+depende únicamente de `LLMProvider`. Telegram persiste y entrega el contenido
+devuelto sin reescribirlo; el runtime no conoce payloads, chat IDs, tokens ni
+transporte. No se conectan tools en esta fase.
+
+El composition root puede inyectar al invoker una identidad visible sanitizada;
+los defaults son Sofía, Sofi, género femenino y MediChat. Telegram desconoce esa
+identidad y el prompt versionado `8a7-v2`. El invoker filtra el historial antes de
+limitarlo: conserva incoming anteriores y outgoing `sent`, pero elimina outgoing
+`pending`/`failed`, direcciones internas y la entrada actual. Una futura pantalla
+administrativa o persistencia de identidad queda fuera de 8A.7.
+La recuperación usa páginas descendentes acotadas por `(created_at, id)` y solo
+continúa hacia atrás cuando el lote filtrado aún no aporta ocho mensajes
+visibles; luego invierte el resultado para entregarlo cronológicamente.
+
+El mismo composition root configura controles provider-neutral del adaptador
+OpenAI-compatible. `reasoning_effort` no tiene default implícito: cuando es `None`
+no se envía `extra_body`; un valor explícito (`none`, `low`, `medium` o `high`) se
+transmite únicamente bajo responsabilidad de la configuración del endpoint.
+`max_retries=0` y `max_completion_tokens=256` siguen acotando reintentos, latencia
+y consumo; el timeout continúa en 30 segundos. No existe detección automática de
+capacidades, routing, selección dinámica ni cambio de modelo/provider.
+
 ## 2. Diagrama lógico
 
 ```text

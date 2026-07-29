@@ -19,6 +19,9 @@ class OpenAICompatibleProvider:
         embeddings_model: str,
         timeout_seconds: float = 30,
         capture_reasoning: bool = False,
+        reasoning_effort: str | None = None,
+        max_retries: int = 0,
+        max_completion_tokens: int = 256,
         client_factory: Callable[..., Any] | None = None,
     ) -> None:
         self.provider_name = provider_name
@@ -28,14 +31,23 @@ class OpenAICompatibleProvider:
         self.embeddings_model = embeddings_model
         self.timeout_seconds = timeout_seconds
         self.capture_reasoning = capture_reasoning
+        self.reasoning_effort = reasoning_effort
+        self.max_retries = max_retries
+        self.max_completion_tokens = max_completion_tokens
         self._client_factory = client_factory
         self._client: Any | None = None
 
     def complete(self, messages: list[LLMMessage]) -> LLMResponse:
-        response = self._get_client().chat.completions.create(
-            model=self.model,
-            messages=[{"role": message.role, "content": message.content} for message in messages],
-        )
+        completion_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": message.role, "content": message.content} for message in messages
+            ],
+            "max_completion_tokens": self.max_completion_tokens,
+        }
+        if self.reasoning_effort is not None:
+            completion_kwargs["extra_body"] = {"reasoning_effort": self.reasoning_effort}
+        response = self._get_client().chat.completions.create(**completion_kwargs)
         choice = response.choices[0]
         content = choice.message.content or ""
         metadata: dict[str, Any] = {}
@@ -68,6 +80,7 @@ class OpenAICompatibleProvider:
                 api_key=self.api_key,
                 base_url=self.base_url,
                 timeout=self.timeout_seconds,
+                max_retries=self.max_retries,
             )
         return self._client
 

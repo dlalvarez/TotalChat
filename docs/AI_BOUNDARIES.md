@@ -219,6 +219,36 @@ canales, LLM ni runtime LangGraph.
 
 ## Fase 8A.6 — responsabilidad conversacional grounded
 
+### Implementación 8A.7 sin tools
+
+El runtime básico depende solo de `LLMProvider` y permite al modelo redactar
+conversación social e intención inicial con contexto reciente acotado. No ofrece
+tools ni hechos operacionales. Su resultado conserva contenido, código estable y
+metadata mínima, pero descarta metadata y razonamiento del provider. Errores y
+contenido vacío se convierten en un fallback técnico genérico.
+
+El prompt rector `8a7-v2` separa reglas inmutables de identidad visible. La
+identidad backend-owned predeterminada es Sofía/Sofi, femenina y MediChat; una
+identidad alternativa solo puede inyectarse desde composición backend tras
+sanitización, nunca desde texto del usuario. No contiene tenant IDs, UUIDs ni
+schemas configurados. Solo mensajes realmente visibles —incoming previos y
+outgoing `sent`— regresan al LLM; `pending` y `failed` se excluyen.
+
+Los controles operativos del adaptador son backend-owned. `reasoning_effort` es
+opcional: ausente no se envía; `none` se envía explícitamente para deshabilitar
+reasoning solo cuando el endpoint configurado lo soporte, y `low`, `medium` o
+`high` también requieren soporte declarado por ese endpoint. TotalChat no detecta
+capacidades automáticamente. Los reintentos quedan por defecto en cero para no
+multiplicar el timeout de 30 segundos y las completions se limitan a 256 tokens.
+8A.7 no selecciona esfuerzo dinámicamente, cambia provider/modelo, implementa
+fallback entre providers ni habilita tools.
+
+El nombre cercano configurado pertenece a la asistente y no se infiere como
+nombre del usuario; solo una declaración inequívoca del propio usuario dentro del
+contexto seguro permite dirigirse a él por un nombre. Sin tools, el runtime puede
+comprender, recopilar y organizar solicitudes, pero no promete consultar, buscar,
+verificar o confirmar posteriormente información u operaciones.
+
 El LLM no es solo un extractor estructurado: comprende lenguaje libre, identifica
 intención, usa contexto seguro, resuelve ambigüedades, decide si responde o
 propone una tool e interpreta sus resultados. Genera todas las respuestas

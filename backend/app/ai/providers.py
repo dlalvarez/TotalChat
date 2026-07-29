@@ -54,6 +54,9 @@ def create_llm_provider() -> LLMProvider:
         embeddings_model=settings.embeddings_model,
         timeout_seconds=settings.llm_timeout_seconds,
         capture_reasoning=settings.llm_capture_reasoning,
+        reasoning_effort=settings.llm_reasoning_effort,
+        max_retries=settings.llm_max_retries,
+        max_completion_tokens=settings.llm_max_completion_tokens,
     )
 
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.ai.booking_agent import BookingConversationResult
+from app.ai.conversation_runtime import ConversationTurnResult
 from app.channels.telegram import TelegramUpdate, TelegramWebhookService
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.context import TenantContext
@@ -15,7 +15,7 @@ UPDATE = {"update_id": 61001, "message": {"message_id": 101, "chat": {"id": 7000
 
 class Agent:
     def invoke(self, **kwargs):
-        return BookingConversationResult(status="service_not_found", completed_steps=())
+        return ConversationTurnResult(content="Texto exacto del provider", code="natural_response")
 
 
 @dataclass
@@ -51,10 +51,7 @@ def test_pending_outgoing_is_sent_and_confirmation_is_persisted(monkeypatch):
     assert result.accepted is True
     assert client.calls == [{
         "chat_id": 70001,
-        "text": (
-            "Hola, soy el asistente de MediChat. Puedo ayudarte a iniciar una reserva. "
-            "Para empezar, dime qué servicio necesitas."
-        ),
+        "text": "Texto exacto del provider",
     }]
     assert outgoing.raw_payload["delivery_status"] == "sent"
     assert outgoing.raw_payload["telegram_message_id"] == 9876

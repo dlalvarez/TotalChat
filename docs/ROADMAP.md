@@ -202,8 +202,9 @@ Entregables:
   documental y contractual. Define la responsabilidad conversacional del LLM,
   la autoridad operacional del backend, las tools como frontera única y
   PostgreSQL como fuente de verdad. No implementa runtime ni código funcional.
-- **Fase 8A.7 — Runtime conversacional natural básico.** Estado: pendiente. Será
-  agnóstico de canal y no incorporará tools operativas.
+- **Fase 8A.7 — Runtime conversacional natural básico.** Estado: implementada.
+  Es agnóstico de canal, depende de `LLMProvider`, usa contexto reciente seguro y
+  fallback técnico controlado, y no incorpora tools operativas.
 - **Fase 8A.8 — Tool calling de servicios.** Estado: pendiente. Incorporará
   exclusivamente consultas tenant-scoped de servicios, solo lectura.
 - **Fase 8A.9 — Contexto inicial de reserva.** Estado: pendiente. Incorporará su
@@ -211,8 +212,8 @@ Entregables:
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se
-conservan su idempotencia y fronteras de canal mientras una fase funcional
-posterior sustituye la conversación normal por generación LLM.
+conservan su idempotencia y fronteras de canal. 8A.7 sustituyó la conversación
+normal por generación LLM sin incorporar operaciones.
 
 Precios, disponibilidad, selección de slots, creación de reservas y pagos se
 incorporarán incrementalmente después de validar servicios y contexto
