@@ -13,7 +13,7 @@ def test_default_identity_and_critical_governing_rules():
     identity = ConversationAssistantIdentity()
     prompt = build_natural_conversation_system_prompt(identity)
 
-    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a7-v2"
+    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a8-v1"
     assert (identity.display_name, identity.friendly_name) == ("Sofía", "Sofi")
     assert identity.vertical_display_name == "MediChat"
     for fragment in (

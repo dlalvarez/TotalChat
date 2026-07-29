@@ -16,6 +16,7 @@ from app.ai.conversation_runtime import (
     NaturalConversationRuntime,
 )
 from app.ai.providers import LLMProvider
+from app.ai.conversation_tools import ConversationToolRegistry
 from app.models.tenant import ConversationSession, Message
 
 
@@ -32,9 +33,11 @@ class NaturalConversationAgentInvoker:
         llm_provider: LLMProvider,
         *,
         assistant_identity: ConversationAssistantIdentity | None = None,
+        enable_service_tools: bool = False,
     ) -> None:
         self._session = session
-        self._runtime = NaturalConversationRuntime(llm_provider)
+        self._llm_provider = llm_provider
+        self._enable_service_tools = enable_service_tools
         self._assistant_identity = assistant_identity or ConversationAssistantIdentity()
 
     def invoke(
@@ -49,7 +52,11 @@ class NaturalConversationAgentInvoker:
             )
             for item in visible_messages
         )
-        return self._runtime.run(ConversationTurnRequest(
+        registry = (
+            ConversationToolRegistry(tenant_id=tenant_id, session=self._session)
+            if self._enable_service_tools else None
+        )
+        return NaturalConversationRuntime(self._llm_provider, registry).run(ConversationTurnRequest(
             tenant_id=tenant_id,
             conversation_id=conversation.id,
             message_text=message_text,

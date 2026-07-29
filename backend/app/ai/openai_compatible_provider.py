@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.ai.providers import EmbeddingRequest, EmbeddingResponse, LLMMessage, LLMResponse
+from app.ai.providers import (
+    EmbeddingRequest, EmbeddingResponse, LLMMessage, LLMResponse,
+    LLMToolCall, LLMToolDefinition,
+)
 
 
 class OpenAICompatibleProvider:
@@ -37,19 +40,48 @@ class OpenAICompatibleProvider:
         self._client_factory = client_factory
         self._client: Any | None = None
 
-    def complete(self, messages: list[LLMMessage]) -> LLMResponse:
+    def complete(
+        self, messages: list[LLMMessage], *, tools: tuple[LLMToolDefinition, ...] = ()
+    ) -> LLMResponse:
+        serialized_messages = []
+        for message in messages:
+            item: dict[str, Any] = {"role": message.role, "content": message.content}
+            if message.tool_call_id:
+                item["tool_call_id"] = message.tool_call_id
+            if message.tool_calls:
+                item["tool_calls"] = [
+                    {"id": call.id, "type": "function", "function": {
+                        "name": call.name, "arguments": call.arguments,
+                    }} for call in message.tool_calls
+                ]
+            serialized_messages.append(item)
         completion_kwargs: dict[str, Any] = {
             "model": self.model,
-            "messages": [
-                {"role": message.role, "content": message.content} for message in messages
-            ],
+            "messages": serialized_messages,
             "max_completion_tokens": self.max_completion_tokens,
         }
+        if tools:
+            completion_kwargs["tools"] = [
+                {"type": "function", "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": dict(tool.parameters),
+                }} for tool in tools
+            ]
+            completion_kwargs["tool_choice"] = "auto"
         if self.reasoning_effort is not None:
             completion_kwargs["extra_body"] = {"reasoning_effort": self.reasoning_effort}
         response = self._get_client().chat.completions.create(**completion_kwargs)
         choice = response.choices[0]
         content = choice.message.content or ""
+        tool_calls = tuple(
+            LLMToolCall(
+                id=call.id,
+                name=call.function.name,
+                arguments=call.function.arguments,
+            )
+            for call in (getattr(choice.message, "tool_calls", None) or ())
+        )
         metadata: dict[str, Any] = {}
         reasoning_content = getattr(choice.message, "reasoning_content", None)
         if self.capture_reasoning and reasoning_content is not None:
@@ -59,6 +91,7 @@ class OpenAICompatibleProvider:
             model=self.model,
             provider=self.provider_name,
             metadata=metadata,
+            tool_calls=tool_calls,
         )
 
     def embed(self, request: EmbeddingRequest) -> EmbeddingResponse:

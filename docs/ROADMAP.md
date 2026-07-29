@@ -205,8 +205,9 @@ Entregables:
 - **Fase 8A.7 — Runtime conversacional natural básico.** Estado: implementada.
   Es agnóstico de canal, depende de `LLMProvider`, usa contexto reciente seguro y
   fallback técnico controlado, y no incorpora tools operativas.
-- **Fase 8A.8 — Tool calling de servicios.** Estado: pendiente. Incorporará
-  exclusivamente consultas tenant-scoped de servicios, solo lectura.
+- **Fase 8A.8 — Tool calling de servicios.** Estado: implementada. Incorpora
+  exclusivamente `search_services`, tenant-scoped y de solo lectura, con
+  argumentos cerrados y resultado visible sin UUID ni datos de infraestructura.
 - **Fase 8A.9 — Contexto inicial de reserva.** Estado: pendiente. Incorporará su
   recolección natural y persistente sin adelantar operaciones posteriores.
 
