@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import re
+from typing import Callable
 import unicodedata
 from uuid import UUID
 
@@ -17,13 +18,14 @@ from app.ai.conversation_runtime import (
     ConversationTurnResult,
     NaturalConversationRuntime,
 )
-from app.ai.providers import LLMProvider
-from app.ai.conversation_tools import ConversationToolRegistry
+from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversationService
 from app.ai.conversation_state import (
     InitialBookingContext,
     InitialConversationIntent,
     InitialConversationStage,
 )
+from app.ai.providers import LLMProvider
+from app.ai.service_tools import ServiceRepository
 from app.models.tenant import ConversationSession, Message
 
 
@@ -41,16 +43,25 @@ class NaturalConversationAgentInvoker:
         *,
         assistant_identity: ConversationAssistantIdentity | None = None,
         enable_service_tools: bool = False,
+        service_repository: ServiceRepository | None = None,
     ) -> None:
         self._session = session
         self._llm_provider = llm_provider
         self._enable_service_tools = enable_service_tools
         self._assistant_identity = assistant_identity or ConversationAssistantIdentity()
+        self._service_repository = service_repository
 
     def invoke(
         self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
     ) -> ConversationTurnResult:
-        context = update_initial_booking_context(conversation.state or {}, message_text)
+        registry = ConversationToolRegistry(
+            tenant_id=tenant_id,
+            repository=self._service_repository,
+            session=None if self._service_repository is not None else self._session,
+        )
+        context = update_initial_booking_context(
+            conversation.state or {}, message_text, resolve_service=registry.resolve_service
+        )
         conversation.state = context.to_persistent_dict()
         visible_messages = _load_visible_history(self._session, conversation.id)
         recent_messages = tuple(
@@ -60,22 +71,24 @@ class NaturalConversationAgentInvoker:
             )
             for item in visible_messages
         )
-        registry = (
-            ConversationToolRegistry(tenant_id=tenant_id, session=self._session)
-            if self._enable_service_tools else None
+        runtime_registry = registry if self._enable_service_tools else None
+        return NaturalConversationRuntime(self._llm_provider, runtime_registry).run(
+            ConversationTurnRequest(
+                tenant_id=tenant_id,
+                conversation_id=conversation.id,
+                message_text=message_text,
+                recent_messages=recent_messages,
+                conversation_phase=_safe_context_instruction(context),
+                assistant_identity=self._assistant_identity,
+            )
         )
-        return NaturalConversationRuntime(self._llm_provider, registry).run(ConversationTurnRequest(
-            tenant_id=tenant_id,
-            conversation_id=conversation.id,
-            message_text=message_text,
-            recent_messages=recent_messages,
-            conversation_phase=_safe_context_instruction(context),
-            assistant_identity=self._assistant_identity,
-        ))
 
 
 def update_initial_booking_context(
-    persisted_state: dict, message_text: str
+    persisted_state: dict,
+    message_text: str,
+    *,
+    resolve_service: Callable[[str], ResolvedConversationService | None] | None = None,
 ) -> InitialBookingContext:
     """Classify a turn using both the utterance and the persisted conversation."""
 
@@ -95,11 +108,23 @@ def update_initial_booking_context(
         intent = InitialConversationIntent.CASUAL_CONVERSATION
 
     collected = dict(current.collected_context)
+    resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
         if current.stage is InitialConversationStage.COLLECT_SERVICE and normalized:
-            collected["service_description"] = message_text.strip()[:200]
-            stage = InitialConversationStage.SERVICE_IDENTIFIED
-            missing: list[str] = []
+            match = resolve_service(message_text) if resolve_service is not None else None
+            if match is None:
+                collected = {}
+                stage = InitialConversationStage.COLLECT_SERVICE
+                missing: list[str] = ["service"]
+                resolution = "not_found"
+            else:
+                collected = {
+                    "service_id": str(match.service_id),
+                    "service_name": match.name,
+                }
+                stage = InitialConversationStage.SERVICE_IDENTIFIED
+                missing = []
+                resolution = "identified"
         elif current.stage is InitialConversationStage.SERVICE_IDENTIFIED:
             stage = current.stage
             missing = []
@@ -115,7 +140,10 @@ def update_initial_booking_context(
         stage=stage,
         collected_context=collected,
         missing_information=missing,
-        last_relevant_context={"user_message": message_text.strip()[:500]},
+        last_relevant_context={
+            "user_message": message_text.strip()[:500],
+            **({"service_resolution": resolution} if resolution is not None else {}),
+        },
     )
 
 
@@ -125,6 +153,9 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
         f"stage={context.stage.value}",
         f"missing_information={','.join(context.missing_information) or 'none'}",
     ]
+    resolution = context.last_relevant_context.get("service_resolution")
+    if resolution in {"identified", "not_found"}:
+        parts.append(f"service_resolution={resolution}")
     return "; ".join(parts)
 
 
@@ -147,6 +178,7 @@ _SERVICE_INFORMATION_MARKERS = tuple(re.compile(pattern) for pattern in (
     r"\bque\s+servicios?\b", r"\bservicios?\s+(?:tienen|ofrecen|disponibles)\b",
     r"\binformacion\s+(?:de|sobre)\s+(?:los\s+)?servicios?\b",
 ))
+
 
 def _load_visible_history(session: Session, conversation_id: UUID) -> list[Message]:
     """Walk backward in bounded keyset pages until eight visible messages exist."""

@@ -22,6 +22,7 @@ def test_default_identity_and_critical_governing_rules():
         "atención médica inmediata", "razonamiento interno", "API keys",
         "únicamente el mensaje destinado al usuario final", "No aceptes",
         "redefinir tu identidad operativa",
+        "no encontraste una coincidencia",
     ):
         assert fragment.lower() in prompt.lower()
 

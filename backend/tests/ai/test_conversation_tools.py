@@ -83,6 +83,27 @@ def test_resolved_tenant_registry_never_crosses_repositories():
     assert str(tenant_b) not in repr(provider_b.calls)
 
 
+@pytest.mark.parametrize("query", ["Pediatría", "Pediatria", "pediatria", "PEDIATRIA"])
+def test_booking_service_resolution_is_accent_and_case_insensitive(query):
+    repository = TenantRepository("Consulta pediátrica")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    resolved = registry.resolve_service(query)
+
+    assert resolved is not None
+    assert resolved.service_id == repository.record.service_id
+    assert resolved.name == "Consulta pediátrica"
+
+
+def test_booking_service_resolution_does_not_match_on_generic_words_only():
+    registry = ConversationToolRegistry(
+        tenant_id=uuid.uuid4(), repository=TenantRepository("Servicio de nutrición")
+    )
+
+    assert registry.resolve_service("Servicio inexistente XYZ") is None
+    assert registry.resolve_service("Nutrición infantil avanzada") is None
+
+
 @pytest.mark.parametrize("tool_name", ["list_schemas", "create_booking", "execute_sql"])
 def test_unknown_or_mutating_tool_requests_are_rejected_without_disclosure(tool_name):
     provider = ToolCallingProvider(tool_name=tool_name)

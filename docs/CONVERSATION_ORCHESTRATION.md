@@ -389,14 +389,17 @@ last_relevant_context
 ```
 
 La clasificación combina el turno actual con la intención y etapa persistidas.
-`booking_request` inicia en `collect_service` con `service` faltante; el turno
-siguiente conserva esa intención, recoge la descripción natural del servicio y
-avanza a `service_identified`. `service_information` y `casual_conversation`
+`booking_request` inicia en `collect_service` con `service` faltante. El turno
+siguiente conserva esa intención y resuelve la descripción contra servicios
+activos del tenant mediante la capacidad backend existente; solo una coincidencia
+única avanza a `service_identified` y persiste su referencia interna y nombre.
+Sin coincidencia, permanece en `collect_service` y solicita aclaración.
+`service_information` y `casual_conversation`
 permanecen en `start`. El LLM recibe una representación segura de este estado y
 redacta la pregunta o reconocimiento natural, pero no lo expone al usuario.
 
-Este contexto es memoria operacional, no fuente de verdad: una descripción
-recogida no valida que el servicio exista. No guarda prompts, razonamiento,
+Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
+servicio antes de identificarlo. No guarda prompts, razonamiento,
 respuestas internas, secretos ni `schema_name`; tampoco habilita disponibilidad,
 slots, creación o confirmación de citas, pagos, nuevas tools o un grafo. Telegram
 continúa siendo exclusivamente entrada/salida.

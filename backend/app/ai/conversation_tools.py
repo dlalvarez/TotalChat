@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from difflib import SequenceMatcher
 import json
 from types import MappingProxyType
 from typing import Any, Mapping
+import unicodedata
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.ai.providers import LLMToolDefinition
 from app.ai.service_tools import (
-    ServiceListRequest, ServiceRepository, ServiceSearchRequest, ServiceTools,
+    ServiceListRequest,
+    ServiceRepository,
+    ServiceSearchRequest,
+    ServiceSummary,
+    ServiceTools,
 )
 
 
@@ -41,6 +47,14 @@ class PublicService:
     name: str
     description: str | None
     duration_minutes: int
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedConversationService:
+    """Backend-only service identity; never part of an LLM tool result."""
+
+    service_id: UUID
+    name: str
 
 
 class ConversationToolRegistry:
@@ -84,3 +98,59 @@ class ConversationToolRegistry:
             duration_minutes=service.duration_minutes,
         ) for service in result.services)
         return MappingProxyType({"services": [asdict(service) for service in services]})
+
+    def resolve_service(self, query: str) -> ResolvedConversationService | None:
+        """Resolve one active service conservatively inside the current tenant."""
+
+        normalized_query = _normalize_service_text(query)
+        if not normalized_query:
+            return None
+        services = self._tools.list_active_services(ServiceListRequest(limit=100)).services
+        ranked: list[tuple[float, str, ServiceSummary]] = []
+        for service in services:
+            candidates = (service.name, service.description or "")
+            score = max(
+                _service_match_score(normalized_query, candidate) for candidate in candidates
+            )
+            if score >= 0.8:
+                ranked.append((score, _normalize_service_text(service.name), service))
+        ranked.sort(key=lambda item: (-item[0], item[1], str(item[2].service_id)))
+        if not ranked or (len(ranked) > 1 and ranked[0][0] == ranked[1][0]):
+            return None
+        match = ranked[0][2]
+        return ResolvedConversationService(service_id=match.service_id, name=match.name)
+
+
+def _normalize_service_text(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join(
+        "".join(character for character in decomposed if not unicodedata.combining(character)).split()
+    )
+
+
+def _service_match_score(query: str, candidate: str) -> float:
+    normalized_candidate = _normalize_service_text(candidate)
+    if not normalized_candidate:
+        return 0.0
+    if query == normalized_candidate:
+        return 1.0
+    if query in normalized_candidate:
+        return 0.95
+    query_tokens = [token for token in query.split() if token not in _GENERIC_SERVICE_TOKENS]
+    candidate_tokens = [
+        token for token in normalized_candidate.split() if token not in _GENERIC_SERVICE_TOKENS
+    ]
+    if not query_tokens or not candidate_tokens:
+        return 0.0
+    return min(
+        max(
+            SequenceMatcher(None, query_token, candidate_token).ratio()
+            for candidate_token in candidate_tokens
+        )
+        for query_token in query_tokens
+    )
+
+
+_GENERIC_SERVICE_TOKENS = {
+    "cita", "consulta", "de", "del", "el", "la", "necesito", "servicio", "un", "una",
+}
