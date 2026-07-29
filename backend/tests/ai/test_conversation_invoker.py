@@ -293,4 +293,9 @@ def test_invoker_surfaces_unknown_service_as_safe_clarification_context():
 
     assert result.content == "respuesta exacta"
     assert conversation.state["stage"] == "collect_service"
-    assert "service_resolution=not_found" in repr(provider.calls)
+    safe_state_message = next(
+        message.content
+        for message in provider.calls[0]
+        if message.role == "system" and message.content.startswith("Estado conversacional permitido:")
+    )
+    assert "service_resolution=not_found" in safe_state_message

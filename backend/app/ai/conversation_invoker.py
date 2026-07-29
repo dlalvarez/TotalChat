@@ -148,14 +148,17 @@ def update_initial_booking_context(
 
 
 def _safe_context_instruction(context: InitialBookingContext) -> str:
-    parts = [
+    parts: list[str] = []
+    resolution = context.last_relevant_context.get("service_resolution")
+    if resolution in {"identified", "not_found"}:
+        # Keep the resolution first because the runtime deliberately bounds this
+        # safe state instruction to 80 characters.
+        parts.append(f"service_resolution={resolution}")
+    parts.extend([
         f"intent={context.intent.value}",
         f"stage={context.stage.value}",
         f"missing_information={','.join(context.missing_information) or 'none'}",
-    ]
-    resolution = context.last_relevant_context.get("service_resolution")
-    if resolution in {"identified", "not_found"}:
-        parts.append(f"service_resolution={resolution}")
+    ])
     return "; ".join(parts)
 
 
