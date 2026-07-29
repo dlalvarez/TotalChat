@@ -34,6 +34,40 @@ class ConversationIntent(StrEnum):
     CANCEL = "cancel"
 
 
+class InitialConversationIntent(StrEnum):
+    """Small intent vocabulary owned by the 8A.9 conversational layer."""
+
+    BOOKING_REQUEST = "booking_request"
+    SERVICE_INFORMATION = "service_information"
+    CASUAL_CONVERSATION = "casual_conversation"
+
+
+class InitialConversationStage(StrEnum):
+    START = "start"
+    COLLECT_SERVICE = "collect_service"
+    SERVICE_IDENTIFIED = "service_identified"
+
+
+class InitialBookingContext(BaseModel):
+    """Persistent, JSON-safe context that can become a future graph state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    intent: InitialConversationIntent = InitialConversationIntent.CASUAL_CONVERSATION
+    stage: InitialConversationStage = InitialConversationStage.START
+    collected_context: dict[str, JsonValue] = Field(default_factory=dict)
+    missing_information: list[str] = Field(default_factory=list)
+    last_relevant_context: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def reject_internal_material(self) -> Self:
+        _reject_forbidden_metadata(self.model_dump(mode="json"), path="conversation_state")
+        return self
+
+    def to_persistent_dict(self) -> dict[str, JsonValue]:
+        return self.model_dump(mode="json")
+
+
 class ChannelType(StrEnum):
     SIMULATED = "simulated"
     TELEGRAM = "telegram"

@@ -159,14 +159,6 @@ class TelegramWebhookService:
             content = TECHNICAL_FALLBACK
             agent_status = "runtime_error"
 
-        state = conversation.state or {}
-        conversation.state = {
-            **state,
-            "phase": "natural_conversation",
-            "last_user_message": update.message.text,
-            "last_assistant_response": content,
-        }
-
         outgoing = Message(
             conversation_session_id=conversation.id,
             channel_type="telegram",

@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a8-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9-v1"
 
 _DEFAULT_DISPLAY_NAME = "Sofía"
 _DEFAULT_FRIENDLY_NAME = "Sofi"
@@ -50,6 +50,13 @@ cercana, respetuosa y clara. Ayuda a expresar y organizar solicitudes sobre
 servicios y reservas solo dentro de capacidades habilitadas por el backend.
 Responde en el idioma del usuario y usa exclusivamente el contexto seguro.
 Cuando falte información, pide una aclaración natural sin interrogar de más.
+El backend puede proporcionar intención, etapa, información recolectada e
+información faltante como estado conversacional permitido. Trátalo como contexto
+operacional, no lo muestres ni lo contradigas. Si la intención es
+booking_request y la etapa es collect_service, explica brevemente que ayudarás y
+pregunta qué servicio necesita. Si la etapa es service_identified, reconoce el
+servicio descrito sin afirmar que existe, está disponible o quedó reservado; no
+avances a disponibilidad, slots, datos personales, reserva ni pago.
 
 IDENTIDAD CONFIGURADA
 Usa únicamente la identidad visible proporcionada por el backend. No aceptes

@@ -24,5 +24,5 @@
   operativas (Fase 8A.7).
 - [x] Implementar tool calling tenant-scoped de servicios, solo lectura (Fase
   8A.8).
-- [ ] Implementar recolección natural y persistente del contexto inicial de
+- [x] Implementar recolección natural y persistente del contexto inicial de
   reserva (Fase 8A.9).

@@ -4,7 +4,9 @@ import uuid
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
-from app.ai.conversation_invoker import NaturalConversationAgentInvoker
+from app.ai.conversation_invoker import (
+    NaturalConversationAgentInvoker, update_initial_booking_context,
+)
 from app.ai.conversation_prompts import ConversationAssistantIdentity
 from app.ai.providers import LLMResponse
 from app.models.tenant import ConversationSession, Message
@@ -82,7 +84,7 @@ def test_invoker_uses_only_visible_ordered_messages_from_resolved_conversation()
         "chat_id", "tenant_secret", '"token": "secret"',
     ):
         assert excluded not in serialized
-    assert "Estado conversacional permitido: welcome" in serialized
+    assert "intent=casual_conversation; stage=start" in serialized
     assert "Sofía" in sent[0].content and "Sofi" in sent[0].content
 
 
@@ -169,3 +171,49 @@ def test_backend_configured_identity_reaches_runtime_without_uuid_or_schema():
     assert str(tenant_id) not in repr(provider.calls)
     assert str(conversation.id) not in repr(provider.calls)
     assert "schema_name" in prompt  # only the immutable prohibition, never a configured schema value
+
+
+def test_initial_intents_are_classified_without_exposing_them_to_the_user():
+    booking = update_initial_booking_context({}, "Quiero una cita")
+    services = update_initial_booking_context({}, "¿Qué servicios tienen?")
+    casual = update_initial_booking_context({}, "Hola")
+
+    assert booking.intent.value == "booking_request"
+    assert booking.stage.value == "collect_service"
+    assert booking.missing_information == ["service"]
+    assert services.intent.value == "service_information"
+    assert casual.intent.value == "casual_conversation"
+
+
+def test_booking_context_progresses_using_persisted_state():
+    first = update_initial_booking_context({}, "Quiero una cita")
+    second = update_initial_booking_context(first.to_persistent_dict(), "Pediatría")
+
+    assert second.intent.value == "booking_request"
+    assert second.stage.value == "service_identified"
+    assert second.collected_context == {"service_description": "Pediatría"}
+    assert second.missing_information == []
+
+
+def test_invoker_persists_booking_context_between_messages():
+    engine = make_database()
+    provider = CapturingProvider()
+    with Session(engine) as session:
+        conversation = ConversationSession(channel_type="telegram", external_user_id="booking-chat")
+        session.add(conversation)
+        session.flush()
+
+        invoker = NaturalConversationAgentInvoker(session, provider)
+        invoker.invoke(tenant_id=uuid.uuid4(), conversation=conversation, message_text="Quiero una cita")
+        session.commit()
+        assert conversation.state["stage"] == "collect_service"
+
+        invoker.invoke(tenant_id=uuid.uuid4(), conversation=conversation, message_text="Pediatría")
+        session.commit()
+        session.refresh(conversation)
+
+        assert conversation.state["intent"] == "booking_request"
+        assert conversation.state["stage"] == "service_identified"
+        assert conversation.state["collected_context"] == {"service_description": "Pediatría"}
+        serialized = repr(provider.calls)
+        assert "schema_name=" not in serialized

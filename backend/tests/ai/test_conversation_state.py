@@ -12,6 +12,7 @@ from app.ai.conversation_state import (
     ConversationStage,
     PendingField,
     SelectedSlot,
+    InitialBookingContext,
 )
 
 
@@ -127,3 +128,18 @@ def test_serialization_rechecks_mutated_metadata():
 
     with pytest.raises(ValueError, match="schema_name"):
         state.to_redis_json()
+
+
+def test_initial_context_is_json_safe_and_rejects_internal_material():
+    context = InitialBookingContext.model_validate({
+        "intent": "booking_request",
+        "stage": "collect_service",
+        "missing_information": ["service"],
+        "last_relevant_context": {"user_message": "Quiero una cita"},
+    })
+    assert context.to_persistent_dict()["intent"] == "booking_request"
+
+    with pytest.raises(ValidationError, match="schema_name"):
+        InitialBookingContext.model_validate({
+            "last_relevant_context": {"schema_name": "tenant_private"}
+        })

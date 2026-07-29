@@ -60,7 +60,7 @@ def test_intake_invokes_agnostic_runtime_and_persists_exact_provider_content(mon
     assert messages[1].raw_payload == {
         "delivery_status": "pending", "agent_status": "natural_response", "source_update_id": 51001
     }
-    assert conversation.state["last_assistant_response"] == agent.content
+    assert conversation.state == {}
     assert "schema_name" not in repr(agent.calls)
     assert "chat_id" not in repr(agent.calls)
 
@@ -93,16 +93,11 @@ def test_duplicate_update_does_not_reinvoke_runtime(monkeypatch):
     assert len(messages) == 2
 
 
-def test_existing_safe_state_is_preserved_without_booking_fields(monkeypatch):
+def test_channel_does_not_rewrite_existing_conversation_state(monkeypatch):
     agent = AgentSpy()
     engine, update, _ = make_service(monkeypatch, state={"phase": "welcome", "custom": "kept"})
     with Session(engine) as session:
         TelegramWebhookService(session, agent_invoker=agent).process(update, bot_identifier="bot")
         conversation = session.scalars(select(ConversationSession)).one()
 
-    assert conversation.state == {
-        "phase": "natural_conversation",
-        "custom": "kept",
-        "last_user_message": "Hola",
-        "last_assistant_response": agent.content,
-    }
+    assert conversation.state == {"phase": "welcome", "custom": "kept"}

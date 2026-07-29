@@ -153,3 +153,20 @@ El LLM genera la respuesta visible final.
 Telegram no conoce el catálogo, los argumentos ni los resultados. Continúa
 limitándose a persistencia, invocación y entrega. No se habilitan precios,
 disponibilidad, reservas, pagos ni otras tools.
+
+## Fase 8A.9 — contexto conversacional inicial de reservas
+
+El invoker común clasifica cada turno dentro del vocabulario cerrado
+`booking_request | service_information | casual_conversation`, combinando el
+mensaje con el estado tenant-scoped ya persistido. El estado JSON permitido
+contiene solo `intent`, `stage`, `collected_context`, `missing_information` y
+`last_relevant_context`. Una solicitud de cita avanza a `collect_service` y, en
+el turno siguiente, la descripción natural del servicio avanza a
+`service_identified`.
+
+El estado se entrega al runtime como contexto seguro para que el LLM solicite la
+información faltante naturalmente. No se muestra al usuario ni contiene prompts,
+razonamiento, respuestas internas, secretos o `schema_name`. No confirma que el
+servicio exista ni consulta disponibilidad, crea citas, bloquea horarios o
+procesa pagos. Telegram continúa limitado a entrada, persistencia, invocación y
+entrega; no clasifica ni conduce el flujo.
