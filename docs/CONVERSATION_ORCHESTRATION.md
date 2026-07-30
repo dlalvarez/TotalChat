@@ -422,6 +422,13 @@ selección anterior y regresa a `collect_service`.
 existe selección; si ya hay una, conservan `service_identified` sin modificarla.
 El LLM recibe una representación segura de este estado y
 redacta la pregunta o reconocimiento natural, pero no lo expone al usuario.
+Esa representación distingue explícitamente `service_confirmed`,
+`service_resolution`, `service_name` validado y `candidate_service`. El candidato
+es solo una mención: no prueba existencia ni autoriza afirmar que un servicio
+está configurado. La respuesta visible solo puede reconocer una entidad cuando
+el backend comunica `service_confirmed=true`, `service_resolution=identified` y
+el nombre validado, o cuando una consulta `search_services` del mismo turno
+devuelve el hecho correspondiente.
 
 Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
 servicio antes de identificarlo. No guarda prompts, razonamiento,
@@ -439,6 +446,10 @@ Las consultas informativas actualizan `candidate_service` sin reemplazar
 confirmado: indica `continue_booking` cuando existe servicio seleccionado o
 `collect_service` cuando falta. Es una orientación no transaccional y nunca
 implica que exista una reserva, disponibilidad o próxima operación habilitada.
+8A.9 tampoco recolecta fecha, hora, preferencias de horario, sede ni datos
+personales, y no promete consultar disponibilidad, separar o crear una cita. El
+runtime aplica una protección cerrada para sustituir una salida del provider que
+contradiga estas fronteras por una aclaración segura basada en el estado backend.
 Una exploración nunca modifica entidades confirmadas. Solo `select` o
 `confirm_candidate`, propuestos por interpretación LLM y validados por el backend,
 pueden crear o reemplazar `selected_service`. Una respuesta ambigua conserva el

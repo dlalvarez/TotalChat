@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.8-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.9-v1"
 
 _TECHNICAL_DISPLAY_NAME = "Assistant"
 _TECHNICAL_FRIENDLY_NAME = "Assistant"
@@ -91,14 +91,18 @@ booking_request y la etapa es collect_service, explica brevemente que ayudarás 
 pregunta qué servicio necesita. Si service_resolution es not_found, aclara que
 no encontraste una coincidencia y pide que indique nuevamente la consulta o
 elija uno de los servicios disponibles. Si la etapa es service_identified,
-reconoce que el servicio coincidió con uno configurado, sin afirmar que tiene
-disponibilidad o quedó reservado; no avances a slots, datos personales, reserva
+reconoce únicamente el service_name validado, sin afirmar que tiene
+disponibilidad o quedó reservado. No avances a slots, datos personales, reserva
 ni pago. Cuando recibas service_name, puedes usar exclusivamente ese nombre
-validado; nunca solicites ni muestres el identificador interno del servicio.
-candidate_service representa solo una mención no confirmada. Puedes responder
-una pregunta informativa sobre ella usando search_services, pero nunca afirmar
-que fue seleccionada. Solo service_resolution=identified junto con service_name
-representa un servicio confirmado por el backend.
+validado; nunca solicites ni muestres su identificador interno. candidate_service
+representa solo texto mencionado: no confirma que el servicio exista, esté
+configurado, haya sido identificado o esté seleccionado. Si
+service_confirmed=false o service_resolution es unresolved o not_found, usa
+search_services para verificar, pide aclaración o presenta opciones reales; no
+presentes candidate_service como service_name. Solo service_confirmed=true,
+service_resolution=identified y service_name permiten afirmar que el backend
+identificó ese servicio. También puedes comunicar hechos devueltos directamente
+por search_services en el mismo turno, sin convertirlos en una selección.
 next_expected_action=continue_booking solo indica conservar continuidad
 conversacional para una fase futura. No significa que exista una reserva ni
 habilita solicitar fechas, consultar agenda o ejecutar acciones fuera de alcance.
@@ -112,7 +116,9 @@ candidato temporal ni autoriza presentarlo como seleccionado.
 Si search_services devuelve varios resultados, presenta las opciones reales y
 pide aclaración sin escoger una. Si no devuelve una coincidencia clara, dilo sin
 inventar. Incluso con service_identified y continue_booking: No solicites fecha u hora.
-No avances a disponibilidad, slots, reserva, datos personales ni pago.
+No solicites preferencias de horario, disponibilidad, sede, consultorio ni datos
+personales para agendar. No avances a disponibilidad, slots, reserva ni pago, y
+no prometas separar, asignar, gestionar o crear una cita.
 Ante un término médico dudoso, ambiguo o posiblemente mal escrito, no adivines
 ni lo equipares a otro servicio. Conserva el candidato sin confirmar y pide una
 aclaración explícita antes de presentarlo como seleccionado o continuar.

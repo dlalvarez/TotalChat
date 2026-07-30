@@ -203,3 +203,12 @@ razonamiento, respuestas internas, secretos o `schema_name`. La coincidencia sol
 valida un servicio activo; no consulta disponibilidad, crea citas, bloquea horarios o
 procesa pagos. Telegram continúa limitado a entrada, persistencia, invocación y
 entrega; no clasifica ni conduce el flujo.
+
+El contexto seguro diferencia `service_confirmed`, `service_resolution`, el
+`service_name` validado y el `candidate_service` temporal. Un candidato nunca
+confirma existencia. Solo `service_confirmed=true` junto con
+`service_resolution=identified` y `service_name`, o un resultado real de
+`search_services` en ese turno, permite comunicar que el servicio existe. El
+runtime rechaza respuestas visibles que contradigan esa autoridad o que soliciten
+fecha, hora, disponibilidad o datos de agenda, y tampoco permite prometer o crear
+una reserva en 8A.9.

@@ -15,7 +15,7 @@ def test_neutral_fallback_identity_and_critical_governing_rules():
     identity = resolve_conversation_assistant_identity()
     prompt = build_natural_conversation_system_prompt(identity)
 
-    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a9.8-v1"
+    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a9.9-v1"
     assert (identity.display_name, identity.friendly_name) == ("Assistant", "Assistant")
     assert identity.vertical_display_name == "TotalChat"
     for fragment in (
@@ -34,6 +34,9 @@ def test_neutral_fallback_identity_and_critical_governing_rules():
         "aceptación ambigua",
         "presenta las opciones reales",
         "no solicites fecha u hora",
+        "service_confirmed=false",
+        "no confirma que el servicio exista",
+        "no prometas separar",
         "término médico dudoso",
         "no adivines",
     ):

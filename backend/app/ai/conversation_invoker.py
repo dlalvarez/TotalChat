@@ -16,6 +16,7 @@ from app.ai.conversation_prompts import (
 )
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
+    ConversationResponseGuard,
     ConversationTurnRequest,
     ConversationTurnResult,
     NaturalConversationRuntime,
@@ -110,6 +111,7 @@ class NaturalConversationAgentInvoker:
                 message_text=message_text,
                 recent_messages=recent_messages,
                 conversation_phase=_safe_context_instruction(context),
+                response_guard=_response_guard(context),
                 assistant_identity=self._assistant_identity,
             )
         )
@@ -272,16 +274,17 @@ def _load_initial_context(persisted_state: dict) -> InitialBookingContext:
 
 
 def _safe_context_instruction(context: InitialBookingContext) -> str:
-    parts: list[str] = []
-    resolution = context.last_relevant_context.get("service_resolution")
-    if resolution in {"identified", "not_found"}:
-        # Keep the resolution first because the runtime deliberately bounds this
-        # safe state instruction to 80 characters.
-        parts.append(f"service_resolution={resolution}")
+    resolution = _safe_service_resolution(context)
+    parts = [
+        f"service_confirmed={'true' if context.selected_service is not None else 'false'}",
+        f"service_resolution={resolution}",
+    ]
     if context.selected_service is not None:
-        parts.append(f"service_name={context.selected_service.name}")
-    elif context.candidate_service is not None:
-        parts.append(f"candidate_service={context.candidate_service.name}")
+        parts.append(f"service_name={_safe_context_value(context.selected_service.name)}")
+    if context.candidate_service is not None:
+        parts.append(
+            f"candidate_service={_safe_context_value(context.candidate_service.name)}"
+        )
     parts.extend([
         f"intent={context.intent.value}",
         f"stage={context.stage.value}",
@@ -289,6 +292,35 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
         f"next_expected_action={context.conversation_progress.next_expected_action or 'none'}",
     ])
     return "; ".join(parts)
+
+
+def _safe_service_resolution(context: InitialBookingContext) -> str:
+    resolution = context.last_relevant_context.get("service_resolution")
+    if resolution == "not_found":
+        return "not_found"
+    if context.selected_service is not None:
+        return "identified"
+    return "unresolved"
+
+
+def _response_guard(context: InitialBookingContext) -> ConversationResponseGuard:
+    return ConversationResponseGuard(
+        service_confirmed=context.selected_service is not None,
+        service_resolution=_safe_service_resolution(context),
+        service_name=(
+            context.selected_service.name if context.selected_service is not None else None
+        ),
+        candidate_service=(
+            context.candidate_service.name if context.candidate_service is not None else None
+        ),
+    )
+
+
+def _safe_context_value(value: str) -> str:
+    """Keep validated display text from becoming a second system instruction."""
+
+    translation = str.maketrans({";": " ", "\n": " ", "\r": " ", "\t": " "})
+    return " ".join(value.translate(translation).split())[:200]
 
 
 def _load_visible_history(session: Session, conversation_id: UUID) -> list[Message]:

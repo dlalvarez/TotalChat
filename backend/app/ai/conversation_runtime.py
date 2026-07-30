@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import logging
+import re
 from types import MappingProxyType
 from typing import Any, Mapping
 from uuid import UUID
@@ -26,6 +27,17 @@ TECHNICAL_FALLBACK = (
 )
 MAX_CONTEXT_MESSAGES = 8
 MAX_MESSAGE_CHARS = 2_000
+MAX_SAFE_STATE_CHARS = 500
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationResponseGuard:
+    """Backend facts used only to reject visibly unsupported responses."""
+
+    service_confirmed: bool = False
+    service_resolution: str = "unresolved"
+    service_name: str | None = None
+    candidate_service: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +55,7 @@ class ConversationTurnRequest:
     message_text: str
     recent_messages: tuple[ConversationContextMessage, ...] = ()
     conversation_phase: str | None = None
+    response_guard: ConversationResponseGuard | None = None
     assistant_identity: ConversationAssistantIdentity = field(
         default_factory=resolve_conversation_assistant_identity
     )
@@ -71,6 +84,7 @@ class NaturalConversationRuntime:
 
     def run(self, request: ConversationTurnRequest) -> ConversationTurnResult:
         messages = self._build_messages(request)
+        grounded_by_service_tool = False
         try:
             if self._tool_registry is None:
                 response = self._llm_provider.complete(messages)
@@ -86,6 +100,7 @@ class NaturalConversationRuntime:
                     tool_result = self._tool_registry.execute(
                         tool_call.name, tool_call.arguments
                     )
+                    grounded_by_service_tool = bool(tool_result.get("services"))
                     messages.extend((
                         LLMMessage(role="assistant", content=None, tool_calls=(tool_call,)),
                         LLMMessage(
@@ -98,6 +113,12 @@ class NaturalConversationRuntime:
             content = response.content
             if not isinstance(content, str) or not content.strip():
                 raise ValueError("unusable provider content")
+            if request.response_guard is not None and _violates_response_guard(
+                content,
+                request.response_guard,
+                grounded_by_service_tool=grounded_by_service_tool,
+            ):
+                content = _guarded_booking_response(request.response_guard)
         except Exception:
             # Do not log exception values: provider errors can contain request or
             # credential material. The visible response is deliberately generic.
@@ -122,7 +143,10 @@ class NaturalConversationRuntime:
         if request.conversation_phase:
             messages.append(LLMMessage(
                 role="system",
-                content=f"Estado conversacional permitido: {request.conversation_phase[:80]}",
+                content=(
+                    "Estado conversacional permitido: "
+                    f"{request.conversation_phase[:MAX_SAFE_STATE_CHARS]}"
+                ),
             ))
         for item in request.recent_messages[-MAX_CONTEXT_MESSAGES:]:
             if item.role in {"user", "assistant"} and item.content.strip():
@@ -132,3 +156,75 @@ class NaturalConversationRuntime:
                 ))
         messages.append(LLMMessage(role="user", content=request.message_text[:MAX_MESSAGE_CHARS]))
         return messages
+
+
+_OUT_OF_SCOPE_REQUEST_PATTERN = re.compile(
+    r"(?:\b(?:dime|indica(?:me)?|necesito|confirma(?:me)?)\b[^.!?]{0,45}"
+    r"\b(?:fecha|hora|d[ií]a|horario|disponibilidad|datos personales|documento|tel[eé]fono)\b|"
+    r"\b(?:qu[eé]|cu[aá]l)\s+(?:fecha|hora|d[ií]a|horario)\b|"
+    r"\b(?:prefieres|te gustar[ií]a|quisieras)\b[^.!?]{0,45}"
+    r"\b(?:fecha|hora|d[ií]a|horario)\b)",
+    re.IGNORECASE,
+)
+_OUT_OF_SCOPE_PROMISE_PATTERN = re.compile(
+    r"\b(?:voy a (?:revisar|consultar|buscar) (?:la )?disponibilidad|"
+    r"separar[eé]|reservar[eé]|agendar[eé]|"
+    r"(?:puedo|podemos) (?:separar|reservar|agendar|gestionar|crear)|"
+    r"tu cita qued[oó] (?:reservada|agendada|confirmada))\b",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_SERVICE_CONFIRMATION_PATTERN = re.compile(
+    r"\b(?:coincid\w*|configurad[oa]s?|confirmad[oa]s?|identificad[oa]s?|"
+    r"existe(?:n)?|tenemos)\b",
+    re.IGNORECASE,
+)
+
+
+def _violates_response_guard(
+    content: str,
+    guard: ConversationResponseGuard,
+    *,
+    grounded_by_service_tool: bool,
+) -> bool:
+    """Apply a closed safety check; this does not interpret the user message."""
+
+    if _OUT_OF_SCOPE_REQUEST_PATTERN.search(content):
+        return True
+    if _OUT_OF_SCOPE_PROMISE_PATTERN.search(content):
+        return True
+    candidate_is_unconfirmed = (
+        guard.candidate_service is not None
+        and (
+            guard.service_name is None
+            or guard.candidate_service.casefold() != guard.service_name.casefold()
+        )
+    )
+    confirmation_is_unsupported = (
+        not guard.service_confirmed
+        or guard.service_resolution != "identified"
+        or candidate_is_unconfirmed
+    )
+    return bool(
+        confirmation_is_unsupported
+        and not grounded_by_service_tool
+        and _UNSUPPORTED_SERVICE_CONFIRMATION_PATTERN.search(content)
+    )
+
+
+def _guarded_booking_response(guard: ConversationResponseGuard) -> str:
+    """Return deterministic, bounded language when provider output violates 8A.9."""
+
+    if guard.service_confirmed and guard.service_name:
+        return (
+            f"Tengo identificado el servicio {guard.service_name}. En esta etapa todavía "
+            "no puedo consultar disponibilidad ni crear la cita desde aquí."
+        )
+    if guard.service_resolution == "not_found":
+        return (
+            "No encontré una coincidencia clara para ese servicio. "
+            "¿Quieres revisar otro servicio disponible?"
+        )
+    return (
+        "Ese servicio aún no está confirmado. Puedo ayudarte a aclarar cuál necesitas "
+        "o a revisar las opciones disponibles."
+    )

@@ -5,7 +5,9 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from app.ai.conversation_invoker import (
-    NaturalConversationAgentInvoker, update_initial_booking_context,
+    NaturalConversationAgentInvoker,
+    _safe_context_instruction,
+    update_initial_booking_context,
 )
 from app.ai.conversation_prompts import ConversationAssistantIdentity
 from app.ai.providers import LLMResponse
@@ -347,6 +349,11 @@ def test_information_turn_keeps_existing_confirmed_service_until_new_selection()
     assert price_question.selected_service == selected.selected_service
     assert price_question.candidate_service.name == "Neurología"
     assert price_question.intent.value == "service_information"
+    safe_context = _safe_context_instruction(price_question)
+    assert "service_confirmed=true" in safe_context
+    assert "service_resolution=identified" in safe_context
+    assert "service_name=Consulta pediátrica" in safe_context
+    assert "candidate_service=Neurología" in safe_context
     assert changed.selected_service.id == repository.records[1].service_id
 
 
@@ -451,5 +458,6 @@ def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_outp
         )
 
     assert conversation.state["selected_service"]["name"] == "Pediatría"
-    assert "candidate_service=Pediatría" not in repr(provider.calls[-1])
+    assert "candidate_service=Pediatría" in repr(provider.calls[-1])
+    assert "service_confirmed=true" in repr(provider.calls[-1])
     assert str(repository.record.service_id) not in repr(provider.calls)

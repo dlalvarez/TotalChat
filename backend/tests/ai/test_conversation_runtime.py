@@ -10,6 +10,7 @@ from app.ai.conversation_prompts import (
 )
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
+    ConversationResponseGuard,
     ConversationTurnRequest,
     MAX_CONTEXT_MESSAGES,
     NaturalConversationRuntime,
@@ -36,13 +37,14 @@ class FakeProvider:
         )
 
 
-def request(text="Hola", *, history=(), phase=None, identity=None):
+def request(text="Hola", *, history=(), phase=None, identity=None, response_guard=None):
     return ConversationTurnRequest(
         tenant_id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
         message_text=text,
         recent_messages=history,
         conversation_phase=phase,
+        response_guard=response_guard,
         assistant_identity=identity or resolve_conversation_assistant_identity(),
     )
 
@@ -56,7 +58,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.8-v1",
+        "system_prompt_version": "8a9.9-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
@@ -164,3 +166,78 @@ def test_confirmed_service_context_does_not_enable_date_or_availability_collecti
     system_prompt = provider.calls[0][0].content.lower()
     assert "no solicites fecha u hora" in system_prompt
     assert "no avances a disponibilidad" in system_prompt
+
+
+def test_unconfirmed_candidate_cannot_be_presented_as_configured_service():
+    provider = FakeProvider(
+        content="El servicio de neurología coincide con uno configurado."
+    )
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="unresolved",
+        candidate_service="neurología",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "¿Tienen neurología?",
+        phase=(
+            "service_confirmed=false; service_resolution=unresolved; "
+            "candidate_service=neurología; stage=collect_service"
+        ),
+        response_guard=guard,
+    ))
+
+    assert result.content.startswith("Ese servicio aún no está confirmado")
+    assert "coincide con uno configurado" not in result.content
+    prompt = provider.calls[0][0].content.lower()
+    assert "candidate_service representa solo texto mencionado" in prompt
+    assert "no confirma que el servicio exista" in prompt
+
+
+def test_not_found_context_cannot_produce_visible_service_confirmation():
+    provider = FakeProvider(content="Tenemos ese servicio y está confirmado.")
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="not_found",
+        candidate_service="neurología",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "Quiero neurología",
+        phase=(
+            "service_confirmed=false; service_resolution=not_found; "
+            "candidate_service=neurología; stage=collect_service"
+        ),
+        response_guard=guard,
+    ))
+
+    assert result.content.startswith("No encontré una coincidencia clara")
+    assert "confirmado" not in result.content
+
+
+def test_confirmed_service_cannot_trigger_date_or_time_collection():
+    provider = FakeProvider(
+        content="Para continuar, dime qué fecha y hora prefieres."
+    )
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="identified",
+        service_name="Consulta pediátrica",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "Sí, sepárame una cita, dime qué necesitas",
+        phase=(
+            "service_confirmed=true; service_resolution=identified; "
+            "service_name=Consulta pediátrica; stage=service_identified; "
+            "next_expected_action=continue_booking"
+        ),
+        response_guard=guard,
+    ))
+
+    assert result.content == (
+        "Tengo identificado el servicio Consulta pediátrica. En esta etapa todavía "
+        "no puedo consultar disponibilidad ni crear la cita desde aquí."
+    )
+    assert "fecha" not in result.content.lower()
+    assert "hora" not in result.content.lower()
