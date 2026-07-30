@@ -82,6 +82,15 @@ def test_resolved_tenant_registry_never_crosses_repositories():
     assert str(tenant_a) not in repr(provider_a.calls)
     assert str(tenant_b) not in repr(provider_b.calls)
 
+    resolved_a = ConversationToolRegistry(
+        tenant_id=tenant_a, repository=TenantRepository("Pediatría")
+    ).resolve_service("Pediatría")
+    resolved_b = ConversationToolRegistry(
+        tenant_id=tenant_b, repository=TenantRepository("Nutrición")
+    ).resolve_service("Pediatría")
+    assert resolved_a is not None
+    assert resolved_b is None
+
 
 @pytest.mark.parametrize("query", ["Pediatría", "Pediatria", "pediatria", "PEDIATRIA"])
 def test_booking_service_resolution_is_accent_and_case_insensitive(query):

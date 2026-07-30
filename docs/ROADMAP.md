@@ -210,7 +210,9 @@ Entregables:
   argumentos cerrados y resultado visible sin UUID ni datos de infraestructura.
 - **Fase 8A.9 — Contexto inicial de reserva.** Estado: implementada. Incorpora
   intención, etapa, contexto recolectado e información faltante persistentes,
-  sin adelantar disponibilidad, reservas, pagos o LangGraph.
+  además de una referencia backend estable al servicio validado que puede
+  reemplazarse ante cambios explícitos, sin exponer UUID ni adelantar
+  disponibilidad, reservas, pagos o LangGraph.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se

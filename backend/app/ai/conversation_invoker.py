@@ -23,6 +23,7 @@ from app.ai.conversation_state import (
     InitialBookingContext,
     InitialConversationIntent,
     InitialConversationStage,
+    SelectedConversationService,
 )
 from app.ai.providers import LLMProvider
 from app.ai.service_tools import ServiceRepository
@@ -98,6 +99,7 @@ def update_initial_booking_context(
         current = InitialBookingContext()
 
     normalized = _normalize(message_text)
+    current_has_booking_language = _contains_any(normalized, _BOOKING_MARKERS)
     if current.intent is InitialConversationIntent.BOOKING_REQUEST:
         intent = current.intent
     elif _contains_any(normalized, _BOOKING_MARKERS):
@@ -107,27 +109,52 @@ def update_initial_booking_context(
     else:
         intent = InitialConversationIntent.CASUAL_CONVERSATION
 
+    selected_service = current.selected_service
     collected = dict(current.collected_context)
+    if selected_service is None and current.stage is InitialConversationStage.SERVICE_IDENTIFIED:
+        legacy_id = collected.get("service_id")
+        legacy_name = collected.get("service_name")
+        if isinstance(legacy_id, str) and isinstance(legacy_name, str):
+            try:
+                selected_service = SelectedConversationService(id=UUID(legacy_id), name=legacy_name)
+                collected = {"service_name": legacy_name}
+            except ValueError:
+                selected_service = None
     resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
-        if current.stage is InitialConversationStage.COLLECT_SERVICE and normalized:
+        should_resolve = (
+            current.stage is InitialConversationStage.COLLECT_SERVICE and bool(normalized)
+        ) or (
+            current.stage is InitialConversationStage.SERVICE_IDENTIFIED
+            and (
+                (current_has_booking_language and _has_service_candidate(normalized))
+                or _contains_any(normalized, _SERVICE_CHANGE_MARKERS)
+            )
+        )
+        if should_resolve:
             match = resolve_service(message_text) if resolve_service is not None else None
             if match is None:
+                selected_service = None
                 collected = {}
                 stage = InitialConversationStage.COLLECT_SERVICE
                 missing: list[str] = ["service"]
                 resolution = "not_found"
             else:
-                collected = {
-                    "service_id": str(match.service_id),
-                    "service_name": match.name,
-                }
+                selected_service = SelectedConversationService(
+                    id=match.service_id, name=match.name
+                )
+                collected = {"service_name": match.name}
                 stage = InitialConversationStage.SERVICE_IDENTIFIED
                 missing = []
                 resolution = "identified"
         elif current.stage is InitialConversationStage.SERVICE_IDENTIFIED:
-            stage = current.stage
-            missing = []
+            if selected_service is None:
+                collected = {}
+                stage = InitialConversationStage.COLLECT_SERVICE
+                missing = ["service"]
+            else:
+                stage = current.stage
+                missing = []
         else:
             stage = InitialConversationStage.COLLECT_SERVICE
             missing = ["service"]
@@ -138,6 +165,7 @@ def update_initial_booking_context(
     return InitialBookingContext(
         intent=intent,
         stage=stage,
+        selected_service=selected_service,
         collected_context=collected,
         missing_information=missing,
         last_relevant_context={
@@ -154,6 +182,8 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
         # Keep the resolution first because the runtime deliberately bounds this
         # safe state instruction to 80 characters.
         parts.append(f"service_resolution={resolution}")
+    if context.selected_service is not None:
+        parts.append(f"service_name={context.selected_service.name}")
     parts.extend([
         f"intent={context.intent.value}",
         f"stage={context.stage.value}",
@@ -173,6 +203,10 @@ def _contains_any(value: str, markers: tuple[re.Pattern[str], ...]) -> bool:
     return any(marker.search(value) for marker in markers)
 
 
+def _has_service_candidate(value: str) -> bool:
+    return any(token not in _SERVICE_REQUEST_FILLER for token in value.split())
+
+
 _BOOKING_MARKERS = tuple(re.compile(pattern) for pattern in (
     r"\b(cita|reserv(?:a|ar|acion)|agend(?:a|ar)|turno)\b",
     r"\bquiero\s+(?:una|un)\s+(?:cita|turno)\b",
@@ -181,6 +215,12 @@ _SERVICE_INFORMATION_MARKERS = tuple(re.compile(pattern) for pattern in (
     r"\bque\s+servicios?\b", r"\bservicios?\s+(?:tienen|ofrecen|disponibles)\b",
     r"\binformacion\s+(?:de|sobre)\s+(?:los\s+)?servicios?\b",
 ))
+_SERVICE_CHANGE_MARKERS = tuple(re.compile(pattern) for pattern in (
+    r"\b(cambi(?:ar|o)|prefiero|mejor|otro|otra)\b",
+))
+_SERVICE_REQUEST_FILLER = {
+    "a", "agendar", "cita", "en", "la", "para", "quiero", "reservar", "turno", "un", "una",
+}
 
 
 def _load_visible_history(session: Session, conversation_id: UUID) -> list[Message]:

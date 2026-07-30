@@ -383,6 +383,7 @@ serializable, preparado para convertirse posteriormente en estado de LangGraph:
 ```text
 intent
 stage
+selected_service (referencia interna y nombre)
 collected_context
 missing_information
 last_relevant_context
@@ -394,6 +395,9 @@ siguiente conserva esa intención y resuelve la descripción contra servicios
 activos del tenant mediante la capacidad backend existente; solo una coincidencia
 única avanza a `service_identified` y persiste su referencia interna y nombre.
 Sin coincidencia, permanece en `collect_service` y solicita aclaración.
+Una solicitud explícita de cambio vuelve a resolver el servicio. Una coincidencia
+reemplaza por completo `selected_service`; un cambio sin coincidencia elimina la
+selección anterior y regresa a `collect_service`.
 `service_information` y `casual_conversation`
 permanecen en `start`. El LLM recibe una representación segura de este estado y
 redacta la pregunta o reconocimiento natural, pero no lo expone al usuario.
@@ -403,3 +407,6 @@ servicio antes de identificarlo. No guarda prompts, razonamiento,
 respuestas internas, secretos ni `schema_name`; tampoco habilita disponibilidad,
 slots, creación o confirmación de citas, pagos, nuevas tools o un grafo. Telegram
 continúa siendo exclusivamente entrada/salida.
+El UUID de `selected_service` permanece únicamente en el estado backend. El LLM
+recibe solo `service_resolution` y el nombre validado; canales y texto visible no
+reciben el UUID.

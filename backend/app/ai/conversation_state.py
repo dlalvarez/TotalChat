@@ -48,6 +48,15 @@ class InitialConversationStage(StrEnum):
     SERVICE_IDENTIFIED = "service_identified"
 
 
+class SelectedConversationService(BaseModel):
+    """Stable backend-only reference to a tenant-validated service."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    name: str = Field(min_length=1, max_length=200)
+
+
 class InitialBookingContext(BaseModel):
     """Persistent, JSON-safe context that can become a future graph state."""
 
@@ -55,6 +64,7 @@ class InitialBookingContext(BaseModel):
 
     intent: InitialConversationIntent = InitialConversationIntent.CASUAL_CONVERSATION
     stage: InitialConversationStage = InitialConversationStage.START
+    selected_service: SelectedConversationService | None = None
     collected_context: dict[str, JsonValue] = Field(default_factory=dict)
     missing_information: list[str] = Field(default_factory=list)
     last_relevant_context: dict[str, JsonValue] = Field(default_factory=dict)

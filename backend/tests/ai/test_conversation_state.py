@@ -13,6 +13,7 @@ from app.ai.conversation_state import (
     PendingField,
     SelectedSlot,
     InitialBookingContext,
+    SelectedConversationService,
 )
 
 
@@ -131,13 +132,19 @@ def test_serialization_rechecks_mutated_metadata():
 
 
 def test_initial_context_is_json_safe_and_rejects_internal_material():
+    service_id = uuid4()
     context = InitialBookingContext.model_validate({
         "intent": "booking_request",
-        "stage": "collect_service",
-        "missing_information": ["service"],
-        "last_relevant_context": {"user_message": "Quiero una cita"},
+        "stage": "service_identified",
+        "selected_service": {"id": str(service_id), "name": "Pediatría"},
+        "collected_context": {"service_name": "Pediatría"},
+        "last_relevant_context": {"user_message": "Pediatría"},
     })
     assert context.to_persistent_dict()["intent"] == "booking_request"
+    assert context.selected_service == SelectedConversationService(
+        id=service_id, name="Pediatría"
+    )
+    assert context.to_persistent_dict()["selected_service"]["id"] == str(service_id)
 
     with pytest.raises(ValidationError, match="schema_name"):
         InitialBookingContext.model_validate({

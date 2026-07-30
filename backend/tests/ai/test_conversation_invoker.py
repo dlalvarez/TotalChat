@@ -9,7 +9,7 @@ from app.ai.conversation_invoker import (
 )
 from app.ai.conversation_prompts import ConversationAssistantIdentity
 from app.ai.providers import LLMResponse
-from app.ai.conversation_tools import ResolvedConversationService
+from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversationService
 from app.ai.service_tools import ServiceRecord
 from app.models.tenant import ConversationSession, Message
 
@@ -200,9 +200,10 @@ def test_booking_context_progresses_using_persisted_state():
 
     assert second.intent.value == "booking_request"
     assert second.stage.value == "service_identified"
-    assert second.collected_context == {
-        "service_id": str(service_id), "service_name": "Consulta pediátrica"
-    }
+    assert second.selected_service is not None
+    assert second.selected_service.id == service_id
+    assert second.selected_service.name == "Consulta pediátrica"
+    assert second.collected_context == {"service_name": "Consulta pediátrica"}
     assert second.missing_information == []
 
 
@@ -228,26 +229,29 @@ def test_invoker_persists_booking_context_between_messages():
 
         assert conversation.state["intent"] == "booking_request"
         assert conversation.state["stage"] == "service_identified"
-        assert conversation.state["collected_context"] == {
-            "service_id": str(repository.record.service_id),
-            "service_name": "Consulta pediátrica",
+        assert conversation.state["selected_service"] == {
+            "id": str(repository.record.service_id), "name": "Consulta pediátrica",
         }
+        assert conversation.state["collected_context"] == {"service_name": "Consulta pediátrica"}
         serialized = repr(provider.calls)
         assert "schema_name=" not in serialized
+        assert str(repository.record.service_id) not in serialized
+        assert "service_name=Consulta pediátrica" in serialized
 
 
 class BookingServiceRepository:
-    def __init__(self, name: str):
-        self.record = ServiceRecord(
-            service_id=uuid.uuid4(), name=name, description="Pediatría",
+    def __init__(self, name: str, *additional_names: str):
+        self.records = [ServiceRecord(
+            service_id=uuid.uuid4(), name=service_name, description=service_name,
             duration_minutes=30, practitioner_id=uuid.uuid4(), practitioner_name="Dra. Ana",
             organization_id=uuid.uuid4(), organization_name="Clínica",
-        )
+        ) for service_name in (name, *additional_names)]
+        self.record = self.records[0]
         self.queries = []
 
     def list_active(self, **filters):
         self.queries.append(filters)
-        return [self.record]
+        return self.records
 
     def get_active(self, service_id):
         return self.record if service_id == self.record.service_id else None
@@ -262,6 +266,7 @@ def test_unknown_service_stays_in_collection_stage_and_requests_clarification():
     )
 
     assert second.stage.value == "collect_service"
+    assert second.selected_service is None
     assert second.missing_information == ["service"]
     assert second.collected_context == {}
     assert second.last_relevant_context["service_resolution"] == "not_found"
@@ -299,3 +304,67 @@ def test_invoker_surfaces_unknown_service_as_safe_clarification_context():
         if message.role == "system" and message.content.startswith("Estado conversacional permitido:")
     )
     assert "service_resolution=not_found" in safe_state_message
+
+
+def test_explicit_valid_service_change_replaces_selected_entity():
+    repository = BookingServiceRepository("Pediatría", "Neurología")
+    first = update_initial_booking_context({}, "Quiero una cita")
+    pediatrics = update_initial_booking_context(
+        first.to_persistent_dict(), "Pediatría",
+        resolve_service=ConversationToolRegistry(
+            tenant_id=uuid.uuid4(), repository=repository
+        ).resolve_service,
+    )
+
+    neurology = update_initial_booking_context(
+        pediatrics.to_persistent_dict(), "Quiero una cita en Neurología",
+        resolve_service=ConversationToolRegistry(
+            tenant_id=uuid.uuid4(), repository=repository
+        ).resolve_service,
+    )
+
+    assert neurology.stage.value == "service_identified"
+    assert neurology.selected_service is not None
+    assert neurology.selected_service.name == "Neurología"
+    assert neurology.selected_service.id == repository.records[1].service_id
+    assert neurology.collected_context == {"service_name": "Neurología"}
+
+
+def test_explicit_invalid_service_change_clears_previous_selection():
+    service_id = uuid.uuid4()
+    selected = update_initial_booking_context(
+        update_initial_booking_context({}, "Quiero una cita").to_persistent_dict(),
+        "Pediatría",
+        resolve_service=lambda query: ResolvedConversationService(
+            service_id=service_id, name="Pediatría"
+        ),
+    )
+
+    changed = update_initial_booking_context(
+        selected.to_persistent_dict(), "Quiero una cita en CardiologíaXYZ",
+        resolve_service=lambda query: None,
+    )
+
+    assert changed.selected_service is None
+    assert changed.stage.value == "collect_service"
+    assert changed.collected_context == {}
+    assert changed.missing_information == ["service"]
+    assert changed.last_relevant_context["service_resolution"] == "not_found"
+
+
+def test_booking_reiteration_without_new_service_keeps_valid_selection():
+    service_id = uuid.uuid4()
+    selected = update_initial_booking_context(
+        update_initial_booking_context({}, "Quiero una cita").to_persistent_dict(),
+        "Pediatría",
+        resolve_service=lambda query: ResolvedConversationService(
+            service_id=service_id, name="Pediatría"
+        ),
+    )
+
+    unchanged = update_initial_booking_context(
+        selected.to_persistent_dict(), "Quiero una cita", resolve_service=lambda query: None
+    )
+
+    assert unchanged.selected_service == selected.selected_service
+    assert unchanged.stage.value == "service_identified"

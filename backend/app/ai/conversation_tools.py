@@ -152,5 +152,8 @@ def _service_match_score(query: str, candidate: str) -> float:
 
 
 _GENERIC_SERVICE_TOKENS = {
-    "cita", "consulta", "de", "del", "el", "la", "necesito", "servicio", "un", "una",
+    "a", "agendar", "agendo", "cambiar", "cambio", "cita", "consulta", "de", "del",
+    "el", "en", "la",
+    "mejor", "necesito", "otra", "otro", "por", "prefiero", "quiero", "servicio", "un",
+    "reservar", "turno", "una",
 }

@@ -26,3 +26,5 @@
   8A.8).
 - [x] Implementar recolección natural y persistente del contexto inicial de
   reserva (Fase 8A.9).
+- [x] Persistir la referencia interna del servicio validado y resolver cambios
+  explícitos sin exponer UUID al LLM o al canal (corrección Fase 8A.9).
