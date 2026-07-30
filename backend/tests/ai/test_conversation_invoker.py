@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import uuid
 
+import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
