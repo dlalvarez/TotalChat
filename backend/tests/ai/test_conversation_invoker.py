@@ -316,6 +316,7 @@ def test_invoker_persists_confirmed_service_but_never_sends_uuid_to_llm():
         conversation = ConversationSession(channel_type="telegram", external_user_id="booking-chat")
         session.add(conversation)
         session.flush()
+        conversation_id = conversation.id
         invoker = NaturalConversationAgentInvoker(
             session, provider, service_repository=repository,
             proposal_interpreter=lambda context, text: next(proposals),
@@ -327,9 +328,12 @@ def test_invoker_persists_confirmed_service_but_never_sends_uuid_to_llm():
         )
         session.commit()
 
-    assert conversation.state["selected_service"] == {
-        "id": str(repository.record.service_id), "name": "Consulta pediátrica",
-    }
+    with Session(engine) as session:
+        refreshed = session.get(ConversationSession, conversation_id)
+        assert refreshed is not None
+        assert refreshed.state["selected_service"] == {
+            "id": str(repository.record.service_id), "name": "Consulta pediátrica",
+        }
     serialized = repr(provider.calls)
     assert str(repository.record.service_id) not in serialized
     assert "service_name=Consulta pediátrica" in serialized
