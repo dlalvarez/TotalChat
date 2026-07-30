@@ -161,15 +161,27 @@ def test_resolved_tenant_registry_never_crosses_repositories():
 
 
 @pytest.mark.parametrize("query", ["Pediatría", "Pediatria", "pediatria", "PEDIATRIA"])
-def test_booking_service_resolution_is_accent_and_case_insensitive(query):
+def test_related_service_is_suggested_but_not_resolved_by_approximation(query):
     repository = TenantRepository("Consulta pediátrica")
     registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
 
     resolved = registry.resolve_service(query)
+    suggested = registry.suggest_service(query)
+
+    assert resolved is None
+    assert suggested is not None
+    assert suggested.service_id == repository.record.service_id
+    assert suggested.name == "Consulta pediátrica"
+
+
+def test_exact_normalized_service_name_is_identified():
+    repository = TenantRepository("Consulta nefrología")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    resolved = registry.resolve_service("CONSULTA NEFROLOGIA")
 
     assert resolved is not None
     assert resolved.service_id == repository.record.service_id
-    assert resolved.name == "Consulta pediátrica"
 
 
 @pytest.mark.parametrize("query", ["pediatria", "pediatría", "consulta pediatria"])
@@ -193,6 +205,7 @@ def test_resolution_does_not_confuse_distinct_medical_terms(query):
     )
 
     assert registry.resolve_service(query) is None
+    assert registry.suggest_service(query) is None
 
     search = registry.execute("search_services", json.dumps({"query": query}))
     assert search == {"services": []}

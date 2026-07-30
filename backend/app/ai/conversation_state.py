@@ -65,6 +65,14 @@ class CandidateConversationService(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
 
+class SuggestedConversationService(BaseModel):
+    """Real tenant service proposed for confirmation, never selected implicitly."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(min_length=1, max_length=200)
+
+
 class ConversationEntityDecision(StrEnum):
     """Authority requested by a proposal; only explicit decisions may confirm."""
 
@@ -106,6 +114,7 @@ class InitialBookingContext(BaseModel):
     intent: InitialConversationIntent = InitialConversationIntent.CASUAL_CONVERSATION
     stage: InitialConversationStage = InitialConversationStage.START
     candidate_service: CandidateConversationService | None = None
+    suggested_service: SuggestedConversationService | None = None
     selected_service: SelectedConversationService | None = None
     collected_context: dict[str, JsonValue] = Field(default_factory=dict)
     missing_information: list[str] = Field(default_factory=list)

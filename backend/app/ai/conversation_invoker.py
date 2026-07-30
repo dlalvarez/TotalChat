@@ -30,6 +30,7 @@ from app.ai.conversation_state import (
     InitialConversationStage,
     InitialConversationProposal,
     SelectedConversationService,
+    SuggestedConversationService,
 )
 from app.ai.providers import LLMMessage, LLMProvider
 from app.ai.service_tools import ServiceRepository
@@ -93,6 +94,7 @@ class NaturalConversationAgentInvoker:
             message_text,
             proposal=proposal,
             resolve_service=registry.resolve_service,
+            suggest_service=registry.suggest_service,
         )
         conversation.state = context.to_persistent_dict()
         visible_messages = _load_visible_history(self._session, conversation.id)
@@ -144,6 +146,7 @@ def update_initial_booking_context(
     *,
     proposal: InitialConversationProposal,
     resolve_service: Callable[[str], ResolvedConversationService | None] | None = None,
+    suggest_service: Callable[[str], ResolvedConversationService | None] | None = None,
 ) -> InitialBookingContext:
     """Validate an LLM proposal and derive backend-confirmed operational state."""
 
@@ -161,20 +164,47 @@ def update_initial_booking_context(
             except ValueError:
                 selected_service = None
     candidate = proposal.candidate_service or current.candidate_service
+    suggested_service = current.suggested_service
+    if (
+        proposal.candidate_service is not None
+        and current.candidate_service is not None
+        and proposal.candidate_service.name != current.candidate_service.name
+    ):
+        suggested_service = None
     resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
         if can_replace_confirmed_service(proposal) and candidate is not None:
-            match = resolve_service(candidate.name) if resolve_service is not None else None
+            lookup_name = (
+                current.suggested_service.name
+                if (
+                    proposal.service_decision is ConversationEntityDecision.CONFIRM_CANDIDATE
+                    and current.suggested_service is not None
+                )
+                else candidate.name
+            )
+            match = resolve_service(lookup_name) if resolve_service is not None else None
             if match is None:
                 selected_service = None
                 collected = {}
                 stage = InitialConversationStage.COLLECT_SERVICE
                 missing: list[str] = ["service"]
-                resolution = "not_found"
+                suggestion = (
+                    suggest_service(candidate.name)
+                    if suggest_service is not None else None
+                )
+                if suggestion is None:
+                    suggested_service = None
+                    resolution = "not_found"
+                else:
+                    suggested_service = SuggestedConversationService(
+                        name=suggestion.name
+                    )
+                    resolution = "suggested"
             else:
                 selected_service = SelectedConversationService(
                     id=match.service_id, name=match.name
                 )
+                suggested_service = None
                 collected = {"service_name": match.name}
                 stage = InitialConversationStage.SERVICE_IDENTIFIED
                 missing = []
@@ -191,6 +221,17 @@ def update_initial_booking_context(
             stage = InitialConversationStage.COLLECT_SERVICE
             missing = ["service"]
     elif intent is InitialConversationIntent.SERVICE_INFORMATION:
+        if proposal.candidate_service is not None:
+            suggestion = (
+                suggest_service(proposal.candidate_service.name)
+                if suggest_service is not None else None
+            )
+            if suggestion is None:
+                suggested_service = None
+                resolution = "not_found"
+            else:
+                suggested_service = SuggestedConversationService(name=suggestion.name)
+                resolution = "suggested"
         stage = (
             InitialConversationStage.SERVICE_IDENTIFIED
             if selected_service is not None
@@ -217,6 +258,7 @@ def update_initial_booking_context(
         intent=intent,
         stage=stage,
         candidate_service=candidate,
+        suggested_service=suggested_service,
         selected_service=selected_service,
         collected_context=collected,
         missing_information=missing,
@@ -285,6 +327,11 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
         parts.append(
             f"candidate_service={_safe_context_value(context.candidate_service.name)}"
         )
+    if context.suggested_service is not None:
+        parts.append(
+            "suggested_service_name="
+            f"{_safe_context_value(context.suggested_service.name)}"
+        )
     parts.extend([
         f"intent={context.intent.value}",
         f"stage={context.stage.value}",
@@ -296,8 +343,8 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
 
 def _safe_service_resolution(context: InitialBookingContext) -> str:
     resolution = context.last_relevant_context.get("service_resolution")
-    if resolution == "not_found":
-        return "not_found"
+    if resolution in {"not_found", "suggested"}:
+        return resolution
     if context.selected_service is not None:
         return "identified"
     return "unresolved"
@@ -314,6 +361,10 @@ def _response_guard(context: InitialBookingContext) -> ConversationResponseGuard
         candidate_service=(
             _safe_context_value(context.candidate_service.name)
             if context.candidate_service is not None else None
+        ),
+        suggested_service_name=(
+            _safe_context_value(context.suggested_service.name)
+            if context.suggested_service is not None else None
         ),
         intent=context.intent.value,
     )

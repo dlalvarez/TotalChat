@@ -270,6 +270,59 @@ def resolver(repository):
     ).resolve_service
 
 
+def suggester(repository):
+    return ConversationToolRegistry(
+        tenant_id=uuid.uuid4(), repository=repository
+    ).suggest_service
+
+
+def test_related_service_is_persisted_as_suggestion_without_selection():
+    repository = BookingServiceRepository("Consulta pediátrica")
+
+    context = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero una cita con pediatría",
+        proposal=proposal("booking_request", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert context.selected_service is None
+    assert context.suggested_service.name == "Consulta pediátrica"
+    assert context.stage.value == "collect_service"
+    assert context.conversation_progress.service_confirmed is False
+    assert context.last_relevant_context["service_resolution"] == "suggested"
+    safe_context = _safe_context_instruction(context)
+    assert "service_confirmed=false" in safe_context
+    assert "service_resolution=suggested" in safe_context
+    assert "candidate_service=pediatría" in safe_context
+    assert "suggested_service_name=Consulta pediátrica" in safe_context
+
+
+def test_explicit_confirmation_promotes_prior_suggested_service():
+    repository = BookingServiceRepository("Consulta pediátrica")
+    suggested = update_initial_booking_context(
+        InitialBookingContext(),
+        "¿Tienen pediatría?",
+        proposal=proposal("service_information", "pediatría"),
+        suggest_service=suggester(repository),
+    )
+
+    confirmed = update_initial_booking_context(
+        suggested,
+        "Sí, ese",
+        proposal=proposal("booking_request", decision="confirm_candidate"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert confirmed.suggested_service is None
+    assert confirmed.selected_service.id == repository.record.service_id
+    assert confirmed.selected_service.name == "Consulta pediátrica"
+    assert confirmed.conversation_progress.service_confirmed is True
+    assert confirmed.last_relevant_context["service_resolution"] == "identified"
+
+
 def test_booking_proposal_is_validated_and_persists_confirmed_service():
     repository = BookingServiceRepository("Consulta pediátrica")
     collecting = update_initial_booking_context(
@@ -320,10 +373,12 @@ def test_clinically_risky_typo_stays_unresolved_until_explicit_confirmation():
         InitialBookingContext(), "Quiero nuerología",
         proposal=proposal("booking_request", "nuerología"),
         resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
     )
 
     assert unresolved.candidate_service.name == "nuerología"
     assert unresolved.selected_service is None
+    assert unresolved.suggested_service is None
     assert unresolved.stage.value == "collect_service"
     assert unresolved.conversation_progress.service_confirmed is False
     assert unresolved.conversation_progress.next_expected_action == "collect_service"

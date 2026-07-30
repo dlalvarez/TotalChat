@@ -154,9 +154,10 @@ La consulta informativa usa el mismo ranking normalizado y conservador que la
 resolución conversacional. Puede devolver múltiples opciones; no elige una. La
 resolución solo confirma una coincidencia única con margen seguro y rechaza
 términos médicos meramente parecidos. UUIDs y puntajes permanecen internos.
-La política clínica prohíbe distancia de edición para inferir otro servicio:
-solo igualdad normalizada o equivalencia morfológica explícita puede puntuar. Un
-typo dudoso permanece sin resolver hasta una confirmación inequívoca posterior.
+La política clínica permite identificar solo por igualdad normalizada o inclusión
+inequívoca sin tokens genéricos. La similitud textual conservadora puede producir
+una sugerencia, nunca una selección. No se usa stemming, recorte de sufijos ni
+distancia de edición para identificar. Un typo dudoso permanece sin resolver.
 
 Telegram no conoce el catálogo, los argumentos ni los resultados. Continúa
 limitándose a persistencia, invocación y entrega. No se habilitan precios,
@@ -169,12 +170,14 @@ El invoker común clasifica cada turno dentro del vocabulario cerrado
 mensaje con el estado tenant-scoped ya persistido. El estado JSON permitido
 contiene solo `intent`, `stage`, `collected_context`, `missing_information` y
 `last_relevant_context`, más `selected_service` como referencia backend tipada
-con UUID y nombre, y `candidate_service` como propuesta temporal sin UUID. Una
+con UUID y nombre, `candidate_service` como propuesta temporal sin UUID y
+`suggested_service` como servicio real relacionado sin ID visible. Una
 solicitud de cita avanza a `collect_service`. La
 descripción del turno siguiente se normaliza y resuelve contra los servicios
 activos del tenant mediante la consulta backend existente; solo una coincidencia
-única avanza a `service_identified` con ID interno y nombre. Sin coincidencia se
-mantiene `collect_service` y se solicita aclaración. Esta es una corrección del
+inequívoca avanza a `service_identified` con ID interno y nombre. Una similitud
+conservadora persiste `service_resolution=suggested` y mantiene `collect_service`
+hasta confirmación explícita. Sin coincidencia se solicita aclaración. Esta es una corrección del
 contrato de 8A.9, no una fase nueva.
 
 Una petición explícita de cambio de servicio se resuelve nuevamente. Si existe
@@ -217,3 +220,8 @@ consulta informativa se orienta al `candidate_service` y al resultado de
 `search_services`, mientras preserva el `selected_service`. Una resolución
 `not_found` prioriza el candidato actual y nunca cae en un reconocimiento de la
 selección previa ni sugiere continuar con la entidad inexistente.
+`suggested` no equivale a `identified`, no confirma selección ni reserva y no
+habilita el siguiente paso. Su nombre seguro puede mostrarse para preguntar si el
+usuario se refiere a ese servicio; una confirmación explícita posterior debe
+resolver nuevamente el nombre real antes de promoverlo. Aliases persistentes,
+embeddings y LLM judge quedan fuera de 8A.9.

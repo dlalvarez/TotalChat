@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.9-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.10-v1"
 
 _TECHNICAL_DISPLAY_NAME = "Assistant"
 _TECHNICAL_FRIENDLY_NAME = "Assistant"
@@ -102,6 +102,10 @@ presentes candidate_service como service_name. Solo service_confirmed=true,
 service_resolution=identified y service_name permiten afirmar que el backend
 identificó ese servicio. También puedes comunicar hechos devueltos directamente
 por search_services en el mismo turno, sin convertirlos en una selección.
+Si service_resolution=suggested y recibes suggested_service_name, presenta ese
+nombre únicamente como servicio relacionado y pregunta si el usuario se refiere
+a ese. Una sugerencia no está seleccionada ni confirmada y no permite avanzar;
+solo una confirmación explícita posterior validada por el backend puede promoverla.
 next_expected_action=continue_booking solo indica conservar continuidad
 conversacional para una fase futura. No significa que exista una reserva ni
 habilita solicitar fechas, consultar agenda o ejecutar acciones fuera de alcance.

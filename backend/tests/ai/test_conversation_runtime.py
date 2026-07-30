@@ -58,7 +58,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.9-v1",
+        "system_prompt_version": "8a9.10-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
@@ -237,6 +237,28 @@ def test_not_found_booking_cannot_suggest_continuing_with_missing_candidate():
         "No encontré un servicio configurado para neurología"
     )
     assert "siguiente paso" not in result.content
+
+
+def test_suggested_service_is_presented_for_explicit_confirmation():
+    provider = FakeProvider(content="El servicio quedó confirmado.")
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="suggested",
+        candidate_service="pediatría",
+        suggested_service_name="Consulta pediátrica",
+        intent="booking_request",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "Quiero una cita con pediatría",
+        response_guard=guard,
+    ))
+
+    assert result.content == (
+        "Encontré un servicio relacionado: Consulta pediátrica. "
+        "¿Te refieres a ese?"
+    )
+    assert "confirmado" not in result.content
 
 
 @pytest.mark.parametrize(

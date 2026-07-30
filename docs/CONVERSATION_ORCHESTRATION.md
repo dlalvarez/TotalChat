@@ -168,12 +168,12 @@ La búsqueda conversacional y la resolución de selección comparten normalizaci
 de mayúsculas, tildes, tokens genéricos y ranking conservador sobre servicios
 activos. La búsqueda informativa puede devolver varias coincidencias seguras para
 presentar opciones. La resolución exige un líder inequívoco separado por un
-margen mínimo; términos médicos parecidos sin raíz común segura no se promueven
-automáticamente. Ninguna de las dos rutas expone UUIDs.
-No se usa distancia de edición para adivinar términos clínicos. Solo se admite
-igualdad normalizada o una equivalencia morfológica explícita y acotada entre el
-nombre y su forma adjetival. Un typo o término clínicamente dudoso queda como
-candidato no confirmado, mantiene `service_confirmed=false` y exige aclaración.
+margen mínimo; términos médicos parecidos no se promueven automáticamente.
+Ninguna de las dos rutas expone UUIDs. La igualdad normalizada o inclusión
+inequívoca sin tokens genéricos puede identificar. Una similitud textual
+conservadora solo puede sugerir y nunca confirmar. No se usa stemming casero,
+recorte de sufijos ni distancia de edición para identificar términos clínicos.
+Un typo o término clínicamente dudoso queda sin resolver y exige aclaración.
 
 La consulta lee servicios activos desde `practitioner_services`. El resultado
 que vuelve al modelo contiene únicamente `name`, `description` y
@@ -412,9 +412,12 @@ backend no infiere entidades desde reglas textuales: valida el candidato con la
 consulta tenant-scoped antes de modificar `selected_service`.
 `booking_request` inicia en `collect_service` con `service` faltante. El turno
 siguiente conserva esa intención y resuelve la descripción contra servicios
-activos del tenant mediante la capacidad backend existente; solo una coincidencia
-única avanza a `service_identified` y persiste su referencia interna y nombre.
-Sin coincidencia, permanece en `collect_service` y solicita aclaración.
+activos del tenant mediante la capacidad backend existente. Solo igualdad
+normalizada o inclusión inequívoca avanza a `service_identified` y persiste su
+referencia interna y nombre. Una relación textual conservadora queda como
+`suggested_service`, con `service_resolution=suggested`, y permanece en
+`collect_service` hasta una confirmación explícita. Sin identificación ni
+sugerencia segura, solicita aclaración.
 Una solicitud explícita de cambio vuelve a resolver el servicio. Una coincidencia
 reemplaza por completo `selected_service`; un cambio sin coincidencia elimina la
 selección anterior y regresa a `collect_service`.
@@ -423,12 +426,17 @@ existe selección; si ya hay una, conservan `service_identified` sin modificarla
 El LLM recibe una representación segura de este estado y
 redacta la pregunta o reconocimiento natural, pero no lo expone al usuario.
 Esa representación distingue explícitamente `service_confirmed`,
-`service_resolution`, `service_name` validado y `candidate_service`. El candidato
+`service_resolution`, `service_name` validado, `candidate_service` y
+`suggested_service_name`. El candidato
 es solo una mención: no prueba existencia ni autoriza afirmar que un servicio
 está configurado. La respuesta visible solo puede reconocer una entidad cuando
 el backend comunica `service_confirmed=true`, `service_resolution=identified` y
 el nombre validado, o cuando una consulta `search_services` del mismo turno
 devuelve el hecho correspondiente.
+`suggested` nunca equivale a `identified`: no selecciona, no confirma existencia
+para una reserva y no habilita avance. Una confirmación explícita posterior vuelve
+a validar el nombre sugerido tenant-scoped antes de promoverlo. Aliases
+persistentes, embeddings y LLM judge quedan como mejoras futuras no implementadas.
 
 Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
 servicio antes de identificarlo. No guarda prompts, razonamiento,

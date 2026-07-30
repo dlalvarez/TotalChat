@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from difflib import SequenceMatcher
 import json
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -98,12 +99,26 @@ class ConversationToolRegistry:
         return MappingProxyType({"services": [asdict(service) for service in services]})
 
     def resolve_service(self, query: str) -> ResolvedConversationService | None:
-        """Resolve one active service conservatively inside the current tenant."""
+        """Resolve only one exact or unequivocal active tenant service."""
 
         if not _normalize_service_text(query):
             return None
         services = self._tools.list_active_services(ServiceListRequest(limit=100)).services
-        ranked = _rank_services(query, services)
+        ranked = _rank_services(query, services, include_suggestions=False)
+        if not ranked or (
+            len(ranked) > 1 and ranked[0][0] - ranked[1][0] < _MIN_UNIQUE_SCORE_MARGIN
+        ):
+            return None
+        match = ranked[0][2]
+        return ResolvedConversationService(service_id=match.service_id, name=match.name)
+
+    def suggest_service(self, query: str) -> ResolvedConversationService | None:
+        """Return one conservative related service without confirming selection."""
+
+        if not _normalize_service_text(query):
+            return None
+        services = self._tools.list_active_services(ServiceListRequest(limit=100)).services
+        ranked = _rank_services(query, services, include_suggestions=True)
         if not ranked or (
             len(ranked) > 1 and ranked[0][0] - ranked[1][0] < _MIN_UNIQUE_SCORE_MARGIN
         ):
@@ -120,13 +135,20 @@ def _normalize_service_text(value: str) -> str:
 
 
 def _rank_services(
-    query: str, services: tuple[ServiceSummary, ...]
+    query: str,
+    services: tuple[ServiceSummary, ...],
+    *,
+    include_suggestions: bool = True,
 ) -> list[tuple[float, str, ServiceSummary]]:
     normalized_query = _normalize_service_text(query)
     ranked: list[tuple[float, str, ServiceSummary]] = []
     for service in services:
         score = max(
-            _service_match_score(normalized_query, candidate)
+            _service_match_score(
+                normalized_query,
+                candidate,
+                include_suggestions=include_suggestions,
+            )
             for candidate in (service.name, service.description or "")
         )
         if score >= _MIN_SERVICE_MATCH_SCORE:
@@ -135,7 +157,12 @@ def _rank_services(
     return ranked
 
 
-def _service_match_score(query: str, candidate: str) -> float:
+def _service_match_score(
+    query: str,
+    candidate: str,
+    *,
+    include_suggestions: bool,
+) -> float:
     normalized_candidate = _normalize_service_text(candidate)
     if not normalized_candidate:
         return 0.0
@@ -151,31 +178,25 @@ def _service_match_score(query: str, candidate: str) -> float:
         return 1.0
     if meaningful_query in meaningful_candidate:
         return 0.95
-    return min(max(
-        _service_token_score(query_token, candidate_token)
-        for candidate_token in candidate_tokens
-    ) for query_token in query_tokens)
-
-
-def _service_token_score(query: str, candidate: str) -> float:
-    if query == candidate:
-        return 1.0
-    # Only an explicit Spanish noun/adjective morphology equivalence is allowed.
-    # Edit-distance matching is deliberately forbidden for clinical terms.
-    if _service_term_root(query) == _service_term_root(candidate):
-        return 0.9
+    if not include_suggestions:
+        return 0.0
+    prefix_length = 0
+    for query_character, candidate_character in zip(
+        meaningful_query, meaningful_candidate, strict=False
+    ):
+        if query_character != candidate_character:
+            break
+        prefix_length += 1
+    prefix_ratio = prefix_length / min(len(meaningful_query), len(meaningful_candidate))
+    similarity = SequenceMatcher(None, meaningful_query, meaningful_candidate).ratio()
+    if prefix_ratio >= _MIN_SUGGESTION_PREFIX_RATIO and similarity >= _MIN_SUGGESTION_SCORE:
+        return similarity
     return 0.0
 
 
-def _service_term_root(value: str) -> str:
-    if len(value) >= 8 and value.endswith("ica"):
-        return value[:-3]
-    if len(value) >= 8 and value.endswith("ia"):
-        return value[:-2]
-    return value
-
-
 _MIN_SERVICE_MATCH_SCORE = 0.8
+_MIN_SUGGESTION_SCORE = 0.88
+_MIN_SUGGESTION_PREFIX_RATIO = 0.75
 _MIN_UNIQUE_SCORE_MARGIN = 0.05
 
 

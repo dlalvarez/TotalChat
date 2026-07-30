@@ -38,3 +38,5 @@
   recolección de fecha/hora o promesas de reserva (corrección Fase 8A.9).
 - [x] Preservar respuestas informativas sobre candidatos sin silenciarlas con la
   selección confirmada previa (corrección Fase 8A.9).
+- [x] Separar sugerencias textuales conservadoras de identificaciones inequívocas
+  y exigir confirmación antes de promoverlas (corrección Fase 8A.9).

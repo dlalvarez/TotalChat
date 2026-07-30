@@ -38,6 +38,7 @@ class ConversationResponseGuard:
     service_resolution: str = "unresolved"
     service_name: str | None = None
     candidate_service: str | None = None
+    suggested_service_name: str | None = None
     intent: str = "casual_conversation"
 
 
@@ -244,6 +245,11 @@ def _guarded_booking_response(
 ) -> str:
     """Return deterministic, bounded language when provider output violates 8A.9."""
 
+    if guard.service_resolution == "suggested" and guard.suggested_service_name:
+        return (
+            f"Encontré un servicio relacionado: {guard.suggested_service_name}. "
+            "¿Te refieres a ese?"
+        )
     if guard.service_resolution == "not_found" and guard.candidate_service:
         return (
             f"No encontré un servicio configurado para {guard.candidate_service}. "

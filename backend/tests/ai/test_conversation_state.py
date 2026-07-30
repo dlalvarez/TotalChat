@@ -15,6 +15,7 @@ from app.ai.conversation_state import (
     InitialBookingContext,
     CandidateConversationService,
     SelectedConversationService,
+    SuggestedConversationService,
 )
 
 
@@ -177,3 +178,24 @@ def test_initial_context_rejects_impossible_service_selection_states():
             stage="service_identified",
             selected_service={"id": str(uuid4()), "name": "Pediatría"},
         )
+
+
+def test_suggested_service_is_json_safe_and_does_not_confirm_selection():
+    context = InitialBookingContext.model_validate({
+        "intent": "service_information",
+        "stage": "collect_service",
+        "candidate_service": {"name": "pediatría"},
+        "suggested_service": {"name": "Consulta pediátrica"},
+        "missing_information": ["service"],
+        "last_relevant_context": {"service_resolution": "suggested"},
+        "conversation_progress": {
+            "service_confirmed": False,
+            "next_expected_action": "collect_service",
+        },
+    })
+
+    assert context.suggested_service == SuggestedConversationService(
+        name="Consulta pediátrica"
+    )
+    assert context.selected_service is None
+    assert "id" not in context.to_persistent_dict()["suggested_service"]
