@@ -99,6 +99,11 @@ class NaturalConversationAgentInvoker:
             resolve_service=registry.resolve_service,
             suggest_service=registry.suggest_service,
         )
+        pending_suggestion_follow_up = (
+            current.suggested_service is not None
+            and context.suggested_service is not None
+            and context.selected_service is None
+        )
         conversation.state = context.to_persistent_dict()
         visible_messages = _load_visible_history(self._session, conversation.id)
         recent_messages = tuple(
@@ -116,7 +121,10 @@ class NaturalConversationAgentInvoker:
                 message_text=message_text,
                 recent_messages=recent_messages,
                 conversation_phase=_safe_context_instruction(context),
-                response_guard=_response_guard(context),
+                response_guard=_response_guard(
+                    context,
+                    pending_suggestion_follow_up=pending_suggestion_follow_up,
+                ),
                 assistant_identity=self._assistant_identity,
             )
         )
@@ -250,12 +258,16 @@ def update_initial_booking_context(
             if selected_service is not None else {}
         )
     else:
-        stage = (
-            InitialConversationStage.SERVICE_IDENTIFIED
-            if selected_service is not None
-            else InitialConversationStage.START
-        )
-        missing = []
+        if selected_service is not None:
+            stage = InitialConversationStage.SERVICE_IDENTIFIED
+            missing = []
+        elif suggested_service is not None:
+            stage = InitialConversationStage.COLLECT_SERVICE
+            missing = ["service"]
+            resolution = "suggested"
+        else:
+            stage = InitialConversationStage.START
+            missing = []
         collected = (
             {"service_name": selected_service.name}
             if selected_service is not None else {}
@@ -380,7 +392,11 @@ def _safe_service_resolution(context: InitialBookingContext) -> str:
     return "unresolved"
 
 
-def _response_guard(context: InitialBookingContext) -> ConversationResponseGuard:
+def _response_guard(
+    context: InitialBookingContext,
+    *,
+    pending_suggestion_follow_up: bool = False,
+) -> ConversationResponseGuard:
     return ConversationResponseGuard(
         service_confirmed=context.selected_service is not None,
         service_resolution=_safe_service_resolution(context),
@@ -397,6 +413,7 @@ def _response_guard(context: InitialBookingContext) -> ConversationResponseGuard
             if context.suggested_service is not None else None
         ),
         intent=context.intent.value,
+        pending_suggestion_follow_up=pending_suggestion_follow_up,
     )
 
 

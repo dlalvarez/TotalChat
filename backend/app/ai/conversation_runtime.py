@@ -40,6 +40,7 @@ class ConversationResponseGuard:
     candidate_service: str | None = None
     suggested_service_name: str | None = None
     intent: str = "casual_conversation"
+    pending_suggestion_follow_up: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +86,19 @@ class NaturalConversationRuntime:
         self._tool_registry = tool_registry
 
     def run(self, request: ConversationTurnRequest) -> ConversationTurnResult:
+        if request.response_guard is not None:
+            deterministic = _critical_booking_response(
+                request.response_guard,
+                allow_grounded_information=(
+                    request.response_guard.intent == "service_information"
+                    and self._tool_registry is not None
+                ),
+            )
+            if deterministic is not None:
+                return ConversationTurnResult(
+                    content=deterministic,
+                    code="guarded_booking_response",
+                )
         messages = self._build_messages(request)
         service_lookup_performed = False
         grounded_by_service_tool = False
@@ -117,17 +131,24 @@ class NaturalConversationRuntime:
             content = response.content
             if not isinstance(content, str) or not content.strip():
                 raise ValueError("unusable provider content")
-            if request.response_guard is not None and _violates_response_guard(
-                content,
-                request.response_guard,
-                service_lookup_performed=service_lookup_performed,
-                grounded_by_service_tool=grounded_by_service_tool,
-            ):
-                content = _guarded_booking_response(
+            if request.response_guard is not None:
+                deterministic = _critical_booking_response(
+                    request.response_guard,
+                    allow_grounded_information=grounded_by_service_tool,
+                )
+                if deterministic is not None:
+                    content = deterministic
+                elif _violates_response_guard(
+                    content,
                     request.response_guard,
                     service_lookup_performed=service_lookup_performed,
                     grounded_by_service_tool=grounded_by_service_tool,
-                )
+                ):
+                    content = _guarded_booking_response(
+                        request.response_guard,
+                        service_lookup_performed=service_lookup_performed,
+                        grounded_by_service_tool=grounded_by_service_tool,
+                    )
         except Exception:
             # Do not log exception values: provider errors can contain request or
             # credential material. The visible response is deliberately generic.
@@ -187,6 +208,11 @@ _UNSUPPORTED_SERVICE_CONFIRMATION_PATTERN = re.compile(
     r"existe(?:n)?|tenemos)\b",
     re.IGNORECASE,
 )
+_CONFIRMED_SELECTION_LANGUAGE_PATTERN = re.compile(
+    r"\b(?:seleccionad[oa]|registrad[oa]|actualizad[oa]|cambiad[oa]|"
+    r"confirmad[oa]|identificad[oa]|tom[eé] nota)\b",
+    re.IGNORECASE,
+)
 _UNSUPPORTED_NOT_FOUND_CONTINUATION_PATTERN = re.compile(
     r"\b(?:siguiente paso|continuar con|ayudarte con)\b",
     re.IGNORECASE,
@@ -210,6 +236,11 @@ def _violates_response_guard(
     if _OUT_OF_SCOPE_REQUEST_PATTERN.search(content):
         return True
     if _OUT_OF_SCOPE_PROMISE_PATTERN.search(content):
+        return True
+    if (
+        not guard.service_confirmed
+        and _CONFIRMED_SELECTION_LANGUAGE_PATTERN.search(content)
+    ):
         return True
     if (
         guard.intent == "service_information"
@@ -256,9 +287,15 @@ def _guarded_booking_response(
     """Return deterministic, bounded language when provider output violates 8A.9."""
 
     if guard.service_resolution == "suggested" and guard.suggested_service_name:
+        if guard.pending_suggestion_follow_up:
+            return (
+                "Aún no he cambiado el servicio. Encontré "
+                f"{guard.suggested_service_name} como opción relacionada. "
+                "¿Confirmas que quieres usar ese servicio?"
+            )
         return (
             f"Encontré un servicio relacionado: {guard.suggested_service_name}. "
-            "¿Te refieres a ese?"
+            "¿Confirmas que te refieres a ese servicio?"
         )
     if guard.service_resolution == "not_found" and guard.candidate_service:
         return (
@@ -289,3 +326,44 @@ def _guarded_booking_response(
         "Ese servicio aún no está confirmado. Puedo ayudarte a aclarar cuál necesitas "
         "o a revisar las opciones disponibles."
     )
+
+
+def _critical_booking_response(
+    guard: ConversationResponseGuard,
+    *,
+    allow_grounded_information: bool,
+) -> str | None:
+    """Own visible output for critical 8A.9 states before provider generation."""
+
+    if guard.intent == "service_information" and allow_grounded_information:
+        return None
+    if (
+        guard.service_resolution == "suggested"
+        and not guard.service_confirmed
+        and guard.suggested_service_name
+    ):
+        if guard.pending_suggestion_follow_up:
+            return (
+                "Aún no he cambiado el servicio. Encontré "
+                f"{guard.suggested_service_name} como opción relacionada. "
+                "¿Confirmas que quieres usar ese servicio?"
+            )
+        return (
+            f"Encontré un servicio relacionado: {guard.suggested_service_name}. "
+            "¿Confirmas que te refieres a ese servicio?"
+        )
+    if guard.service_resolution == "not_found" and guard.candidate_service:
+        return (
+            f"No encontré un servicio configurado para {guard.candidate_service}. "
+            "¿Quieres revisar otro servicio disponible?"
+        )
+    if (
+        guard.service_confirmed
+        and guard.service_name
+        and guard.intent == "booking_request"
+    ):
+        return (
+            f"Tengo identificado el servicio {guard.service_name}. En esta etapa todavía "
+            "no puedo consultar disponibilidad ni crear la cita desde aquí."
+        )
+    return None

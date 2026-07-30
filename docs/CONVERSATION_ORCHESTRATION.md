@@ -442,6 +442,12 @@ cambio ya ocurrió —incluidas formas interrogativas como «¿La cambiaste?» o
 «¿Ya quedó?»— y aceptaciones ambiguas como «Perfecto» conservan la sugerencia y
 deben provocar una nueva solicitud de confirmación, aun si el LLM propone
 erróneamente `confirm_candidate`.
+Las respuestas de estados críticos son backend-owned y se deciden antes de pedir
+redacción al provider: sugerencia pendiente sin selección, candidato `not_found`
+y `booking_request` con servicio confirmado usan textos determinísticos. Una
+consulta `service_information` conserva redacción natural únicamente cuando
+`search_services` devuelve hechos reales; un resultado vacío vuelve al texto
+determinístico del candidato. Esto evita perseguir variantes textuales del LLM.
 
 Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
 servicio antes de identificarlo. No guarda prompts, razonamiento,

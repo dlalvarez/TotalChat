@@ -229,3 +229,8 @@ La confirmación debe ser afirmativa y pertenecer al vocabulario cerrado autoriz
 por backend. Una pregunta sobre si el cambio ocurrió y una expresión ambigua como
 «Perfecto» no promueven `suggested_service`, aunque la propuesta LLM las clasifique
 como `confirm_candidate`; el estado permanece en `collect_service`.
+El runtime decide antes de invocar al provider las respuestas para
+`suggested_service` pendiente, `not_found` y solicitudes de reserva con selección
+confirmada. Solo una consulta informativa respaldada por resultados no vacíos de
+`search_services` conserva redacción LLM; la ausencia de resultados usa respuesta
+determinística. Estos textos no contienen UUID, tenant, `schema_name` ni prompts.

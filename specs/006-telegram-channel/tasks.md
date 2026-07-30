@@ -42,3 +42,5 @@
   y exigir confirmación antes de promoverlas (corrección Fase 8A.9).
 - [x] Rechazar preguntas de estado y aceptaciones ambiguas como confirmación de
   servicios sugeridos (corrección Fase 8A.9).
+- [x] Usar respuestas backend-owned determinísticas para estados críticos sin
+  bloquear consultas informativas grounded (corrección Fase 8A.9).

@@ -239,8 +239,33 @@ def test_not_found_booking_cannot_suggest_continuing_with_missing_candidate():
     assert "siguiente paso" not in result.content
 
 
+def test_not_found_candidate_takes_priority_over_prior_selected_service():
+    provider = FakeProvider(content="Tengo identificado Consulta pediátrica.")
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="not_found",
+        service_name="Consulta pediátrica",
+        candidate_service="odontología",
+        intent="service_information",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "¿Y también tienen odontología?",
+        response_guard=guard,
+    ))
+
+    assert result.content == (
+        "No encontré un servicio configurado para odontología. "
+        "¿Quieres revisar otro servicio disponible?"
+    )
+    assert "Consulta pediátrica" not in result.content
+    assert provider.calls == []
+
+
 def test_suggested_service_is_presented_for_explicit_confirmation():
-    provider = FakeProvider(content="El servicio quedó confirmado.")
+    provider = FakeProvider(
+        content="Entonces cambio el servicio y queda seleccionado."
+    )
     guard = ConversationResponseGuard(
         service_confirmed=False,
         service_resolution="suggested",
@@ -249,20 +274,32 @@ def test_suggested_service_is_presented_for_explicit_confirmation():
         intent="booking_request",
     )
 
-    result = NaturalConversationRuntime(provider).run(request(
+    turn = request(
         "Quiero una cita con pediatría",
         response_guard=guard,
-    ))
+    )
+    result = NaturalConversationRuntime(provider).run(turn)
 
     assert result.content == (
         "Encontré un servicio relacionado: Consulta pediátrica. "
-        "¿Te refieres a ese?"
+        "¿Confirmas que te refieres a ese servicio?"
     )
-    assert "confirmado" not in result.content
+    assert provider.calls == []
+    assert "seleccionado" not in result.content
+    assert str(turn.tenant_id) not in result.content
+    assert str(turn.conversation_id) not in result.content
+    assert "schema_name" not in result.content
 
 
-@pytest.mark.parametrize("content", ["Sí, ya la cambié.", "Sí, ya quedó."])
-def test_suggested_service_guard_rejects_claimed_change_after_question(content):
+@pytest.mark.parametrize(
+    ("message", "content"),
+    [
+        ("¿La cambiaste?", "Sí, ya la cambié."),
+        ("¿Ya quedó?", "Sí, ya quedó."),
+        ("Perfecto", "Entonces queda seleccionado."),
+    ],
+)
+def test_pending_suggestion_follow_up_is_always_backend_owned(message, content):
     provider = FakeProvider(content=content)
     guard = ConversationResponseGuard(
         service_confirmed=False,
@@ -270,17 +307,19 @@ def test_suggested_service_guard_rejects_claimed_change_after_question(content):
         candidate_service="pediatría",
         suggested_service_name="Consulta pediátrica",
         intent="booking_request",
+        pending_suggestion_follow_up=True,
     )
 
     result = NaturalConversationRuntime(provider).run(request(
-        "¿La cambiaste?",
+        message,
         response_guard=guard,
     ))
 
     assert result.content == (
-        "Encontré un servicio relacionado: Consulta pediátrica. "
-        "¿Te refieres a ese?"
+        "Aún no he cambiado el servicio. Encontré Consulta pediátrica como opción "
+        "relacionada. ¿Confirmas que quieres usar ese servicio?"
     )
+    assert provider.calls == []
 
 
 @pytest.mark.parametrize(
@@ -323,6 +362,7 @@ def test_confirmed_service_cannot_trigger_date_or_time_collection():
         service_confirmed=True,
         service_resolution="identified",
         service_name="Consulta pediátrica",
+        intent="booking_request",
     )
 
     result = NaturalConversationRuntime(provider).run(request(
@@ -341,3 +381,4 @@ def test_confirmed_service_cannot_trigger_date_or_time_collection():
     )
     assert "fecha" not in result.content.lower()
     assert "hora" not in result.content.lower()
+    assert provider.calls == []

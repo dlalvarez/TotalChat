@@ -350,7 +350,16 @@ def test_ambiguous_or_interrogative_turn_does_not_confirm_suggestion(message):
     assert unchanged.last_relevant_context["service_resolution"] == "suggested"
 
 
-@pytest.mark.parametrize("message", ["Sí, ese", "Confirmo"])
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Sí, ese",
+        "Confirmo",
+        "Sí, cambia a ese servicio",
+        "Sí, cámbiala a ese servicio",
+        "Sí, cámbialo a ese servicio",
+    ],
+)
 def test_affirmative_confirmation_promotes_suggestion(message):
     repository = BookingServiceRepository("Consulta pediátrica")
     suggested = update_initial_booking_context(
@@ -373,6 +382,33 @@ def test_affirmative_confirmation_promotes_suggestion(message):
     assert confirmed.suggested_service is None
     assert confirmed.conversation_progress.service_confirmed is True
     assert confirmed.last_relevant_context["service_resolution"] == "identified"
+
+
+def test_casual_turn_preserves_pending_suggestion_and_collection_stage():
+    repository = BookingServiceRepository("Consulta pediátrica")
+    suggested = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero pediatría",
+        proposal=proposal("booking_request", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    unchanged = update_initial_booking_context(
+        suggested,
+        "Perfecto",
+        proposal=proposal("casual_conversation"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert unchanged.selected_service is None
+    assert unchanged.suggested_service.name == "Consulta pediátrica"
+    assert unchanged.stage.value == "collect_service"
+    assert unchanged.conversation_progress.next_expected_action == "collect_service"
+    assert unchanged.last_relevant_context["service_resolution"] == "suggested"
+    guard = _response_guard(unchanged, pending_suggestion_follow_up=True)
+    assert guard.pending_suggestion_follow_up is True
 
 
 def test_explicit_change_with_real_service_name_is_selected_directly():
@@ -540,7 +576,7 @@ def test_invoker_persists_confirmed_service_but_never_sends_uuid_to_llm():
             proposal_interpreter=lambda context, text: next(proposals),
         )
         invoker.invoke(tenant_id=uuid.uuid4(), conversation=conversation, message_text="Quiero una cita")
-        invoker.invoke(
+        result = invoker.invoke(
             tenant_id=uuid.uuid4(), conversation=conversation,
             message_text="Quiero una consulta pediátrica",
         )
@@ -554,7 +590,11 @@ def test_invoker_persists_confirmed_service_but_never_sends_uuid_to_llm():
         }
     serialized = repr(provider.calls)
     assert str(repository.record.service_id) not in serialized
-    assert "service_name=Consulta pediátrica" in serialized
+    assert "service_name=Consulta pediátrica" not in serialized
+    assert result.content == (
+        "Tengo identificado el servicio Consulta pediátrica. En esta etapa todavía "
+        "no puedo consultar disponibilidad ni crear la cita desde aquí."
+    )
 
 
 def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_output():
@@ -579,7 +619,7 @@ def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_outp
         conversation = ConversationSession(channel_type="telegram", external_user_id="proposal")
         session.add(conversation)
         session.flush()
-        NaturalConversationAgentInvoker(
+        result = NaturalConversationAgentInvoker(
             session, provider, service_repository=repository
         ).invoke(
             tenant_id=uuid.uuid4(), conversation=conversation,
@@ -587,8 +627,9 @@ def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_outp
         )
 
     assert conversation.state["selected_service"]["name"] == "Pediatría"
-    assert "candidate_service=Pediatría" in repr(provider.calls[-1])
-    assert "service_confirmed=true" in repr(provider.calls[-1])
+    assert result.code == "guarded_booking_response"
+    assert result.content.startswith("Tengo identificado el servicio Pediatría")
+    assert len(provider.calls) == 1
     proposal_prompt = provider.calls[0][0].content
     assert "aceptación afirmativa explícita" in proposal_prompt
     assert "pregunta sobre si algo ya cambió" in proposal_prompt
