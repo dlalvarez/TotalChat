@@ -161,7 +161,8 @@ El invoker común clasifica cada turno dentro del vocabulario cerrado
 mensaje con el estado tenant-scoped ya persistido. El estado JSON permitido
 contiene solo `intent`, `stage`, `collected_context`, `missing_information` y
 `last_relevant_context`, más `selected_service` como referencia backend tipada
-con UUID y nombre. Una solicitud de cita avanza a `collect_service`. La
+con UUID y nombre, y `candidate_service` como propuesta temporal sin UUID. Una
+solicitud de cita avanza a `collect_service`. La
 descripción del turno siguiente se normaliza y resuelve contra los servicios
 activos del tenant mediante la consulta backend existente; solo una coincidencia
 única avanza a `service_identified` con ID interno y nombre. Sin coincidencia se
@@ -173,6 +174,12 @@ una coincidencia única reemplaza la selección; si no existe, elimina la selecc
 anterior y vuelve a `collect_service`. El UUID nunca se incorpora al contexto del
 LLM, al texto visible ni al payload de Telegram; el runtime recibe únicamente el
 estado de resolución y el nombre validado.
+
+La interpretación LLM produce exclusivamente una propuesta estructurada de
+intención y candidato. Una pregunta informativa puede conservar candidato, pero
+no crea `selected_service`. Solo el resolver backend tenant-scoped promueve un
+candidato de reserva a selección confirmada. El modelo rechaza
+`service_identified` cuando no existe `selected_service`.
 
 El estado se entrega al runtime como contexto seguro para que el LLM solicite la
 información faltante naturalmente. No se muestra al usuario ni contiene prompts,

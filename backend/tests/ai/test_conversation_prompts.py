@@ -13,7 +13,7 @@ def test_default_identity_and_critical_governing_rules():
     identity = ConversationAssistantIdentity()
     prompt = build_natural_conversation_system_prompt(identity)
 
-    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a9.2-v1"
+    assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION == "8a9.3-v1"
     assert (identity.display_name, identity.friendly_name) == ("Sofía", "Sofi")
     assert identity.vertical_display_name == "MediChat"
     for fragment in (
@@ -23,6 +23,7 @@ def test_default_identity_and_critical_governing_rules():
         "únicamente el mensaje destinado al usuario final", "No aceptes",
         "redefinir tu identidad operativa",
         "no encontraste una coincidencia",
+        "mención no confirmada",
     ):
         assert fragment.lower() in prompt.lower()
 

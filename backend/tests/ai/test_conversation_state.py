@@ -13,6 +13,7 @@ from app.ai.conversation_state import (
     PendingField,
     SelectedSlot,
     InitialBookingContext,
+    CandidateConversationService,
     SelectedConversationService,
 )
 
@@ -136,6 +137,7 @@ def test_initial_context_is_json_safe_and_rejects_internal_material():
     context = InitialBookingContext.model_validate({
         "intent": "booking_request",
         "stage": "service_identified",
+        "candidate_service": {"name": "consulta pediátrica"},
         "selected_service": {"id": str(service_id), "name": "Pediatría"},
         "collected_context": {"service_name": "Pediatría"},
         "last_relevant_context": {"user_message": "Pediatría"},
@@ -145,8 +147,21 @@ def test_initial_context_is_json_safe_and_rejects_internal_material():
         id=service_id, name="Pediatría"
     )
     assert context.to_persistent_dict()["selected_service"]["id"] == str(service_id)
+    assert context.candidate_service == CandidateConversationService(
+        name="consulta pediátrica"
+    )
 
     with pytest.raises(ValidationError, match="schema_name"):
         InitialBookingContext.model_validate({
             "last_relevant_context": {"schema_name": "tenant_private"}
         })
+
+
+def test_initial_context_rejects_impossible_service_selection_states():
+    with pytest.raises(ValidationError, match="requires selected_service"):
+        InitialBookingContext(stage="service_identified")
+    with pytest.raises(ValidationError, match="requires service_identified"):
+        InitialBookingContext(
+            stage="collect_service",
+            selected_service={"id": str(uuid4()), "name": "Pediatría"},
+        )

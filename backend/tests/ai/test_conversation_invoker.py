@@ -11,6 +11,11 @@ from app.ai.conversation_prompts import ConversationAssistantIdentity
 from app.ai.providers import LLMResponse
 from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversationService
 from app.ai.service_tools import ServiceRecord
+from app.ai.conversation_state import (
+    CandidateConversationService,
+    InitialBookingContext,
+    InitialConversationProposal,
+)
 from app.models.tenant import ConversationSession, Message
 
 
@@ -21,6 +26,19 @@ class CapturingProvider:
     def complete(self, messages):
         self.calls.append(messages)
         return LLMResponse(content="respuesta exacta", model="fake", provider="fake")
+
+
+def proposal(intent, candidate=None):
+    return InitialConversationProposal(
+        intent=intent,
+        candidate_service=(
+            CandidateConversationService(name=candidate) if candidate else None
+        ),
+    )
+
+
+def casual_proposal(context, text):
+    return proposal("casual_conversation")
 
 
 def add_message(session, conversation, *, offset, direction, content, status=None, payload=None):
@@ -68,7 +86,9 @@ def test_invoker_uses_only_visible_ordered_messages_from_resolved_conversation()
         )
         session.commit()
 
-        result = NaturalConversationAgentInvoker(session, provider).invoke(
+        result = NaturalConversationAgentInvoker(
+            session, provider, proposal_interpreter=casual_proposal
+        ).invoke(
             tenant_id=uuid.uuid4(), conversation=conversation, message_text="mensaje actual"
         )
 
@@ -103,7 +123,9 @@ def test_invoker_applies_eight_message_limit_after_visibility_filtering():
             add_message(session, conversation, offset=index, direction="outgoing", content=f"failed-{index}", status="failed")
         add_message(session, conversation, offset=24, direction="incoming", content="actual")
         session.commit()
-        NaturalConversationAgentInvoker(session, provider).invoke(
+        NaturalConversationAgentInvoker(
+            session, provider, proposal_interpreter=casual_proposal
+        ).invoke(
             tenant_id=uuid.uuid4(), conversation=conversation, message_text="actual"
         )
 
@@ -139,7 +161,9 @@ def test_long_conversation_uses_bounded_keyset_batches_past_recent_failures():
         add_message(session, conversation, offset=100, direction="incoming", content="actual")
         session.commit()
 
-        NaturalConversationAgentInvoker(session, provider).invoke(
+        NaturalConversationAgentInvoker(
+            session, provider, proposal_interpreter=casual_proposal
+        ).invoke(
             tenant_id=uuid.uuid4(), conversation=conversation, message_text="actual"
         )
 
@@ -165,7 +189,8 @@ def test_backend_configured_identity_reaches_runtime_without_uuid_or_schema():
         add_message(session, conversation, offset=1, direction="incoming", content="actual")
         session.commit()
         NaturalConversationAgentInvoker(
-            session, provider, assistant_identity=identity
+            session, provider, assistant_identity=identity,
+            proposal_interpreter=casual_proposal,
         ).invoke(tenant_id=tenant_id, conversation=conversation, message_text="actual")
 
     prompt = provider.calls[0][0].content
@@ -175,68 +200,20 @@ def test_backend_configured_identity_reaches_runtime_without_uuid_or_schema():
     assert "schema_name" in prompt  # only the immutable prohibition, never a configured schema value
 
 
-def test_initial_intents_are_classified_without_exposing_them_to_the_user():
-    booking = update_initial_booking_context({}, "Quiero una cita")
-    services = update_initial_booking_context({}, "¿Qué servicios tienen?")
-    casual = update_initial_booking_context({}, "Hola")
-
-    assert booking.intent.value == "booking_request"
-    assert booking.stage.value == "collect_service"
-    assert booking.missing_information == ["service"]
-    assert services.intent.value == "service_information"
-    assert casual.intent.value == "casual_conversation"
-
-
-def test_booking_context_progresses_using_persisted_state():
-    first = update_initial_booking_context({}, "Quiero una cita")
-    service_id = uuid.uuid4()
-    second = update_initial_booking_context(
-        first.to_persistent_dict(),
-        "Pediatría",
-        resolve_service=lambda query: ResolvedConversationService(
-            service_id=service_id, name="Consulta pediátrica"
-        ),
+def test_proposals_separate_information_questions_from_booking_selection():
+    booking = update_initial_booking_context(
+        InitialBookingContext(), "Quiero una cita", proposal=proposal("booking_request")
+    )
+    information = update_initial_booking_context(
+        booking, "¿Tienes pediatría?",
+        proposal=proposal("service_information", "Pediatría"),
     )
 
-    assert second.intent.value == "booking_request"
-    assert second.stage.value == "service_identified"
-    assert second.selected_service is not None
-    assert second.selected_service.id == service_id
-    assert second.selected_service.name == "Consulta pediátrica"
-    assert second.collected_context == {"service_name": "Consulta pediátrica"}
-    assert second.missing_information == []
-
-
-def test_invoker_persists_booking_context_between_messages():
-    engine = make_database()
-    provider = CapturingProvider()
-    with Session(engine) as session:
-        conversation = ConversationSession(channel_type="telegram", external_user_id="booking-chat")
-        session.add(conversation)
-        session.flush()
-
-        repository = BookingServiceRepository("Consulta pediátrica")
-        invoker = NaturalConversationAgentInvoker(
-            session, provider, service_repository=repository
-        )
-        invoker.invoke(tenant_id=uuid.uuid4(), conversation=conversation, message_text="Quiero una cita")
-        session.commit()
-        assert conversation.state["stage"] == "collect_service"
-
-        invoker.invoke(tenant_id=uuid.uuid4(), conversation=conversation, message_text="Pediatría")
-        session.commit()
-        session.refresh(conversation)
-
-        assert conversation.state["intent"] == "booking_request"
-        assert conversation.state["stage"] == "service_identified"
-        assert conversation.state["selected_service"] == {
-            "id": str(repository.record.service_id), "name": "Consulta pediátrica",
-        }
-        assert conversation.state["collected_context"] == {"service_name": "Consulta pediátrica"}
-        serialized = repr(provider.calls)
-        assert "schema_name=" not in serialized
-        assert str(repository.record.service_id) not in serialized
-        assert "service_name=Consulta pediátrica" in serialized
+    assert information.intent.value == "service_information"
+    assert information.candidate_service is not None
+    assert information.candidate_service.name == "Pediatría"
+    assert information.selected_service is None
+    assert information.stage.value == "start"
 
 
 class BookingServiceRepository:
@@ -254,117 +231,135 @@ class BookingServiceRepository:
         return self.records
 
     def get_active(self, service_id):
-        return self.record if service_id == self.record.service_id else None
+        return next((record for record in self.records if record.service_id == service_id), None)
 
 
-def test_unknown_service_stays_in_collection_stage_and_requests_clarification():
-    first = update_initial_booking_context({}, "Quiero una cita")
-    second = update_initial_booking_context(
-        first.to_persistent_dict(),
-        "Servicio inexistente XYZ",
-        resolve_service=lambda query: None,
+def resolver(repository):
+    return ConversationToolRegistry(
+        tenant_id=uuid.uuid4(), repository=repository
+    ).resolve_service
+
+
+def test_booking_proposal_is_validated_and_persists_confirmed_service():
+    repository = BookingServiceRepository("Consulta pediátrica")
+    collecting = update_initial_booking_context(
+        InitialBookingContext(), "Quiero una cita", proposal=proposal("booking_request")
+    )
+    selected = update_initial_booking_context(
+        collecting, "Quiero una consulta pediátrica",
+        proposal=proposal("booking_request", "Consulta pediátrica"),
+        resolve_service=resolver(repository),
     )
 
-    assert second.stage.value == "collect_service"
-    assert second.selected_service is None
-    assert second.missing_information == ["service"]
-    assert second.collected_context == {}
-    assert second.last_relevant_context["service_resolution"] == "not_found"
+    assert selected.stage.value == "service_identified"
+    assert selected.candidate_service.name == "Consulta pediátrica"
+    assert selected.selected_service.id == repository.record.service_id
+    assert selected.selected_service.name == "Consulta pediátrica"
+    assert selected.collected_context == {"service_name": "Consulta pediátrica"}
 
 
-def test_invoker_surfaces_unknown_service_as_safe_clarification_context():
+def test_valid_change_replaces_confirmed_service_and_invalid_change_clears_it():
+    repository = BookingServiceRepository("Consulta pediátrica", "Nefrología")
+    selected = update_initial_booking_context(
+        InitialBookingContext(), "Quiero consulta pediátrica",
+        proposal=proposal("booking_request", "Consulta pediátrica"),
+        resolve_service=resolver(repository),
+    )
+    changed = update_initial_booking_context(
+        selected, "Mejor nefrología", proposal=proposal("booking_request", "Nefrología"),
+        resolve_service=resolver(repository),
+    )
+
+    assert changed.selected_service.id == repository.records[1].service_id
+    assert changed.selected_service.name == "Nefrología"
+
+    missing = update_initial_booking_context(
+        changed, "Ahora CardiologíaXYZ",
+        proposal=proposal("booking_request", "CardiologíaXYZ"),
+        resolve_service=lambda query: None,
+    )
+    assert missing.selected_service is None
+    assert missing.stage.value == "collect_service"
+    assert missing.collected_context == {}
+    assert missing.last_relevant_context["service_resolution"] == "not_found"
+
+
+def test_information_turn_keeps_existing_confirmed_service_until_new_selection():
+    repository = BookingServiceRepository("Consulta pediátrica", "Nefrología")
+    selected = update_initial_booking_context(
+        InitialBookingContext(), "Quiero una cita pediátrica",
+        proposal=proposal("booking_request", "Consulta pediátrica"),
+        resolve_service=resolver(repository),
+    )
+    price_question = update_initial_booking_context(
+        selected, "¿Cuánto cuesta?", proposal=proposal("service_information")
+    )
+    changed = update_initial_booking_context(
+        price_question, "Ahora quiero nefrología",
+        proposal=proposal("booking_request", "Nefrología"),
+        resolve_service=resolver(repository),
+    )
+
+    assert price_question.selected_service == selected.selected_service
+    assert changed.selected_service.id == repository.records[1].service_id
+
+
+def test_invoker_persists_confirmed_service_but_never_sends_uuid_to_llm():
     engine = make_database()
     provider = CapturingProvider()
     repository = BookingServiceRepository("Consulta pediátrica")
-    repository.list_active = lambda **filters: []
+    proposals = iter([
+        proposal("booking_request"),
+        proposal("booking_request", "Consulta pediátrica"),
+    ])
     with Session(engine) as session:
-        conversation = ConversationSession(
-            channel_type="telegram",
-            external_user_id="unknown-service",
-            state=update_initial_booking_context(
-                {}, "Quiero una cita"
-            ).to_persistent_dict(),
-        )
+        conversation = ConversationSession(channel_type="telegram", external_user_id="booking-chat")
         session.add(conversation)
         session.flush()
+        invoker = NaturalConversationAgentInvoker(
+            session, provider, service_repository=repository,
+            proposal_interpreter=lambda context, text: next(proposals),
+        )
+        invoker.invoke(tenant_id=uuid.uuid4(), conversation=conversation, message_text="Quiero una cita")
+        invoker.invoke(
+            tenant_id=uuid.uuid4(), conversation=conversation,
+            message_text="Quiero una consulta pediátrica",
+        )
+        session.commit()
 
-        result = NaturalConversationAgentInvoker(
+    assert conversation.state["selected_service"] == {
+        "id": str(repository.record.service_id), "name": "Consulta pediátrica",
+    }
+    serialized = repr(provider.calls)
+    assert str(repository.record.service_id) not in serialized
+    assert "service_name=Consulta pediátrica" in serialized
+
+
+def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_output():
+    class ProposalProvider(CapturingProvider):
+        def complete(self, messages):
+            self.calls.append(messages)
+            if messages[0].content.startswith("Interpreta únicamente"):
+                return LLMResponse(
+                    content='{"intent":"booking_request","candidate_service":{"name":"Pediatría"}}',
+                    model="fake", provider="fake",
+                )
+            return LLMResponse(content="respuesta", model="fake", provider="fake")
+
+    engine = make_database()
+    provider = ProposalProvider()
+    repository = BookingServiceRepository("Pediatría")
+    with Session(engine) as session:
+        conversation = ConversationSession(channel_type="telegram", external_user_id="proposal")
+        session.add(conversation)
+        session.flush()
+        NaturalConversationAgentInvoker(
             session, provider, service_repository=repository
         ).invoke(
-            tenant_id=uuid.uuid4(),
-            conversation=conversation,
-            message_text="Servicio inexistente XYZ",
+            tenant_id=uuid.uuid4(), conversation=conversation,
+            message_text="ok, me interesa una consulta pediátrica",
         )
 
-    assert result.content == "respuesta exacta"
-    assert conversation.state["stage"] == "collect_service"
-    safe_state_message = next(
-        message.content
-        for message in provider.calls[0]
-        if message.role == "system" and message.content.startswith("Estado conversacional permitido:")
-    )
-    assert "service_resolution=not_found" in safe_state_message
-
-
-def test_explicit_valid_service_change_replaces_selected_entity():
-    repository = BookingServiceRepository("Pediatría", "Neurología")
-    first = update_initial_booking_context({}, "Quiero una cita")
-    pediatrics = update_initial_booking_context(
-        first.to_persistent_dict(), "Pediatría",
-        resolve_service=ConversationToolRegistry(
-            tenant_id=uuid.uuid4(), repository=repository
-        ).resolve_service,
-    )
-
-    neurology = update_initial_booking_context(
-        pediatrics.to_persistent_dict(), "Quiero una cita en Neurología",
-        resolve_service=ConversationToolRegistry(
-            tenant_id=uuid.uuid4(), repository=repository
-        ).resolve_service,
-    )
-
-    assert neurology.stage.value == "service_identified"
-    assert neurology.selected_service is not None
-    assert neurology.selected_service.name == "Neurología"
-    assert neurology.selected_service.id == repository.records[1].service_id
-    assert neurology.collected_context == {"service_name": "Neurología"}
-
-
-def test_explicit_invalid_service_change_clears_previous_selection():
-    service_id = uuid.uuid4()
-    selected = update_initial_booking_context(
-        update_initial_booking_context({}, "Quiero una cita").to_persistent_dict(),
-        "Pediatría",
-        resolve_service=lambda query: ResolvedConversationService(
-            service_id=service_id, name="Pediatría"
-        ),
-    )
-
-    changed = update_initial_booking_context(
-        selected.to_persistent_dict(), "Quiero una cita en CardiologíaXYZ",
-        resolve_service=lambda query: None,
-    )
-
-    assert changed.selected_service is None
-    assert changed.stage.value == "collect_service"
-    assert changed.collected_context == {}
-    assert changed.missing_information == ["service"]
-    assert changed.last_relevant_context["service_resolution"] == "not_found"
-
-
-def test_booking_reiteration_without_new_service_keeps_valid_selection():
-    service_id = uuid.uuid4()
-    selected = update_initial_booking_context(
-        update_initial_booking_context({}, "Quiero una cita").to_persistent_dict(),
-        "Pediatría",
-        resolve_service=lambda query: ResolvedConversationService(
-            service_id=service_id, name="Pediatría"
-        ),
-    )
-
-    unchanged = update_initial_booking_context(
-        selected.to_persistent_dict(), "Quiero una cita", resolve_service=lambda query: None
-    )
-
-    assert unchanged.selected_service == selected.selected_service
-    assert unchanged.stage.value == "service_identified"
+    assert conversation.state["selected_service"]["name"] == "Pediatría"
+    assert "candidate_service=Pediatría" not in repr(provider.calls[-1])
+    assert str(repository.record.service_id) not in repr(provider.calls)

@@ -384,12 +384,17 @@ serializable, preparado para convertirse posteriormente en estado de LangGraph:
 intent
 stage
 selected_service (referencia interna y nombre)
+candidate_service (mención temporal no confirmada)
 collected_context
 missing_information
 last_relevant_context
 ```
 
 La clasificación combina el turno actual con la intención y etapa persistidas.
+La interpretación de lenguaje natural pertenece al LLM y produce una propuesta
+estructurada (`intent` y `candidate_service`) sin autoridad operacional. El
+backend no infiere entidades desde reglas textuales: valida el candidato con la
+consulta tenant-scoped antes de modificar `selected_service`.
 `booking_request` inicia en `collect_service` con `service` faltante. El turno
 siguiente conserva esa intención y resuelve la descripción contra servicios
 activos del tenant mediante la capacidad backend existente; solo una coincidencia
@@ -410,3 +415,6 @@ continúa siendo exclusivamente entrada/salida.
 El UUID de `selected_service` permanece únicamente en el estado backend. El LLM
 recibe solo `service_resolution` y el nombre validado; canales y texto visible no
 reciben el UUID.
+Una pregunta de existencia o información conserva el candidato como no confirmado
+y no selecciona el servicio. Además, el modelo rechaza como inválido cualquier
+estado `service_identified` sin `selected_service` confirmado.

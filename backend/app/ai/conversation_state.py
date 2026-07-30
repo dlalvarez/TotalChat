@@ -57,6 +57,23 @@ class SelectedConversationService(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
 
+class CandidateConversationService(BaseModel):
+    """Unconfirmed service wording proposed from conversational interpretation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(min_length=1, max_length=200)
+
+
+class InitialConversationProposal(BaseModel):
+    """LLM proposal that carries no operational authority."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    intent: InitialConversationIntent
+    candidate_service: CandidateConversationService | None = None
+
+
 class InitialBookingContext(BaseModel):
     """Persistent, JSON-safe context that can become a future graph state."""
 
@@ -64,6 +81,7 @@ class InitialBookingContext(BaseModel):
 
     intent: InitialConversationIntent = InitialConversationIntent.CASUAL_CONVERSATION
     stage: InitialConversationStage = InitialConversationStage.START
+    candidate_service: CandidateConversationService | None = None
     selected_service: SelectedConversationService | None = None
     collected_context: dict[str, JsonValue] = Field(default_factory=dict)
     missing_information: list[str] = Field(default_factory=list)
@@ -72,6 +90,16 @@ class InitialBookingContext(BaseModel):
     @model_validator(mode="after")
     def reject_internal_material(self) -> Self:
         _reject_forbidden_metadata(self.model_dump(mode="json"), path="conversation_state")
+        if (
+            self.stage is InitialConversationStage.SERVICE_IDENTIFIED
+            and self.selected_service is None
+        ):
+            raise ValueError("service_identified requires selected_service")
+        if (
+            self.stage is not InitialConversationStage.SERVICE_IDENTIFIED
+            and self.selected_service is not None
+        ):
+            raise ValueError("selected_service requires service_identified")
         return self
 
     def to_persistent_dict(self) -> dict[str, JsonValue]:

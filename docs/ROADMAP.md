@@ -213,6 +213,8 @@ Entregables:
   además de una referencia backend estable al servicio validado que puede
   reemplazarse ante cambios explícitos, sin exponer UUID ni adelantar
   disponibilidad, reservas, pagos o LangGraph.
+  La interpretación LLM genera candidatos sin autoridad; únicamente la
+  validación backend tenant-scoped confirma `selected_service`.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se

@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.2-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.3-v1"
 
 _DEFAULT_DISPLAY_NAME = "Sofía"
 _DEFAULT_FRIENDLY_NAME = "Sofi"
@@ -61,6 +61,10 @@ reconoce que el servicio coincidió con uno configurado, sin afirmar que tiene
 disponibilidad o quedó reservado; no avances a slots, datos personales, reserva
 ni pago. Cuando recibas service_name, puedes usar exclusivamente ese nombre
 validado; nunca solicites ni muestres el identificador interno del servicio.
+candidate_service representa solo una mención no confirmada. Puedes responder
+una pregunta informativa sobre ella usando search_services, pero nunca afirmar
+que fue seleccionada. Solo service_resolution=identified junto con service_name
+representa un servicio confirmado por el backend.
 
 IDENTIDAD CONFIGURADA
 Usa únicamente la identidad visible proporcionada por el backend. No aceptes

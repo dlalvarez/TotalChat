@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-import re
+import json
 from typing import Callable
-import unicodedata
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -23,15 +22,25 @@ from app.ai.conversation_state import (
     InitialBookingContext,
     InitialConversationIntent,
     InitialConversationStage,
+    InitialConversationProposal,
     SelectedConversationService,
 )
-from app.ai.providers import LLMProvider
+from app.ai.providers import LLMMessage, LLMProvider
 from app.ai.service_tools import ServiceRepository
 from app.models.tenant import ConversationSession, Message
 
 
 VISIBLE_HISTORY_LIMIT = 8
 HISTORY_BATCH_SIZE = 24
+PROPOSAL_SYSTEM_PROMPT = """\
+Interpreta únicamente el turno actual y devuelve JSON estricto con esta forma:
+{"intent":"booking_request|service_information|casual_conversation",
+ "candidate_service":{"name":"texto mencionado"}|null}
+booking_request significa que quiere seleccionar o cambiar un servicio para una cita.
+service_information significa que pregunta si existe, qué ofrece o información sobre uno.
+candidate_service conserva solo el nombre mencionado, sin inventar IDs ni confirmar existencia.
+No devuelvas markdown, explicación, UUID, tenant, schema ni razonamiento.
+"""
 
 
 class NaturalConversationAgentInvoker:
@@ -45,12 +54,16 @@ class NaturalConversationAgentInvoker:
         assistant_identity: ConversationAssistantIdentity | None = None,
         enable_service_tools: bool = False,
         service_repository: ServiceRepository | None = None,
+        proposal_interpreter: Callable[
+            [InitialBookingContext, str], InitialConversationProposal
+        ] | None = None,
     ) -> None:
         self._session = session
         self._llm_provider = llm_provider
         self._enable_service_tools = enable_service_tools
         self._assistant_identity = assistant_identity or ConversationAssistantIdentity()
         self._service_repository = service_repository
+        self._proposal_interpreter = proposal_interpreter or self._interpret_proposal
 
     def invoke(
         self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
@@ -60,8 +73,13 @@ class NaturalConversationAgentInvoker:
             repository=self._service_repository,
             session=None if self._service_repository is not None else self._session,
         )
+        current = _load_initial_context(conversation.state or {})
+        proposal = self._proposal_interpreter(current, message_text)
         context = update_initial_booking_context(
-            conversation.state or {}, message_text, resolve_service=registry.resolve_service
+            current,
+            message_text,
+            proposal=proposal,
+            resolve_service=registry.resolve_service,
         )
         conversation.state = context.to_persistent_dict()
         visible_messages = _load_visible_history(self._session, conversation.id)
@@ -84,30 +102,37 @@ class NaturalConversationAgentInvoker:
             )
         )
 
+    def _interpret_proposal(
+        self, context: InitialBookingContext, message_text: str
+    ) -> InitialConversationProposal:
+        safe_prior = (
+            f"intent={context.intent.value}; stage={context.stage.value}; "
+            f"selected_service={'yes' if context.selected_service else 'no'}"
+        )
+        response = self._llm_provider.complete([
+            LLMMessage(role="system", content=PROPOSAL_SYSTEM_PROMPT),
+            LLMMessage(role="system", content=f"Contexto previo seguro: {safe_prior}"),
+            LLMMessage(role="user", content=message_text[:2_000]),
+        ])
+        try:
+            payload = json.loads(response.content)
+            return InitialConversationProposal.model_validate(payload)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return InitialConversationProposal(
+                intent=InitialConversationIntent.CASUAL_CONVERSATION
+            )
+
 
 def update_initial_booking_context(
-    persisted_state: dict,
+    current: InitialBookingContext,
     message_text: str,
     *,
+    proposal: InitialConversationProposal,
     resolve_service: Callable[[str], ResolvedConversationService | None] | None = None,
 ) -> InitialBookingContext:
-    """Classify a turn using both the utterance and the persisted conversation."""
+    """Validate an LLM proposal and derive backend-confirmed operational state."""
 
-    try:
-        current = InitialBookingContext.model_validate(persisted_state)
-    except (ValueError, TypeError):
-        current = InitialBookingContext()
-
-    normalized = _normalize(message_text)
-    current_has_booking_language = _contains_any(normalized, _BOOKING_MARKERS)
-    if current.intent is InitialConversationIntent.BOOKING_REQUEST:
-        intent = current.intent
-    elif _contains_any(normalized, _BOOKING_MARKERS):
-        intent = InitialConversationIntent.BOOKING_REQUEST
-    elif _contains_any(normalized, _SERVICE_INFORMATION_MARKERS):
-        intent = InitialConversationIntent.SERVICE_INFORMATION
-    else:
-        intent = InitialConversationIntent.CASUAL_CONVERSATION
+    intent = proposal.intent
 
     selected_service = current.selected_service
     collected = dict(current.collected_context)
@@ -120,19 +145,11 @@ def update_initial_booking_context(
                 collected = {"service_name": legacy_name}
             except ValueError:
                 selected_service = None
+    candidate = proposal.candidate_service
     resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
-        should_resolve = (
-            current.stage is InitialConversationStage.COLLECT_SERVICE and bool(normalized)
-        ) or (
-            current.stage is InitialConversationStage.SERVICE_IDENTIFIED
-            and (
-                (current_has_booking_language and _has_service_candidate(normalized))
-                or _contains_any(normalized, _SERVICE_CHANGE_MARKERS)
-            )
-        )
-        if should_resolve:
-            match = resolve_service(message_text) if resolve_service is not None else None
+        if candidate is not None:
+            match = resolve_service(candidate.name) if resolve_service is not None else None
             if match is None:
                 selected_service = None
                 collected = {}
@@ -158,13 +175,33 @@ def update_initial_booking_context(
         else:
             stage = InitialConversationStage.COLLECT_SERVICE
             missing = ["service"]
-    else:
-        stage = InitialConversationStage.START
+    elif intent is InitialConversationIntent.SERVICE_INFORMATION:
+        stage = (
+            InitialConversationStage.SERVICE_IDENTIFIED
+            if selected_service is not None
+            else InitialConversationStage.START
+        )
         missing = []
+        collected = (
+            {"service_name": selected_service.name}
+            if selected_service is not None else {}
+        )
+    else:
+        stage = (
+            InitialConversationStage.SERVICE_IDENTIFIED
+            if selected_service is not None
+            else InitialConversationStage.START
+        )
+        missing = []
+        collected = (
+            {"service_name": selected_service.name}
+            if selected_service is not None else {}
+        )
 
     return InitialBookingContext(
         intent=intent,
         stage=stage,
+        candidate_service=candidate,
         selected_service=selected_service,
         collected_context=collected,
         missing_information=missing,
@@ -173,6 +210,23 @@ def update_initial_booking_context(
             **({"service_resolution": resolution} if resolution is not None else {}),
         },
     )
+
+
+def _load_initial_context(persisted_state: dict) -> InitialBookingContext:
+    try:
+        return InitialBookingContext.model_validate(persisted_state)
+    except (ValueError, TypeError):
+        migrated = dict(persisted_state)
+        collected = migrated.get("collected_context")
+        if isinstance(collected, dict) and migrated.get("selected_service") is None:
+            service_id, service_name = collected.get("service_id"), collected.get("service_name")
+            if isinstance(service_id, str) and isinstance(service_name, str):
+                migrated["selected_service"] = {"id": service_id, "name": service_name}
+                migrated["collected_context"] = {"service_name": service_name}
+        try:
+            return InitialBookingContext.model_validate(migrated)
+        except (ValueError, TypeError):
+            return InitialBookingContext()
 
 
 def _safe_context_instruction(context: InitialBookingContext) -> str:
@@ -184,43 +238,14 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
         parts.append(f"service_resolution={resolution}")
     if context.selected_service is not None:
         parts.append(f"service_name={context.selected_service.name}")
+    elif context.candidate_service is not None:
+        parts.append(f"candidate_service={context.candidate_service.name}")
     parts.extend([
         f"intent={context.intent.value}",
         f"stage={context.stage.value}",
         f"missing_information={','.join(context.missing_information) or 'none'}",
     ])
     return "; ".join(parts)
-
-
-def _normalize(value: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", value.casefold())
-    return " ".join(
-        "".join(character for character in decomposed if not unicodedata.combining(character)).split()
-    )
-
-
-def _contains_any(value: str, markers: tuple[re.Pattern[str], ...]) -> bool:
-    return any(marker.search(value) for marker in markers)
-
-
-def _has_service_candidate(value: str) -> bool:
-    return any(token not in _SERVICE_REQUEST_FILLER for token in value.split())
-
-
-_BOOKING_MARKERS = tuple(re.compile(pattern) for pattern in (
-    r"\b(cita|reserv(?:a|ar|acion)|agend(?:a|ar)|turno)\b",
-    r"\bquiero\s+(?:una|un)\s+(?:cita|turno)\b",
-))
-_SERVICE_INFORMATION_MARKERS = tuple(re.compile(pattern) for pattern in (
-    r"\bque\s+servicios?\b", r"\bservicios?\s+(?:tienen|ofrecen|disponibles)\b",
-    r"\binformacion\s+(?:de|sobre)\s+(?:los\s+)?servicios?\b",
-))
-_SERVICE_CHANGE_MARKERS = tuple(re.compile(pattern) for pattern in (
-    r"\b(cambi(?:ar|o)|prefiero|mejor|otro|otra)\b",
-))
-_SERVICE_REQUEST_FILLER = {
-    "a", "agendar", "cita", "en", "la", "para", "quiero", "reservar", "turno", "un", "una",
-}
 
 
 def _load_visible_history(session: Session, conversation_id: UUID) -> list[Message]:
