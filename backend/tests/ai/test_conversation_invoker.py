@@ -407,11 +407,12 @@ def test_information_turn_keeps_existing_confirmed_service_until_new_selection()
     assert price_question.intent.value == "service_information"
     safe_context = _safe_context_instruction(price_question)
     assert "service_confirmed=true" in safe_context
-    assert "service_resolution=identified" in safe_context
+    assert "service_resolution=not_found" in safe_context
     assert "service_name=Consulta pediátrica" in safe_context
     assert "candidate_service=Neurología" in safe_context
     response_guard = _response_guard(price_question)
     assert response_guard.intent == "service_information"
+    assert response_guard.service_resolution == "not_found"
     assert response_guard.service_name == "Consulta pediátrica"
     assert response_guard.candidate_service == "Neurología"
     assert changed.selected_service.id == repository.records[1].service_id
