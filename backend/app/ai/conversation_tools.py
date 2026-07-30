@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from difflib import SequenceMatcher
 import json
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -161,16 +160,19 @@ def _service_match_score(query: str, candidate: str) -> float:
 def _service_token_score(query: str, candidate: str) -> float:
     if query == candidate:
         return 1.0
-    shorter = min(len(query), len(candidate))
-    common_prefix = 0
-    for query_character, candidate_character in zip(query, candidate):
-        if query_character != candidate_character:
-            break
-        common_prefix += 1
-    similarity = SequenceMatcher(None, query, candidate).ratio()
-    if shorter >= 8 and common_prefix >= 7 and similarity >= 0.85:
+    # Only an explicit Spanish noun/adjective morphology equivalence is allowed.
+    # Edit-distance matching is deliberately forbidden for clinical terms.
+    if _service_term_root(query) == _service_term_root(candidate):
         return 0.9
     return 0.0
+
+
+def _service_term_root(value: str) -> str:
+    if len(value) >= 8 and value.endswith("ica"):
+        return value[:-3]
+    if len(value) >= 8 and value.endswith("ia"):
+        return value[:-2]
+    return value
 
 
 _MIN_SERVICE_MATCH_SCORE = 0.8

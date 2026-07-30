@@ -170,6 +170,10 @@ activos. La búsqueda informativa puede devolver varias coincidencias seguras pa
 presentar opciones. La resolución exige un líder inequívoco separado por un
 margen mínimo; términos médicos parecidos sin raíz común segura no se promueven
 automáticamente. Ninguna de las dos rutas expone UUIDs.
+No se usa distancia de edición para adivinar términos clínicos. Solo se admite
+igualdad normalizada o una equivalencia morfológica explícita y acotada entre el
+nombre y su forma adjetival. Un typo o término clínicamente dudoso queda como
+candidato no confirmado, mantiene `service_confirmed=false` y exige aclaración.
 
 La consulta lee servicios activos desde `practitioner_services`. El resultado
 que vuelve al modelo contiene únicamente `name`, `description` y

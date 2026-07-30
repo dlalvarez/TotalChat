@@ -137,6 +137,9 @@ def test_resolution_does_not_confuse_distinct_medical_terms(query):
 
     assert registry.resolve_service(query) is None
 
+    search = registry.execute("search_services", json.dumps({"query": query}))
+    assert search == {"services": []}
+
 
 def test_ambiguous_close_rankings_are_returned_for_exploration_but_not_selected():
     repository = MultiServiceRepository("Pediatría infantil", "Pediatría general")

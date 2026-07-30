@@ -311,6 +311,22 @@ def test_valid_change_replaces_confirmed_service_and_invalid_change_clears_it():
     assert missing.last_relevant_context["service_resolution"] == "not_found"
 
 
+def test_clinically_risky_typo_stays_unresolved_until_explicit_confirmation():
+    repository = BookingServiceRepository("Consulta nefrología")
+    unresolved = update_initial_booking_context(
+        InitialBookingContext(), "Quiero nuerología",
+        proposal=proposal("booking_request", "nuerología"),
+        resolve_service=resolver(repository),
+    )
+
+    assert unresolved.candidate_service.name == "nuerología"
+    assert unresolved.selected_service is None
+    assert unresolved.stage.value == "collect_service"
+    assert unresolved.conversation_progress.service_confirmed is False
+    assert unresolved.conversation_progress.next_expected_action == "collect_service"
+    assert unresolved.last_relevant_context["service_resolution"] == "not_found"
+
+
 def test_information_turn_keeps_existing_confirmed_service_until_new_selection():
     repository = BookingServiceRepository("Consulta pediátrica", "Nefrología")
     selected = update_initial_booking_context(

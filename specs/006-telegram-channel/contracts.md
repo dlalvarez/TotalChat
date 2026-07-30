@@ -154,6 +154,9 @@ La consulta informativa usa el mismo ranking normalizado y conservador que la
 resolución conversacional. Puede devolver múltiples opciones; no elige una. La
 resolución solo confirma una coincidencia única con margen seguro y rechaza
 términos médicos meramente parecidos. UUIDs y puntajes permanecen internos.
+La política clínica prohíbe distancia de edición para inferir otro servicio:
+solo igualdad normalizada o equivalencia morfológica explícita puede puntuar. Un
+typo dudoso permanece sin resolver hasta una confirmación inequívoca posterior.
 
 Telegram no conoce el catálogo, los argumentos ni los resultados. Continúa
 limitándose a persistencia, invocación y entrega. No se habilitan precios,
