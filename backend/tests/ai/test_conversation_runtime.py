@@ -261,6 +261,28 @@ def test_suggested_service_is_presented_for_explicit_confirmation():
     assert "confirmado" not in result.content
 
 
+@pytest.mark.parametrize("content", ["Sí, ya la cambié.", "Sí, ya quedó."])
+def test_suggested_service_guard_rejects_claimed_change_after_question(content):
+    provider = FakeProvider(content=content)
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="suggested",
+        candidate_service="pediatría",
+        suggested_service_name="Consulta pediátrica",
+        intent="booking_request",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "¿La cambiaste?",
+        response_guard=guard,
+    ))
+
+    assert result.content == (
+        "Encontré un servicio relacionado: Consulta pediátrica. "
+        "¿Te refieres a ese?"
+    )
+
+
 @pytest.mark.parametrize(
     ("selected_service", "candidate_service"),
     [

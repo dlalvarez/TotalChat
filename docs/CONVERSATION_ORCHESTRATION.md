@@ -437,6 +437,11 @@ devuelve el hecho correspondiente.
 para una reserva y no habilita avance. Una confirmación explícita posterior vuelve
 a validar el nombre sugerido tenant-scoped antes de promoverlo. Aliases
 persistentes, embeddings y LLM judge quedan como mejoras futuras no implementadas.
+La promoción requiere una aceptación afirmativa explícita. Preguntas sobre si el
+cambio ya ocurrió —incluidas formas interrogativas como «¿La cambiaste?» o
+«¿Ya quedó?»— y aceptaciones ambiguas como «Perfecto» conservan la sugerencia y
+deben provocar una nueva solicitud de confirmación, aun si el LLM propone
+erróneamente `confirm_candidate`.
 
 Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
 servicio antes de identificarlo. No guarda prompts, razonamiento,

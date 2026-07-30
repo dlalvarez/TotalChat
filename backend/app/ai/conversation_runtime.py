@@ -191,6 +191,11 @@ _UNSUPPORTED_NOT_FOUND_CONTINUATION_PATTERN = re.compile(
     r"\b(?:siguiente paso|continuar con|ayudarte con)\b",
     re.IGNORECASE,
 )
+_UNSUPPORTED_SUGGESTION_PROMOTION_PATTERN = re.compile(
+    r"\b(?:ya (?:la |lo )?cambi(?:e|é)|ya qued[oó]|qued[oó] cambiad[oa]|"
+    r"(?:la|lo) cambi(?:e|é))\b",
+    re.IGNORECASE,
+)
 
 
 def _violates_response_guard(
@@ -216,6 +221,11 @@ def _violates_response_guard(
     if (
         guard.service_resolution == "not_found"
         and _UNSUPPORTED_NOT_FOUND_CONTINUATION_PATTERN.search(content)
+    ):
+        return True
+    if (
+        guard.service_resolution == "suggested"
+        and _UNSUPPORTED_SUGGESTION_PROMOTION_PATTERN.search(content)
     ):
         return True
     candidate_is_unconfirmed = (

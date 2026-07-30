@@ -225,3 +225,7 @@ habilita el siguiente paso. Su nombre seguro puede mostrarse para preguntar si e
 usuario se refiere a ese servicio; una confirmación explícita posterior debe
 resolver nuevamente el nombre real antes de promoverlo. Aliases persistentes,
 embeddings y LLM judge quedan fuera de 8A.9.
+La confirmación debe ser afirmativa y pertenecer al vocabulario cerrado autorizado
+por backend. Una pregunta sobre si el cambio ocurrió y una expresión ambigua como
+«Perfecto» no promueven `suggested_service`, aunque la propuesta LLM las clasifique
+como `confirm_candidate`; el estado permanece en `collect_service`.

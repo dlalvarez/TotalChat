@@ -40,3 +40,5 @@
   selección confirmada previa (corrección Fase 8A.9).
 - [x] Separar sugerencias textuales conservadoras de identificaciones inequívocas
   y exigir confirmación antes de promoverlas (corrección Fase 8A.9).
+- [x] Rechazar preguntas de estado y aceptaciones ambiguas como confirmación de
+  servicios sugeridos (corrección Fase 8A.9).

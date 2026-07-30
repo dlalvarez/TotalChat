@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import re
 from typing import Callable
+import unicodedata
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -49,8 +51,9 @@ service_information significa que pregunta si existe, qué ofrece o información
 candidate_service conserva solo el nombre mencionado, sin inventar IDs ni confirmar existencia.
 explore es una pregunta o mención informativa y nunca cambia una selección.
 select requiere una decisión explícita de seleccionar o reemplazar por el candidato nombrado.
-confirm_candidate requiere confirmación explícita del candidato previo aunque no repita su nombre.
-none cubre conversación sin decisión. No infieras confirmación de expresiones ambiguas.
+confirm_candidate requiere aceptación afirmativa explícita del candidato previo aunque no repita su nombre.
+Una pregunta sobre si algo ya cambió, quedó, se hizo o está listo nunca es confirm_candidate.
+none cubre conversación sin decisión. No infieras confirmación de expresiones ambiguas como "Perfecto".
 No devuelvas markdown, explicación, UUID, tenant, schema ni razonamiento.
 """
 
@@ -173,7 +176,7 @@ def update_initial_booking_context(
         suggested_service = None
     resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
-        if can_replace_confirmed_service(proposal) and candidate is not None:
+        if can_replace_confirmed_service(proposal, message_text) and candidate is not None:
             lookup_name = (
                 current.suggested_service.name
                 if (
@@ -217,6 +220,10 @@ def update_initial_booking_context(
             else:
                 stage = current.stage
                 missing = []
+        elif current.suggested_service is not None:
+            stage = InitialConversationStage.COLLECT_SERVICE
+            missing = ["service"]
+            resolution = "suggested"
         else:
             stage = InitialConversationStage.COLLECT_SERVICE
             missing = ["service"]
@@ -277,16 +284,39 @@ def update_initial_booking_context(
     )
 
 
-def can_replace_confirmed_service(proposal: InitialConversationProposal) -> bool:
-    """Authorize confirmed-state mutation from structured decisions, never text."""
+def can_replace_confirmed_service(
+    proposal: InitialConversationProposal,
+    message_text: str,
+) -> bool:
+    """Authorize mutation from a structured decision plus closed confirmation syntax."""
 
-    return (
-        proposal.intent is InitialConversationIntent.BOOKING_REQUEST
-        and proposal.service_decision in {
-            ConversationEntityDecision.SELECT,
-            ConversationEntityDecision.CONFIRM_CANDIDATE,
-        }
+    if proposal.intent is not InitialConversationIntent.BOOKING_REQUEST:
+        return False
+    if proposal.service_decision is ConversationEntityDecision.SELECT:
+        return proposal.candidate_service is not None
+    if proposal.service_decision is ConversationEntityDecision.CONFIRM_CANDIDATE:
+        return _is_affirmative_candidate_confirmation(message_text)
+    return False
+
+
+_AFFIRMATIVE_CANDIDATE_CONFIRMATION = re.compile(
+    r"^(?:si(?: (?:ese|esa)(?: servicio)?(?: (?:quiero|es|mismo))?"
+    r"| (?:cambia|cambiala|cambialo) a ese servicio| me refiero a ese)?"
+    r"|confirmo|correcto|ese es|ese servicio)$"
+)
+
+
+def _is_affirmative_candidate_confirmation(message_text: str) -> bool:
+    """Allow only closed affirmative forms; interrogative turns never confirm."""
+
+    if "?" in message_text or "¿" in message_text:
+        return False
+    decomposed = unicodedata.normalize("NFKD", message_text.casefold())
+    without_accents = "".join(
+        character for character in decomposed if not unicodedata.combining(character)
     )
+    normalized = " ".join(re.sub(r"[^a-z0-9]+", " ", without_accents).split())
+    return bool(_AFFIRMATIVE_CANDIDATE_CONFIRMATION.fullmatch(normalized))
 
 
 def _load_initial_context(persisted_state: dict) -> InitialBookingContext:
