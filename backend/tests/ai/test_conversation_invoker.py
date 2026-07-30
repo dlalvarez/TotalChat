@@ -28,12 +28,18 @@ class CapturingProvider:
         return LLMResponse(content="respuesta exacta", model="fake", provider="fake")
 
 
-def proposal(intent, candidate=None):
+def proposal(intent, candidate=None, decision=None):
+    if decision is None:
+        decision = (
+            "select" if intent == "booking_request" and candidate
+            else ("explore" if intent == "service_information" else "none")
+        )
     return InitialConversationProposal(
         intent=intent,
         candidate_service=(
             CandidateConversationService(name=candidate) if candidate else None
         ),
+        service_decision=decision,
     )
 
 
@@ -213,7 +219,28 @@ def test_proposals_separate_information_questions_from_booking_selection():
     assert information.candidate_service is not None
     assert information.candidate_service.name == "Pediatría"
     assert information.selected_service is None
-    assert information.stage.value == "start"
+    assert information.stage.value == "collect_service"
+
+
+def test_explicit_confirmation_promotes_prior_candidate_but_ambiguous_ack_does_not():
+    repository = BookingServiceRepository("Pediatría")
+    explored = update_initial_booking_context(
+        InitialBookingContext(), "¿Tienen pediatría?",
+        proposal=proposal("service_information", "Pediatría"),
+    )
+    ambiguous = update_initial_booking_context(
+        explored, "Perfecto", proposal=proposal("casual_conversation")
+    )
+    confirmed = update_initial_booking_context(
+        ambiguous, "Sí, esa quiero",
+        proposal=proposal("booking_request", decision="confirm_candidate"),
+        resolve_service=resolver(repository),
+    )
+
+    assert ambiguous.selected_service is None
+    assert ambiguous.candidate_service.name == "Pediatría"
+    assert confirmed.selected_service.id == repository.record.service_id
+    assert confirmed.selected_service.name == "Pediatría"
 
 
 class BookingServiceRepository:
@@ -384,7 +411,11 @@ def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_outp
             self.calls.append(messages)
             if messages[0].content.startswith("Interpreta únicamente"):
                 return LLMResponse(
-                    content='{"intent":"booking_request","candidate_service":{"name":"Pediatría"}}',
+                    content=(
+                        '{"intent":"booking_request",'
+                        '"candidate_service":{"name":"Pediatría"},'
+                        '"service_decision":"select"}'
+                    ),
                     model="fake", provider="fake",
                 )
             return LLMResponse(content="respuesta", model="fake", provider="fake")

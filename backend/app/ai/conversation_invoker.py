@@ -24,6 +24,7 @@ from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversa
 from app.ai.conversation_state import (
     InitialBookingContext,
     InitialConversationProgress,
+    ConversationEntityDecision,
     InitialConversationIntent,
     InitialConversationStage,
     InitialConversationProposal,
@@ -39,10 +40,15 @@ HISTORY_BATCH_SIZE = 24
 PROPOSAL_SYSTEM_PROMPT = """\
 Interpreta únicamente el turno actual y devuelve JSON estricto con esta forma:
 {"intent":"booking_request|service_information|casual_conversation",
- "candidate_service":{"name":"texto mencionado"}|null}
+ "candidate_service":{"name":"texto mencionado"}|null,
+ "service_decision":"none|explore|select|confirm_candidate"}
 booking_request significa que quiere seleccionar o cambiar un servicio para una cita.
 service_information significa que pregunta si existe, qué ofrece o información sobre uno.
 candidate_service conserva solo el nombre mencionado, sin inventar IDs ni confirmar existencia.
+explore es una pregunta o mención informativa y nunca cambia una selección.
+select requiere una decisión explícita de seleccionar o reemplazar por el candidato nombrado.
+confirm_candidate requiere confirmación explícita del candidato previo aunque no repita su nombre.
+none cubre conversación sin decisión. No infieras confirmación de expresiones ambiguas.
 No devuelvas markdown, explicación, UUID, tenant, schema ni razonamiento.
 """
 
@@ -113,7 +119,8 @@ class NaturalConversationAgentInvoker:
     ) -> InitialConversationProposal:
         safe_prior = (
             f"intent={context.intent.value}; stage={context.stage.value}; "
-            f"selected_service={'yes' if context.selected_service else 'no'}"
+            f"selected_service={'yes' if context.selected_service else 'no'}; "
+            f"candidate_service={context.candidate_service.name if context.candidate_service else 'none'}"
         )
         response = self._llm_provider.complete([
             LLMMessage(role="system", content=PROPOSAL_SYSTEM_PROMPT),
@@ -151,10 +158,10 @@ def update_initial_booking_context(
                 collected = {"service_name": legacy_name}
             except ValueError:
                 selected_service = None
-    candidate = proposal.candidate_service
+    candidate = proposal.candidate_service or current.candidate_service
     resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
-        if candidate is not None:
+        if can_replace_confirmed_service(proposal) and candidate is not None:
             match = resolve_service(candidate.name) if resolve_service is not None else None
             if match is None:
                 selected_service = None
@@ -185,7 +192,7 @@ def update_initial_booking_context(
         stage = (
             InitialConversationStage.SERVICE_IDENTIFIED
             if selected_service is not None
-            else InitialConversationStage.START
+            else InitialConversationStage.COLLECT_SERVICE
         )
         missing = []
         collected = (
@@ -223,6 +230,18 @@ def update_initial_booking_context(
             "user_message": message_text.strip()[:500],
             **({"service_resolution": resolution} if resolution is not None else {}),
         },
+    )
+
+
+def can_replace_confirmed_service(proposal: InitialConversationProposal) -> bool:
+    """Authorize confirmed-state mutation from structured decisions, never text."""
+
+    return (
+        proposal.intent is InitialConversationIntent.BOOKING_REQUEST
+        and proposal.service_decision in {
+            ConversationEntityDecision.SELECT,
+            ConversationEntityDecision.CONFIRM_CANDIDATE,
+        }
     )
 
 

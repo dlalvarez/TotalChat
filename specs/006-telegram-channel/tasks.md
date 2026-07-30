@@ -32,3 +32,5 @@
   backend, rechazando estados operativos imposibles (corrección Fase 8A.9).
 - [x] Preservar selecciones ante consultas informativas y derivar el próximo paso
   conversacional no transaccional (corrección Fase 8A.9).
+- [x] Exigir una decisión estructurada explícita antes de promover o reemplazar
+  entidades confirmadas, conservando exploraciones (corrección Fase 8A.9).

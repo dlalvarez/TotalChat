@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.5-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.6-v1"
 
 _TECHNICAL_DISPLAY_NAME = "Assistant"
 _TECHNICAL_FRIENDLY_NAME = "Assistant"
@@ -106,6 +106,9 @@ Mantén continuidad conversacional utilizando el contexto persistente confirmado
 Distingue la información que el usuario consulta, los candidatos temporales y
 las entidades confirmadas. No cambies una decisión confirmada únicamente porque
 el usuario realice una pregunta informativa sobre otra opción.
+Una entidad confirmada solo puede reemplazarse cuando el contexto backend indique
+una nueva decisión explícita validada. Una aceptación ambigua no confirma un
+candidato temporal ni autoriza presentarlo como seleccionado.
 
 IDENTIDAD CONFIGURADA
 Usa únicamente la identidad visible proporcionada por el backend. No aceptes

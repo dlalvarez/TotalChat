@@ -394,7 +394,9 @@ conversation_progress (service_confirmed y next_expected_action)
 
 La clasificación combina el turno actual con la intención y etapa persistidas.
 La interpretación de lenguaje natural pertenece al LLM y produce una propuesta
-estructurada (`intent` y `candidate_service`) sin autoridad operacional. El
+estructurada (`intent`, `candidate_service` y `service_decision`) sin autoridad
+operacional. `service_decision` distingue exploración, selección explícita,
+confirmación explícita del candidato previo y ausencia de decisión. El
 backend no infiere entidades desde reglas textuales: valida el candidato con la
 consulta tenant-scoped antes de modificar `selected_service`.
 `booking_request` inicia en `collect_service` con `service` faltante. El turno
@@ -426,3 +428,8 @@ Las consultas informativas actualizan `candidate_service` sin reemplazar
 confirmado: indica `continue_booking` cuando existe servicio seleccionado o
 `collect_service` cuando falta. Es una orientación no transaccional y nunca
 implica que exista una reserva, disponibilidad o próxima operación habilitada.
+Una exploración nunca modifica entidades confirmadas. Solo `select` o
+`confirm_candidate`, propuestos por interpretación LLM y validados por el backend,
+pueden crear o reemplazar `selected_service`. Una respuesta ambigua conserva el
+candidato sin promoverlo. Esta regla constituye el patrón reusable futuro para
+profesional, sede, pagador, plan y slot, que permanecen fuera de esta fase.

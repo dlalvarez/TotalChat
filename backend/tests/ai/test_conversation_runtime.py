@@ -56,7 +56,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.5-v1",
+        "system_prompt_version": "8a9.6-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content

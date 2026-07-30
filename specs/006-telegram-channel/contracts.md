@@ -176,7 +176,8 @@ LLM, al texto visible ni al payload de Telegram; el runtime recibe únicamente e
 estado de resolución y el nombre validado.
 
 La interpretación LLM produce exclusivamente una propuesta estructurada de
-intención y candidato. Una pregunta informativa puede conservar candidato, pero
+intención, candidato y decisión (`none | explore | select | confirm_candidate`).
+Una pregunta informativa puede conservar candidato, pero
 no crea `selected_service`. Solo el resolver backend tenant-scoped promueve un
 candidato de reserva a selección confirmada. El modelo rechaza
 `service_identified` cuando no existe `selected_service`.
@@ -184,6 +185,9 @@ Una consulta informativa reemplaza únicamente `candidate_service` y conserva la
 selección confirmada previa. `conversation_progress` refleja de manera derivada
 si el servicio está confirmado y orienta a `continue_booking` o
 `collect_service`; no representa reserva, agenda ni acción ejecutable.
+Solo decisiones `select` o `confirm_candidate` permiten mutar la entidad
+confirmada después de validación backend. `explore`, `none` y confirmaciones
+ambiguas preservan `selected_service`.
 
 El estado se entrega al runtime como contexto seguro para que el LLM solicite la
 información faltante naturalmente. No se muestra al usuario ni contiene prompts,

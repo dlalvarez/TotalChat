@@ -65,6 +65,15 @@ class CandidateConversationService(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
 
+class ConversationEntityDecision(StrEnum):
+    """Authority requested by a proposal; only explicit decisions may confirm."""
+
+    NONE = "none"
+    EXPLORE = "explore"
+    SELECT = "select"
+    CONFIRM_CANDIDATE = "confirm_candidate"
+
+
 class InitialConversationProposal(BaseModel):
     """LLM proposal that carries no operational authority."""
 
@@ -72,6 +81,7 @@ class InitialConversationProposal(BaseModel):
 
     intent: InitialConversationIntent
     candidate_service: CandidateConversationService | None = None
+    service_decision: ConversationEntityDecision = ConversationEntityDecision.NONE
 
 
 class ConversationNextExpectedAction(StrEnum):
