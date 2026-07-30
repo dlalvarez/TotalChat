@@ -292,7 +292,8 @@ def test_information_turn_keeps_existing_confirmed_service_until_new_selection()
         resolve_service=resolver(repository),
     )
     price_question = update_initial_booking_context(
-        selected, "¿Cuánto cuesta?", proposal=proposal("service_information")
+        selected, "¿Tienes neurología?",
+        proposal=proposal("service_information", "Neurología"),
     )
     changed = update_initial_booking_context(
         price_question, "Ahora quiero nefrología",
@@ -301,7 +302,45 @@ def test_information_turn_keeps_existing_confirmed_service_until_new_selection()
     )
 
     assert price_question.selected_service == selected.selected_service
+    assert price_question.candidate_service.name == "Neurología"
+    assert price_question.intent.value == "service_information"
     assert changed.selected_service.id == repository.records[1].service_id
+
+
+def test_multiple_service_changes_keep_only_latest_confirmed_selection():
+    repository = BookingServiceRepository("Pediatría", "Nefrología")
+    context = InitialBookingContext()
+    for message, candidate in (
+        ("Pediatría", "Pediatría"),
+        ("Nefrología", "Nefrología"),
+        ("No, mejor pediatría", "Pediatría"),
+    ):
+        context = update_initial_booking_context(
+            context, message, proposal=proposal("booking_request", candidate),
+            resolve_service=resolver(repository),
+        )
+
+    assert context.selected_service.id == repository.records[0].service_id
+    assert context.selected_service.name == "Pediatría"
+    assert context.conversation_progress.service_confirmed is True
+    assert context.conversation_progress.next_expected_action == "continue_booking"
+
+
+def test_booking_follow_up_without_new_candidate_preserves_progress_without_booking():
+    repository = BookingServiceRepository("Pediatría")
+    selected = update_initial_booking_context(
+        InitialBookingContext(), "Quiero una cita pediátrica",
+        proposal=proposal("booking_request", "Pediatría"),
+        resolve_service=resolver(repository),
+    )
+    follow_up = update_initial_booking_context(
+        selected, "Necesito fecha y hora", proposal=proposal("booking_request")
+    )
+
+    assert follow_up.selected_service == selected.selected_service
+    assert follow_up.stage.value == "service_identified"
+    assert follow_up.conversation_progress.next_expected_action == "continue_booking"
+    assert "booking_id" not in follow_up.to_persistent_dict()
 
 
 def test_invoker_persists_confirmed_service_but_never_sends_uuid_to_llm():

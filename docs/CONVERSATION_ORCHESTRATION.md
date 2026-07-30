@@ -388,6 +388,7 @@ candidate_service (mención temporal no confirmada)
 collected_context
 missing_information
 last_relevant_context
+conversation_progress (service_confirmed y next_expected_action)
 ```
 
 La clasificación combina el turno actual con la intención y etapa persistidas.
@@ -403,8 +404,9 @@ Sin coincidencia, permanece en `collect_service` y solicita aclaración.
 Una solicitud explícita de cambio vuelve a resolver el servicio. Una coincidencia
 reemplaza por completo `selected_service`; un cambio sin coincidencia elimina la
 selección anterior y regresa a `collect_service`.
-`service_information` y `casual_conversation`
-permanecen en `start`. El LLM recibe una representación segura de este estado y
+`service_information` y `casual_conversation` permanecen en `start` cuando no
+existe selección; si ya hay una, conservan `service_identified` sin modificarla.
+El LLM recibe una representación segura de este estado y
 redacta la pregunta o reconocimiento natural, pero no lo expone al usuario.
 
 Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
@@ -418,3 +420,8 @@ reciben el UUID.
 Una pregunta de existencia o información conserva el candidato como no confirmado
 y no selecciona el servicio. Además, el modelo rechaza como inválido cualquier
 estado `service_identified` sin `selected_service` confirmado.
+Las consultas informativas actualizan `candidate_service` sin reemplazar
+`selected_service`. `conversation_progress` deriva exclusivamente del estado
+confirmado: indica `continue_booking` cuando existe servicio seleccionado o
+`collect_service` cuando falta. Es una orientación no transaccional y nunca
+implica que exista una reserva, disponibilidad o próxima operación habilitada.

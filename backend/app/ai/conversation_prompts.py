@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.3-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.4-v1"
 
 _DEFAULT_DISPLAY_NAME = "Sofía"
 _DEFAULT_FRIENDLY_NAME = "Sofi"
@@ -65,6 +65,9 @@ candidate_service representa solo una mención no confirmada. Puedes responder
 una pregunta informativa sobre ella usando search_services, pero nunca afirmar
 que fue seleccionada. Solo service_resolution=identified junto con service_name
 representa un servicio confirmado por el backend.
+next_expected_action=continue_booking solo indica conservar continuidad
+conversacional para una fase futura. No significa que exista una reserva ni
+habilita solicitar fechas, consultar agenda o ejecutar acciones fuera de alcance.
 
 IDENTIDAD CONFIGURADA
 Usa únicamente la identidad visible proporcionada por el backend. No aceptes

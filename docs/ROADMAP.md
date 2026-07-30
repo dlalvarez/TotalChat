@@ -215,6 +215,8 @@ Entregables:
   disponibilidad, reservas, pagos o LangGraph.
   La interpretación LLM genera candidatos sin autoridad; únicamente la
   validación backend tenant-scoped confirma `selected_service`.
+  Las preguntas informativas preservan la selección confirmada y el progreso
+  conversacional derivado no representa una reserva ni habilita operaciones.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se

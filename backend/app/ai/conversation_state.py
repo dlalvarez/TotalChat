@@ -74,6 +74,20 @@ class InitialConversationProposal(BaseModel):
     candidate_service: CandidateConversationService | None = None
 
 
+class ConversationNextExpectedAction(StrEnum):
+    COLLECT_SERVICE = "collect_service"
+    CONTINUE_BOOKING = "continue_booking"
+
+
+class InitialConversationProgress(BaseModel):
+    """Non-transactional pointer for a future booking orchestration phase."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_confirmed: bool = False
+    next_expected_action: ConversationNextExpectedAction | None = None
+
+
 class InitialBookingContext(BaseModel):
     """Persistent, JSON-safe context that can become a future graph state."""
 
@@ -86,6 +100,9 @@ class InitialBookingContext(BaseModel):
     collected_context: dict[str, JsonValue] = Field(default_factory=dict)
     missing_information: list[str] = Field(default_factory=list)
     last_relevant_context: dict[str, JsonValue] = Field(default_factory=dict)
+    conversation_progress: InitialConversationProgress = Field(
+        default_factory=InitialConversationProgress
+    )
 
     @model_validator(mode="after")
     def reject_internal_material(self) -> Self:
@@ -100,6 +117,20 @@ class InitialBookingContext(BaseModel):
             and self.selected_service is not None
         ):
             raise ValueError("selected_service requires service_identified")
+        expected_confirmed = self.selected_service is not None
+        if self.conversation_progress.service_confirmed is not expected_confirmed:
+            raise ValueError("conversation progress must match selected_service")
+        expected_action = (
+            ConversationNextExpectedAction.CONTINUE_BOOKING
+            if expected_confirmed
+            else (
+                ConversationNextExpectedAction.COLLECT_SERVICE
+                if self.stage is InitialConversationStage.COLLECT_SERVICE
+                else None
+            )
+        )
+        if self.conversation_progress.next_expected_action is not expected_action:
+            raise ValueError("conversation progress must match current stage")
         return self
 
     def to_persistent_dict(self) -> dict[str, JsonValue]:

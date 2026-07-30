@@ -141,6 +141,10 @@ def test_initial_context_is_json_safe_and_rejects_internal_material():
         "selected_service": {"id": str(service_id), "name": "Pediatría"},
         "collected_context": {"service_name": "Pediatría"},
         "last_relevant_context": {"user_message": "Pediatría"},
+        "conversation_progress": {
+            "service_confirmed": True,
+            "next_expected_action": "continue_booking",
+        },
     })
     assert context.to_persistent_dict()["intent"] == "booking_request"
     assert context.selected_service == SelectedConversationService(
@@ -150,6 +154,8 @@ def test_initial_context_is_json_safe_and_rejects_internal_material():
     assert context.candidate_service == CandidateConversationService(
         name="consulta pediátrica"
     )
+    assert context.conversation_progress.service_confirmed is True
+    assert context.conversation_progress.next_expected_action == "continue_booking"
 
     with pytest.raises(ValidationError, match="schema_name"):
         InitialBookingContext.model_validate({
@@ -163,5 +169,11 @@ def test_initial_context_rejects_impossible_service_selection_states():
     with pytest.raises(ValidationError, match="requires service_identified"):
         InitialBookingContext(
             stage="collect_service",
+            selected_service={"id": str(uuid4()), "name": "Pediatría"},
+        )
+
+    with pytest.raises(ValidationError, match="progress must match"):
+        InitialBookingContext(
+            stage="service_identified",
             selected_service={"id": str(uuid4()), "name": "Pediatría"},
         )

@@ -20,6 +20,7 @@ from app.ai.conversation_runtime import (
 from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversationService
 from app.ai.conversation_state import (
     InitialBookingContext,
+    InitialConversationProgress,
     InitialConversationIntent,
     InitialConversationStage,
     InitialConversationProposal,
@@ -205,6 +206,14 @@ def update_initial_booking_context(
         selected_service=selected_service,
         collected_context=collected,
         missing_information=missing,
+        conversation_progress=InitialConversationProgress(
+            service_confirmed=selected_service is not None,
+            next_expected_action=(
+                "continue_booking"
+                if selected_service is not None
+                else ("collect_service" if stage is InitialConversationStage.COLLECT_SERVICE else None)
+            ),
+        ),
         last_relevant_context={
             "user_message": message_text.strip()[:500],
             **({"service_resolution": resolution} if resolution is not None else {}),
@@ -223,6 +232,15 @@ def _load_initial_context(persisted_state: dict) -> InitialBookingContext:
             if isinstance(service_id, str) and isinstance(service_name, str):
                 migrated["selected_service"] = {"id": service_id, "name": service_name}
                 migrated["collected_context"] = {"service_name": service_name}
+        selected = migrated.get("selected_service")
+        stage = migrated.get("stage")
+        migrated["conversation_progress"] = {
+            "service_confirmed": selected is not None,
+            "next_expected_action": (
+                "continue_booking" if selected is not None
+                else ("collect_service" if stage == "collect_service" else None)
+            ),
+        }
         try:
             return InitialBookingContext.model_validate(migrated)
         except (ValueError, TypeError):
@@ -244,6 +262,7 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
         f"intent={context.intent.value}",
         f"stage={context.stage.value}",
         f"missing_information={','.join(context.missing_information) or 'none'}",
+        f"next_expected_action={context.conversation_progress.next_expected_action or 'none'}",
     ])
     return "; ".join(parts)
 
