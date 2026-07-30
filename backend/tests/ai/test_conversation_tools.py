@@ -3,7 +3,11 @@ import uuid
 
 import pytest
 
-from app.ai.conversation_runtime import ConversationTurnRequest, NaturalConversationRuntime
+from app.ai.conversation_runtime import (
+    ConversationResponseGuard,
+    ConversationTurnRequest,
+    NaturalConversationRuntime,
+)
 from app.ai.conversation_tools import ConversationToolRegistry
 from app.ai.providers import LLMResponse, LLMToolCall
 from app.ai.service_tools import ServiceRecord
@@ -55,10 +59,19 @@ class ToolCallingProvider:
         return LLMResponse(content=f"Ofrecemos: {names}", model="fake", provider="fake")
 
 
-def run_turn(tenant_id, repository, provider, text="¿Qué servicios ofrecen?"):
+def run_turn(
+    tenant_id,
+    repository,
+    provider,
+    text="¿Qué servicios ofrecen?",
+    response_guard=None,
+):
     registry = ConversationToolRegistry(tenant_id=tenant_id, repository=repository)
     return NaturalConversationRuntime(provider, registry).run(ConversationTurnRequest(
-        tenant_id=tenant_id, conversation_id=uuid.uuid4(), message_text=text,
+        tenant_id=tenant_id,
+        conversation_id=uuid.uuid4(),
+        message_text=text,
+        response_guard=response_guard,
     ))
 
 
@@ -79,6 +92,50 @@ def test_service_question_executes_tool_and_returns_grounded_natural_response():
     }]}
     assert str(repository.record.service_id) not in structured
     assert str(repository.record.practitioner_id) not in structured
+
+
+def test_grounded_informational_candidate_is_not_blocked_or_selected():
+    repository = TenantRepository("Consulta pediátrica")
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="unresolved",
+        candidate_service="pediatría",
+        intent="service_information",
+    )
+
+    result = run_turn(
+        uuid.uuid4(),
+        repository,
+        ToolCallingProvider(arguments='{"query":"pediatria"}'),
+        "¿Tienen pediatría?",
+        response_guard=guard,
+    )
+
+    assert result.content == "Ofrecemos: Consulta pediátrica"
+    assert guard.service_confirmed is False
+
+
+def test_empty_informational_lookup_answers_about_candidate_not_prior_selection():
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="identified",
+        service_name="Consulta nefrología",
+        candidate_service="odontología",
+        intent="service_information",
+    )
+
+    result = run_turn(
+        uuid.uuid4(),
+        TenantRepository("Consulta nefrología"),
+        ToolCallingProvider(arguments='{"query":"odontologia"}'),
+        "¿Y también tienen odontología?",
+        response_guard=guard,
+    )
+
+    assert result.content.startswith(
+        "No encontré un servicio configurado para odontología"
+    )
+    assert "Consulta nefrología" not in result.content
 
 
 def test_resolved_tenant_registry_never_crosses_repositories():

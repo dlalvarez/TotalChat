@@ -211,8 +211,64 @@ def test_not_found_context_cannot_produce_visible_service_confirmation():
         response_guard=guard,
     ))
 
-    assert result.content.startswith("No encontré una coincidencia clara")
+    assert result.content.startswith(
+        "No encontré un servicio configurado para neurología"
+    )
     assert "confirmado" not in result.content
+
+
+def test_not_found_booking_cannot_suggest_continuing_with_missing_candidate():
+    provider = FakeProvider(
+        content="Puedo ayudarte con neurología en el siguiente paso."
+    )
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="not_found",
+        candidate_service="neurología",
+        intent="booking_request",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "Quiero una cita con neurología",
+        response_guard=guard,
+    ))
+
+    assert result.content.startswith(
+        "No encontré un servicio configurado para neurología"
+    )
+    assert "siguiente paso" not in result.content
+
+
+@pytest.mark.parametrize(
+    ("selected_service", "candidate_service"),
+    [
+        ("Consulta nefrología", "odontología"),
+        ("Consulta pediátrica", "neurología"),
+    ],
+)
+def test_informational_candidate_is_not_silenced_by_confirmed_service_fallback(
+    selected_service,
+    candidate_service,
+):
+    provider = FakeProvider(
+        content=f"Tengo identificado el servicio {selected_service}."
+    )
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="identified",
+        service_name=selected_service,
+        candidate_service=candidate_service,
+        intent="service_information",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        f"¿Tienen {candidate_service}?",
+        response_guard=guard,
+    ))
+
+    assert candidate_service in result.content
+    assert selected_service not in result.content
+    assert result.content.startswith("No pude confirmar")
 
 
 def test_confirmed_service_cannot_trigger_date_or_time_collection():

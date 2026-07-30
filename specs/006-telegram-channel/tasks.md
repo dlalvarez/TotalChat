@@ -36,3 +36,5 @@
   entidades confirmadas, conservando exploraciones (corrección Fase 8A.9).
 - [x] Alinear la respuesta visible con la resolución backend y bloquear la
   recolección de fecha/hora o promesas de reserva (corrección Fase 8A.9).
+- [x] Preservar respuestas informativas sobre candidatos sin silenciarlas con la
+  selección confirmada previa (corrección Fase 8A.9).

@@ -212,3 +212,8 @@ confirma existencia. Solo `service_confirmed=true` junto con
 runtime rechaza respuestas visibles que contradigan esa autoridad o que soliciten
 fecha, hora, disponibilidad o datos de agenda, y tampoco permite prometer o crear
 una reserva en 8A.9.
+El guard distingue `service_information` de una solicitud de reserva: una
+consulta informativa se orienta al `candidate_service` y al resultado de
+`search_services`, mientras preserva el `selected_service`. Una resolución
+`not_found` prioriza el candidato actual y nunca cae en un reconocimiento de la
+selección previa ni sugiere continuar con la entidad inexistente.

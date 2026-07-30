@@ -450,6 +450,11 @@ implica que exista una reserva, disponibilidad o próxima operación habilitada.
 personales, y no promete consultar disponibilidad, separar o crear una cita. El
 runtime aplica una protección cerrada para sustituir una salida del provider que
 contradiga estas fronteras por una aclaración segura basada en el estado backend.
+La protección recibe también la intención actual. En `service_information`, una
+consulta sobre otro candidato se responde con el resultado de `search_services`
+—o con la ausencia de resultados— sin reemplazar ni convertir en tema exclusivo
+el `selected_service` previo. `not_found` siempre describe el candidato del turno
+y tiene prioridad sobre cualquier reconocimiento de una selección anterior.
 Una exploración nunca modifica entidades confirmadas. Solo `select` o
 `confirm_candidate`, propuestos por interpretación LLM y validados por el backend,
 pueden crear o reemplazar `selected_service`. Una respuesta ambigua conserva el

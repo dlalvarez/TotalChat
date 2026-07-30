@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.conversation_invoker import (
     NaturalConversationAgentInvoker,
+    _response_guard,
     _safe_context_instruction,
     update_initial_booking_context,
 )
@@ -354,6 +355,10 @@ def test_information_turn_keeps_existing_confirmed_service_until_new_selection()
     assert "service_resolution=identified" in safe_context
     assert "service_name=Consulta pediátrica" in safe_context
     assert "candidate_service=Neurología" in safe_context
+    response_guard = _response_guard(price_question)
+    assert response_guard.intent == "service_information"
+    assert response_guard.service_name == "Consulta pediátrica"
+    assert response_guard.candidate_service == "Neurología"
     assert changed.selected_service.id == repository.records[1].service_id
 
 

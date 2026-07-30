@@ -38,6 +38,7 @@ class ConversationResponseGuard:
     service_resolution: str = "unresolved"
     service_name: str | None = None
     candidate_service: str | None = None
+    intent: str = "casual_conversation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +85,7 @@ class NaturalConversationRuntime:
 
     def run(self, request: ConversationTurnRequest) -> ConversationTurnResult:
         messages = self._build_messages(request)
+        service_lookup_performed = False
         grounded_by_service_tool = False
         try:
             if self._tool_registry is None:
@@ -100,6 +102,7 @@ class NaturalConversationRuntime:
                     tool_result = self._tool_registry.execute(
                         tool_call.name, tool_call.arguments
                     )
+                    service_lookup_performed = True
                     grounded_by_service_tool = bool(tool_result.get("services"))
                     messages.extend((
                         LLMMessage(role="assistant", content=None, tool_calls=(tool_call,)),
@@ -116,9 +119,14 @@ class NaturalConversationRuntime:
             if request.response_guard is not None and _violates_response_guard(
                 content,
                 request.response_guard,
+                service_lookup_performed=service_lookup_performed,
                 grounded_by_service_tool=grounded_by_service_tool,
             ):
-                content = _guarded_booking_response(request.response_guard)
+                content = _guarded_booking_response(
+                    request.response_guard,
+                    service_lookup_performed=service_lookup_performed,
+                    grounded_by_service_tool=grounded_by_service_tool,
+                )
         except Exception:
             # Do not log exception values: provider errors can contain request or
             # credential material. The visible response is deliberately generic.
@@ -178,12 +186,17 @@ _UNSUPPORTED_SERVICE_CONFIRMATION_PATTERN = re.compile(
     r"existe(?:n)?|tenemos)\b",
     re.IGNORECASE,
 )
+_UNSUPPORTED_NOT_FOUND_CONTINUATION_PATTERN = re.compile(
+    r"\b(?:siguiente paso|continuar con|ayudarte con)\b",
+    re.IGNORECASE,
+)
 
 
 def _violates_response_guard(
     content: str,
     guard: ConversationResponseGuard,
     *,
+    service_lookup_performed: bool,
     grounded_by_service_tool: bool,
 ) -> bool:
     """Apply a closed safety check; this does not interpret the user message."""
@@ -191,6 +204,18 @@ def _violates_response_guard(
     if _OUT_OF_SCOPE_REQUEST_PATTERN.search(content):
         return True
     if _OUT_OF_SCOPE_PROMISE_PATTERN.search(content):
+        return True
+    if (
+        guard.intent == "service_information"
+        and guard.candidate_service is not None
+        and service_lookup_performed
+        and not grounded_by_service_tool
+    ):
+        return True
+    if (
+        guard.service_resolution == "not_found"
+        and _UNSUPPORTED_NOT_FOUND_CONTINUATION_PATTERN.search(content)
+    ):
         return True
     candidate_is_unconfirmed = (
         guard.candidate_service is not None
@@ -211,9 +236,29 @@ def _violates_response_guard(
     )
 
 
-def _guarded_booking_response(guard: ConversationResponseGuard) -> str:
+def _guarded_booking_response(
+    guard: ConversationResponseGuard,
+    *,
+    service_lookup_performed: bool,
+    grounded_by_service_tool: bool,
+) -> str:
     """Return deterministic, bounded language when provider output violates 8A.9."""
 
+    if guard.service_resolution == "not_found" and guard.candidate_service:
+        return (
+            f"No encontré un servicio configurado para {guard.candidate_service}. "
+            "¿Quieres revisar otro servicio disponible?"
+        )
+    if guard.intent == "service_information" and guard.candidate_service:
+        if service_lookup_performed and not grounded_by_service_tool:
+            return (
+                f"No encontré un servicio configurado para {guard.candidate_service}. "
+                "¿Quieres revisar otro servicio disponible?"
+            )
+        return (
+            f"No pude confirmar {guard.candidate_service} con información del backend. "
+            "Puedo ayudarte a revisar los servicios disponibles."
+        )
     if guard.service_confirmed and guard.service_name:
         return (
             f"Tengo identificado el servicio {guard.service_name}. En esta etapa todavía "

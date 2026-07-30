@@ -308,11 +308,14 @@ def _response_guard(context: InitialBookingContext) -> ConversationResponseGuard
         service_confirmed=context.selected_service is not None,
         service_resolution=_safe_service_resolution(context),
         service_name=(
-            context.selected_service.name if context.selected_service is not None else None
+            _safe_context_value(context.selected_service.name)
+            if context.selected_service is not None else None
         ),
         candidate_service=(
-            context.candidate_service.name if context.candidate_service is not None else None
+            _safe_context_value(context.candidate_service.name)
+            if context.candidate_service is not None else None
         ),
+        intent=context.intent.value,
     )
 
 
