@@ -411,6 +411,62 @@ def test_casual_turn_preserves_pending_suggestion_and_collection_stage():
     assert guard.pending_suggestion_follow_up is True
 
 
+def test_pending_suggested_change_preserves_prior_selection_until_confirmation():
+    repository = BookingServiceRepository(
+        "Consulta nefrología",
+        "Consulta pediátrica",
+    )
+    selected = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero Consulta nefrología",
+        proposal=proposal("booking_request", "Consulta nefrología"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+    explored = update_initial_booking_context(
+        selected,
+        "¿Y pediatría sigue disponible?",
+        proposal=proposal("service_information", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+    pending_change = update_initial_booking_context(
+        explored,
+        "Entonces mejor pediatría",
+        proposal=proposal("booking_request", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert pending_change.selected_service.name == "Consulta nefrología"
+    assert pending_change.suggested_service.name == "Consulta pediátrica"
+    assert pending_change.conversation_progress.service_confirmed is True
+    assert pending_change.last_relevant_context["service_resolution"] == "suggested"
+
+    ambiguous = update_initial_booking_context(
+        pending_change,
+        "¿La cambiaste?",
+        proposal=proposal("casual_conversation"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+    assert ambiguous.selected_service.name == "Consulta nefrología"
+    assert ambiguous.suggested_service.name == "Consulta pediátrica"
+    assert ambiguous.last_relevant_context["service_resolution"] == "suggested"
+
+    confirmed = update_initial_booking_context(
+        ambiguous,
+        "Sí, cambia a ese servicio",
+        proposal=proposal("booking_request", decision="confirm_candidate"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert confirmed.selected_service.name == "Consulta pediátrica"
+    assert confirmed.suggested_service is None
+    assert confirmed.last_relevant_context["service_resolution"] == "identified"
+
+
 def test_explicit_change_with_real_service_name_is_selected_directly():
     repository = BookingServiceRepository("Consulta pediátrica")
 

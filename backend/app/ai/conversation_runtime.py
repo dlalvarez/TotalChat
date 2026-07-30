@@ -41,6 +41,7 @@ class ConversationResponseGuard:
     suggested_service_name: str | None = None
     intent: str = "casual_conversation"
     pending_suggestion_follow_up: bool = False
+    pending_suggestion_change: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +288,12 @@ def _guarded_booking_response(
     """Return deterministic, bounded language when provider output violates 8A.9."""
 
     if guard.service_resolution == "suggested" and guard.suggested_service_name:
+        if guard.pending_suggestion_change:
+            return (
+                "Aún no he cambiado el servicio. Encontré "
+                f"{guard.suggested_service_name} como opción relacionada. "
+                "¿Confirmas que quieres cambiar a ese servicio?"
+            )
         if guard.pending_suggestion_follow_up:
             return (
                 "Aún no he cambiado el servicio. Encontré "
@@ -339,9 +346,16 @@ def _critical_booking_response(
         return None
     if (
         guard.service_resolution == "suggested"
-        and not guard.service_confirmed
         and guard.suggested_service_name
     ):
+        if guard.pending_suggestion_change:
+            return (
+                "Aún no he cambiado el servicio. Encontré "
+                f"{guard.suggested_service_name} como opción relacionada. "
+                "¿Confirmas que quieres cambiar a ese servicio?"
+            )
+        if guard.service_confirmed:
+            return None
         if guard.pending_suggestion_follow_up:
             return (
                 "Aún no he cambiado el servicio. Encontré "

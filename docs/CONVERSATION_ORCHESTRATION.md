@@ -448,6 +448,11 @@ y `booking_request` con servicio confirmado usan textos determinísticos. Una
 consulta `service_information` conserva redacción natural únicamente cuando
 `search_services` devuelve hechos reales; un resultado vacío vuelve al texto
 determinístico del candidato. Esto evita perseguir variantes textuales del LLM.
+Una selección confirmada puede coexistir temporalmente con una sugerencia distinta
+pendiente de cambio. La selección anterior permanece como hecho confirmado, pero
+la respuesta crítica prioriza la sugerencia y pide confirmar el reemplazo; no
+repite únicamente el servicio anterior ni promueve el nuevo hasta recibir una
+aceptación afirmativa y volver a resolverlo tenant-scoped.
 
 Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
 servicio antes de identificarlo. No guarda prompts, razonamiento,

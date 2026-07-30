@@ -322,6 +322,34 @@ def test_pending_suggestion_follow_up_is_always_backend_owned(message, content):
     assert provider.calls == []
 
 
+def test_pending_suggested_change_takes_priority_over_prior_selected_service():
+    provider = FakeProvider(
+        content="Tengo identificado el servicio Consulta nefrología."
+    )
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="suggested",
+        service_name="Consulta nefrología",
+        candidate_service="pediatría",
+        suggested_service_name="Consulta pediátrica",
+        intent="booking_request",
+        pending_suggestion_follow_up=True,
+        pending_suggestion_change=True,
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "Entonces mejor pediatría",
+        response_guard=guard,
+    ))
+
+    assert result.content == (
+        "Aún no he cambiado el servicio. Encontré Consulta pediátrica como opción "
+        "relacionada. ¿Confirmas que quieres cambiar a ese servicio?"
+    )
+    assert "Consulta nefrología" not in result.content
+    assert provider.calls == []
+
+
 @pytest.mark.parametrize(
     ("selected_service", "candidate_service"),
     [

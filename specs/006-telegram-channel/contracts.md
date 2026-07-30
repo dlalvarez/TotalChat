@@ -234,3 +234,7 @@ El runtime decide antes de invocar al provider las respuestas para
 confirmada. Solo una consulta informativa respaldada por resultados no vacíos de
 `search_services` conserva redacción LLM; la ausencia de resultados usa respuesta
 determinística. Estos textos no contienen UUID, tenant, `schema_name` ni prompts.
+Cuando `selected_service` y una `suggested_service` diferente coexisten, la primera
+permanece confirmada y la segunda representa un cambio pendiente. Una intención de
+cambio o seguimiento ambiguo produce una respuesta determinística que prioriza la
+sugerencia y solicita confirmación; solo después se reemplaza la selección.

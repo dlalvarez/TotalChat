@@ -102,7 +102,15 @@ class NaturalConversationAgentInvoker:
         pending_suggestion_follow_up = (
             current.suggested_service is not None
             and context.suggested_service is not None
-            and context.selected_service is None
+        )
+        pending_suggestion_change = (
+            context.selected_service is not None
+            and context.suggested_service is not None
+            and context.selected_service.name != context.suggested_service.name
+            and (
+                pending_suggestion_follow_up
+                or proposal.service_decision is ConversationEntityDecision.SELECT
+            )
         )
         conversation.state = context.to_persistent_dict()
         visible_messages = _load_visible_history(self._session, conversation.id)
@@ -124,6 +132,7 @@ class NaturalConversationAgentInvoker:
                 response_guard=_response_guard(
                     context,
                     pending_suggestion_follow_up=pending_suggestion_follow_up,
+                    pending_suggestion_change=pending_suggestion_change,
                 ),
                 assistant_identity=self._assistant_identity,
             )
@@ -195,21 +204,31 @@ def update_initial_booking_context(
             )
             match = resolve_service(lookup_name) if resolve_service is not None else None
             if match is None:
-                selected_service = None
-                collected = {}
-                stage = InitialConversationStage.COLLECT_SERVICE
-                missing: list[str] = ["service"]
                 suggestion = (
                     suggest_service(candidate.name)
                     if suggest_service is not None else None
                 )
                 if suggestion is None:
+                    selected_service = None
+                    collected = {}
+                    stage = InitialConversationStage.COLLECT_SERVICE
+                    missing: list[str] = ["service"]
                     suggested_service = None
                     resolution = "not_found"
                 else:
                     suggested_service = SuggestedConversationService(
                         name=suggestion.name
                     )
+                    stage = (
+                        InitialConversationStage.SERVICE_IDENTIFIED
+                        if selected_service is not None
+                        else InitialConversationStage.COLLECT_SERVICE
+                    )
+                    collected = (
+                        {"service_name": selected_service.name}
+                        if selected_service is not None else {}
+                    )
+                    missing = [] if selected_service is not None else ["service"]
                     resolution = "suggested"
             else:
                 selected_service = SelectedConversationService(
@@ -228,6 +247,8 @@ def update_initial_booking_context(
             else:
                 stage = current.stage
                 missing = []
+                if suggested_service is not None:
+                    resolution = "suggested"
         elif current.suggested_service is not None:
             stage = InitialConversationStage.COLLECT_SERVICE
             missing = ["service"]
@@ -261,6 +282,8 @@ def update_initial_booking_context(
         if selected_service is not None:
             stage = InitialConversationStage.SERVICE_IDENTIFIED
             missing = []
+            if suggested_service is not None:
+                resolution = "suggested"
         elif suggested_service is not None:
             stage = InitialConversationStage.COLLECT_SERVICE
             missing = ["service"]
@@ -396,6 +419,7 @@ def _response_guard(
     context: InitialBookingContext,
     *,
     pending_suggestion_follow_up: bool = False,
+    pending_suggestion_change: bool = False,
 ) -> ConversationResponseGuard:
     return ConversationResponseGuard(
         service_confirmed=context.selected_service is not None,
@@ -414,6 +438,7 @@ def _response_guard(
         ),
         intent=context.intent.value,
         pending_suggestion_follow_up=pending_suggestion_follow_up,
+        pending_suggestion_change=pending_suggestion_change,
     )
 
 

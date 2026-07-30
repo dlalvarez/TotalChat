@@ -44,3 +44,5 @@
   servicios sugeridos (corrección Fase 8A.9).
 - [x] Usar respuestas backend-owned determinísticas para estados críticos sin
   bloquear consultas informativas grounded (corrección Fase 8A.9).
+- [x] Priorizar una sugerencia de cambio pendiente sin borrar la selección previa
+  ni presentarla como ya reemplazada (corrección Fase 8A.9).
