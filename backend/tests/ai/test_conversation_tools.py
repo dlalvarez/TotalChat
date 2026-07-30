@@ -26,6 +26,17 @@ class TenantRepository:
         return self.record if service_id == self.record.service_id else None
 
 
+class MultiServiceRepository:
+    def __init__(self, *names):
+        self.records = [TenantRepository(name).record for name in names]
+
+    def list_active(self, **filters):
+        return self.records
+
+    def get_active(self, service_id):
+        return next((item for item in self.records if item.service_id == service_id), None)
+
+
 class ToolCallingProvider:
     def __init__(self, *, tool_name="search_services", arguments='{"query": ""}'):
         self.tool_name = tool_name
@@ -102,6 +113,41 @@ def test_booking_service_resolution_is_accent_and_case_insensitive(query):
     assert resolved is not None
     assert resolved.service_id == repository.record.service_id
     assert resolved.name == "Consulta pediátrica"
+
+
+@pytest.mark.parametrize("query", ["pediatria", "pediatría", "consulta pediatria"])
+def test_informational_search_uses_same_safe_matching_as_resolution(query):
+    repository = TenantRepository("Consulta pediátrica")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    result = registry.execute("search_services", json.dumps({"query": query}))
+
+    assert result == {"services": [{
+        "name": "Consulta pediátrica",
+        "description": "Atención real",
+        "duration_minutes": 60,
+    }]}
+
+
+@pytest.mark.parametrize("query", ["neurologia", "nuerologia"])
+def test_resolution_does_not_confuse_distinct_medical_terms(query):
+    registry = ConversationToolRegistry(
+        tenant_id=uuid.uuid4(), repository=TenantRepository("Consulta nefrología")
+    )
+
+    assert registry.resolve_service(query) is None
+
+
+def test_ambiguous_close_rankings_are_returned_for_exploration_but_not_selected():
+    repository = MultiServiceRepository("Pediatría infantil", "Pediatría general")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    search = registry.execute("search_services", '{"query":"pediatria"}')
+
+    assert [item["name"] for item in search["services"]] == [
+        "Pediatría general", "Pediatría infantil",
+    ]
+    assert registry.resolve_service("pediatria") is None
 
 
 def test_booking_service_resolution_does_not_match_on_generic_words_only():

@@ -150,6 +150,11 @@ backend valida la solicitud, consulta `practitioner_services` mediante la capa d
 servicios existente y entrega al LLM únicamente nombre, descripción y duración.
 El LLM genera la respuesta visible final.
 
+La consulta informativa usa el mismo ranking normalizado y conservador que la
+resolución conversacional. Puede devolver múltiples opciones; no elige una. La
+resolución solo confirma una coincidencia única con margen seguro y rechaza
+términos médicos meramente parecidos. UUIDs y puntajes permanecen internos.
+
 Telegram no conoce el catálogo, los argumentos ni los resultados. Continúa
 limitándose a persistencia, invocación y entrega. No se habilitan precios,
 disponibilidad, reservas, pagos ni otras tools.

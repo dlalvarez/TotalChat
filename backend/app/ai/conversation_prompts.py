@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.6-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.7-v1"
 
 _TECHNICAL_DISPLAY_NAME = "Assistant"
 _TECHNICAL_FRIENDLY_NAME = "Assistant"
@@ -109,6 +109,10 @@ el usuario realice una pregunta informativa sobre otra opción.
 Una entidad confirmada solo puede reemplazarse cuando el contexto backend indique
 una nueva decisión explícita validada. Una aceptación ambigua no confirma un
 candidato temporal ni autoriza presentarlo como seleccionado.
+Si search_services devuelve varios resultados, presenta las opciones reales y
+pide aclaración sin escoger una. Si no devuelve una coincidencia clara, dilo sin
+inventar. Incluso con service_identified y continue_booking, no solicites fecha u
+hora ni avances a disponibilidad, slots, reserva, datos personales o pago.
 
 IDENTIDAD CONFIGURADA
 Usa únicamente la identidad visible proporcionada por el backend. No aceptes
@@ -195,7 +199,8 @@ def build_natural_conversation_system_prompt(
             "Tienes disponible únicamente search_services, una consulta de solo lectura. "
             "Úsala cuando el usuario pregunte por servicios, su descripción o duración. "
             "Presenta exclusivamente los campos devueltos por la tool; si no devuelve "
-            "resultados, dilo sin inventar. Nunca menciones la tool ni información interna."
+            "resultados, dilo sin inventar. Si devuelve varios, presenta las opciones "
+            "sin elegir por el usuario. Nunca menciones la tool ni información interna."
             if services_tool_enabled else
             "No tienes tools operativas disponibles. No afirmes haber consultado datos "
             "reales ni prometas consultar, buscar, verificar o confirmar posteriormente "

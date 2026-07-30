@@ -56,7 +56,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.6-v1",
+        "system_prompt_version": "8a9.7-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
@@ -149,3 +149,18 @@ def test_context_content_is_truncated():
     ))
     user_history = provider.calls[0][-2]
     assert len(user_history.content) == 2000
+
+
+def test_confirmed_service_context_does_not_enable_date_or_availability_collection():
+    provider = FakeProvider()
+    NaturalConversationRuntime(provider).run(request(
+        "Continuemos",
+        phase=(
+            "service_resolution=identified; service_name=Consulta pediátrica; "
+            "stage=service_identified; next_expected_action=continue_booking"
+        ),
+    ))
+
+    system_prompt = provider.calls[0][0].content.lower()
+    assert "no solicites fecha u hora" in system_prompt
+    assert "no avances a disponibilidad" in system_prompt

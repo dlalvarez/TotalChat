@@ -164,6 +164,13 @@ valida nombre y JSON, rechaza campos adicionales, limita la consulta y la ejecut
 mediante `ServiceTools` sobre la sesión ya contextualizada al tenant. El tenant
 no forma parte de los argumentos del modelo.
 
+La búsqueda conversacional y la resolución de selección comparten normalización
+de mayúsculas, tildes, tokens genéricos y ranking conservador sobre servicios
+activos. La búsqueda informativa puede devolver varias coincidencias seguras para
+presentar opciones. La resolución exige un líder inequívoco separado por un
+margen mínimo; términos médicos parecidos sin raíz común segura no se promueven
+automáticamente. Ninguna de las dos rutas expone UUIDs.
+
 La consulta lee servicios activos desde `practitioner_services`. El resultado
 que vuelve al modelo contiene únicamente `name`, `description` y
 `duration_minutes`; UUID, profesional/organización internos y `schema_name`

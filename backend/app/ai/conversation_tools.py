@@ -16,7 +16,6 @@ from app.ai.providers import LLMToolDefinition
 from app.ai.service_tools import (
     ServiceListRequest,
     ServiceRepository,
-    ServiceSearchRequest,
     ServiceSummary,
     ServiceTools,
 )
@@ -87,35 +86,28 @@ class ConversationToolRegistry:
         query = arguments.get("query", "")
         if not isinstance(query, str) or len(query) > 200:
             raise ValueError("invalid tool arguments")
-        result = (
-            self._tools.search_services(ServiceSearchRequest(text=query.strip(), limit=20))
-            if query.strip()
-            else self._tools.list_active_services(ServiceListRequest(limit=20))
-        )
+        if query.strip():
+            active = self._tools.list_active_services(ServiceListRequest(limit=100)).services
+            matched = tuple(item[2] for item in _rank_services(query, active))[:20]
+        else:
+            matched = self._tools.list_active_services(ServiceListRequest(limit=20)).services
         services = tuple(PublicService(
             name=service.name,
             description=service.description,
             duration_minutes=service.duration_minutes,
-        ) for service in result.services)
+        ) for service in matched)
         return MappingProxyType({"services": [asdict(service) for service in services]})
 
     def resolve_service(self, query: str) -> ResolvedConversationService | None:
         """Resolve one active service conservatively inside the current tenant."""
 
-        normalized_query = _normalize_service_text(query)
-        if not normalized_query:
+        if not _normalize_service_text(query):
             return None
         services = self._tools.list_active_services(ServiceListRequest(limit=100)).services
-        ranked: list[tuple[float, str, ServiceSummary]] = []
-        for service in services:
-            candidates = (service.name, service.description or "")
-            score = max(
-                _service_match_score(normalized_query, candidate) for candidate in candidates
-            )
-            if score >= 0.8:
-                ranked.append((score, _normalize_service_text(service.name), service))
-        ranked.sort(key=lambda item: (-item[0], item[1], str(item[2].service_id)))
-        if not ranked or (len(ranked) > 1 and ranked[0][0] == ranked[1][0]):
+        ranked = _rank_services(query, services)
+        if not ranked or (
+            len(ranked) > 1 and ranked[0][0] - ranked[1][0] < _MIN_UNIQUE_SCORE_MARGIN
+        ):
             return None
         match = ranked[0][2]
         return ResolvedConversationService(service_id=match.service_id, name=match.name)
@@ -128,27 +120,61 @@ def _normalize_service_text(value: str) -> str:
     )
 
 
+def _rank_services(
+    query: str, services: tuple[ServiceSummary, ...]
+) -> list[tuple[float, str, ServiceSummary]]:
+    normalized_query = _normalize_service_text(query)
+    ranked: list[tuple[float, str, ServiceSummary]] = []
+    for service in services:
+        score = max(
+            _service_match_score(normalized_query, candidate)
+            for candidate in (service.name, service.description or "")
+        )
+        if score >= _MIN_SERVICE_MATCH_SCORE:
+            ranked.append((score, _normalize_service_text(service.name), service))
+    ranked.sort(key=lambda item: (-item[0], item[1], str(item[2].service_id)))
+    return ranked
+
+
 def _service_match_score(query: str, candidate: str) -> float:
     normalized_candidate = _normalize_service_text(candidate)
     if not normalized_candidate:
         return 0.0
-    if query == normalized_candidate:
-        return 1.0
-    if query in normalized_candidate:
-        return 0.95
     query_tokens = [token for token in query.split() if token not in _GENERIC_SERVICE_TOKENS]
     candidate_tokens = [
         token for token in normalized_candidate.split() if token not in _GENERIC_SERVICE_TOKENS
     ]
     if not query_tokens or not candidate_tokens:
         return 0.0
-    return min(
-        max(
-            SequenceMatcher(None, query_token, candidate_token).ratio()
-            for candidate_token in candidate_tokens
-        )
-        for query_token in query_tokens
-    )
+    meaningful_query = " ".join(query_tokens)
+    meaningful_candidate = " ".join(candidate_tokens)
+    if meaningful_query == meaningful_candidate:
+        return 1.0
+    if meaningful_query in meaningful_candidate:
+        return 0.95
+    return min(max(
+        _service_token_score(query_token, candidate_token)
+        for candidate_token in candidate_tokens
+    ) for query_token in query_tokens)
+
+
+def _service_token_score(query: str, candidate: str) -> float:
+    if query == candidate:
+        return 1.0
+    shorter = min(len(query), len(candidate))
+    common_prefix = 0
+    for query_character, candidate_character in zip(query, candidate):
+        if query_character != candidate_character:
+            break
+        common_prefix += 1
+    similarity = SequenceMatcher(None, query, candidate).ratio()
+    if shorter >= 8 and common_prefix >= 7 and similarity >= 0.85:
+        return 0.9
+    return 0.0
+
+
+_MIN_SERVICE_MATCH_SCORE = 0.8
+_MIN_UNIQUE_SCORE_MARGIN = 0.05
 
 
 _GENERIC_SERVICE_TOKENS = {
