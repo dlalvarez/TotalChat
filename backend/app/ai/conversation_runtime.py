@@ -13,6 +13,7 @@ from app.ai.conversation_prompts import (
     NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION,
     ConversationAssistantIdentity,
     build_natural_conversation_system_prompt,
+    resolve_conversation_assistant_identity,
 )
 from app.ai.conversation_tools import ConversationToolRegistry
 from app.ai.providers import LLMMessage, LLMProvider
@@ -43,7 +44,7 @@ class ConversationTurnRequest:
     recent_messages: tuple[ConversationContextMessage, ...] = ()
     conversation_phase: str | None = None
     assistant_identity: ConversationAssistantIdentity = field(
-        default_factory=ConversationAssistantIdentity
+        default_factory=resolve_conversation_assistant_identity
     )
 
 

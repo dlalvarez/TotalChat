@@ -126,11 +126,12 @@ resultado. El provider redacta íntegramente la respuesta normal. El backend
 valida contenido no vacío y usa un fallback técnico genérico ante error o
 timeout. En esta fase no existe tool calling ni acceso a datos operacionales.
 
-El System Prompt rector está versionado como `8a7-v2`. La identidad visible
-backend-owned usa por defecto a **Sofía** (nombre cercano **Sofi**), identidad
-femenina y vertical MediChat, y puede inyectarse de forma segura por contexto
-conversacional. El mensaje del usuario nunca configura identidad, tenant,
-permisos o reglas. No existe todavía configuración administrativa persistente.
+El System Prompt rector permanece versionado por cada cambio de gobierno. La
+identidad visible llega desde un resolver backend-owned separado del prompt
+builder. Mientras no exista configuración administrativa persistente, el resolver
+usa exclusivamente el fallback técnico neutral `Assistant` / `TotalChat`; no
+incorpora nombres de negocio, vertical o tenant en el core. El mensaje del usuario
+nunca configura identidad, tenant, permisos o reglas.
 
 El historial contiene solo incoming anteriores y outgoing cuya entrega fue
 confirmada como `sent`. Se excluyen `pending`, `failed`, direcciones internas y
@@ -148,10 +149,10 @@ explícitamente `none`, no un default universal. No hay detección de capacidade
 selección dinámica, lógica específica de provider, cambio de modelo, fallback,
 tools o LangGraph.
 
-El nombre cercano Sofi identifica exclusivamente a la asistente, no al usuario.
+El nombre cercano configurado identifica exclusivamente a la asistente, no al usuario.
 Un nombre de usuario solo se usa tras una declaración inequívoca en el contexto
 seguro; no existe perfil ni memoria persistente de nombres. Mientras no haya
-tools, Sofía puede comprender, recopilar y organizar una solicitud, pero no puede
+tools, la identidad resuelta puede comprender, recopilar y organizar una solicitud, pero no puede
 prometer consultas, búsquedas, verificaciones, confirmaciones o ejecución futura
 de datos operacionales.
 

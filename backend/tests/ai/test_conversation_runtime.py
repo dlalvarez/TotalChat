@@ -6,6 +6,7 @@ from app.ai.conversation_prompts import (
     NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION,
     ConversationAssistantIdentity,
     build_natural_conversation_system_prompt,
+    resolve_conversation_assistant_identity,
 )
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
@@ -42,7 +43,7 @@ def request(text="Hola", *, history=(), phase=None, identity=None):
         message_text=text,
         recent_messages=history,
         conversation_phase=phase,
-        assistant_identity=identity or ConversationAssistantIdentity(),
+        assistant_identity=identity or resolve_conversation_assistant_identity(),
     )
 
 
@@ -55,7 +56,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.4-v1",
+        "system_prompt_version": "8a9.5-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
@@ -69,8 +70,8 @@ def test_first_provider_message_is_built_system_prompt_with_default_identity():
     first = provider.calls[0][0]
     assert first.role == "system"
     assert first.content == build_natural_conversation_system_prompt(turn.assistant_identity)
-    assert "Sofía" in first.content
-    assert "Sofi" in first.content
+    assert "Assistant" in first.content
+    assert "TotalChat" in first.content
 
 
 def test_configured_identity_reaches_system_prompt_without_internal_ids():

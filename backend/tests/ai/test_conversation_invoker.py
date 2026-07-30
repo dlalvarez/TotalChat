@@ -107,7 +107,7 @@ def test_invoker_uses_only_visible_ordered_messages_from_resolved_conversation()
     ):
         assert excluded not in serialized
     assert "intent=casual_conversation; stage=start" in serialized
-    assert "Sofía" in sent[0].content and "Sofi" in sent[0].content
+    assert "Assistant" in sent[0].content and "TotalChat" in sent[0].content
 
 
 def test_invoker_applies_eight_message_limit_after_visibility_filtering():

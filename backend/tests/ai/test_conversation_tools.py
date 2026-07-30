@@ -14,7 +14,7 @@ class TenantRepository:
         self.record = ServiceRecord(
             service_id=uuid.uuid4(), name=name, description="Atención real",
             duration_minutes=60, practitioner_id=uuid.uuid4(),
-            practitioner_name="Dra. Sofía", organization_id=uuid.uuid4(),
+            practitioner_name="Dra. Ana", organization_id=uuid.uuid4(),
             organization_name="Internal org",
         )
 

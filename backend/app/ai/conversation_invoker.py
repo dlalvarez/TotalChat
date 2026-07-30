@@ -10,7 +10,10 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app.ai.conversation_prompts import ConversationAssistantIdentity
+from app.ai.conversation_prompts import (
+    ConversationAssistantIdentity,
+    resolve_conversation_assistant_identity,
+)
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
     ConversationTurnRequest,
@@ -62,7 +65,9 @@ class NaturalConversationAgentInvoker:
         self._session = session
         self._llm_provider = llm_provider
         self._enable_service_tools = enable_service_tools
-        self._assistant_identity = assistant_identity or ConversationAssistantIdentity()
+        self._assistant_identity = resolve_conversation_assistant_identity(
+            assistant_identity
+        )
         self._service_repository = service_repository
         self._proposal_interpreter = proposal_interpreter or self._interpret_proposal
 
