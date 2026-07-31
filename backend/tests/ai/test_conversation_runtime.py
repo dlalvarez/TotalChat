@@ -58,7 +58,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.10-v1",
+        "system_prompt_version": "8a9.11-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
@@ -347,6 +347,25 @@ def test_pending_suggested_change_takes_priority_over_prior_selected_service():
         "relacionada. ¿Confirmas que quieres cambiar a ese servicio?"
     )
     assert "Consulta nefrología" not in result.content
+    assert provider.calls == []
+
+
+def test_rejected_pending_suggestion_asks_for_another_service_deterministically():
+    provider = FakeProvider(content="De acuerdo, ya quedó cambiado.")
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="rejected",
+        service_name="Consulta nefrología",
+        candidate_service="pediatría",
+        intent="booking_request",
+    )
+
+    result = NaturalConversationRuntime(provider).run(request(
+        "No, deja así",
+        response_guard=guard,
+    ))
+
+    assert result.content == "Entendido. ¿Qué otro servicio necesitas?"
     assert provider.calls == []
 
 

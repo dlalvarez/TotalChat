@@ -479,8 +479,10 @@ consulta sobre otro candidato se responde con el resultado de `search_services`
 —o con la ausencia de resultados— sin reemplazar ni convertir en tema exclusivo
 el `selected_service` previo. `not_found` siempre describe el candidato del turno
 y tiene prioridad sobre cualquier reconocimiento de una selección anterior.
-Una exploración nunca modifica entidades confirmadas. Solo `select` o
-`confirm_candidate`, propuestos por interpretación LLM y validados por el backend,
-pueden crear o reemplazar `selected_service`. Una respuesta ambigua conserva el
+Una exploración nunca modifica entidades confirmadas. `select` valida un candidato
+nombrado y `confirm_pending_suggestion` propone aceptar semánticamente la sugerencia
+backend pendiente; esta última solo promueve el nombre de `current.suggested_service`
+tras resolverlo nuevamente tenant-scoped. `reject_pending_suggestion` limpia la
+sugerencia sin borrar una selección previa. Una respuesta ambigua conserva el
 candidato sin promoverlo. Esta regla constituye el patrón reusable futuro para
 profesional, sede, pagador, plan y slot, que permanecen fuera de esta fase.

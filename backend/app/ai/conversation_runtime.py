@@ -309,6 +309,8 @@ def _guarded_booking_response(
             f"No encontré un servicio configurado para {guard.candidate_service}. "
             "¿Quieres revisar otro servicio disponible?"
         )
+    if guard.service_resolution == "rejected":
+        return "Entendido. ¿Qué otro servicio necesitas?"
     if guard.intent == "service_information" and guard.candidate_service:
         if service_lookup_performed and not grounded_by_service_tool:
             return (
@@ -371,6 +373,8 @@ def _critical_booking_response(
             f"No encontré un servicio configurado para {guard.candidate_service}. "
             "¿Quieres revisar otro servicio disponible?"
         )
+    if guard.service_resolution == "rejected":
+        return "Entendido. ¿Qué otro servicio necesitas?"
     if (
         guard.service_confirmed
         and guard.service_name

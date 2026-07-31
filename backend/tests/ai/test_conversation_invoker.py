@@ -237,7 +237,10 @@ def test_explicit_confirmation_promotes_prior_candidate_but_ambiguous_ack_does_n
     )
     confirmed = update_initial_booking_context(
         ambiguous, "Sí, esa quiero",
-        proposal=proposal("booking_request", decision="confirm_candidate"),
+        proposal=proposal(
+            "booking_request",
+            decision="confirm_candidate",
+        ),
         resolve_service=resolver(repository),
     )
 
@@ -312,7 +315,10 @@ def test_explicit_confirmation_promotes_prior_suggested_service():
     confirmed = update_initial_booking_context(
         suggested,
         "Sí, ese",
-        proposal=proposal("booking_request", decision="confirm_candidate"),
+        proposal=proposal(
+            "booking_request",
+            decision="confirm_pending_suggestion",
+        ),
         resolve_service=resolver(repository),
         suggest_service=suggester(repository),
     )
@@ -320,12 +326,13 @@ def test_explicit_confirmation_promotes_prior_suggested_service():
     assert confirmed.suggested_service is None
     assert confirmed.selected_service.id == repository.record.service_id
     assert confirmed.selected_service.name == "Consulta pediátrica"
+    assert confirmed.candidate_service.name == "Consulta pediátrica"
     assert confirmed.conversation_progress.service_confirmed is True
     assert confirmed.last_relevant_context["service_resolution"] == "identified"
 
 
-@pytest.mark.parametrize("message", ["¿La cambiaste?", "¿Ya quedó?", "Perfecto"])
-def test_ambiguous_or_interrogative_turn_does_not_confirm_suggestion(message):
+@pytest.mark.parametrize("message", ["¿La cambiaste?", "¿Ya quedó?"])
+def test_interrogative_turn_does_not_confirm_suggestion(message):
     repository = BookingServiceRepository("Consulta pediátrica")
     suggested = update_initial_booking_context(
         InitialBookingContext(),
@@ -338,7 +345,10 @@ def test_ambiguous_or_interrogative_turn_does_not_confirm_suggestion(message):
     unchanged = update_initial_booking_context(
         suggested,
         message,
-        proposal=proposal("booking_request", decision="confirm_candidate"),
+        proposal=proposal(
+            "booking_request",
+            decision="confirm_pending_suggestion",
+        ),
         resolve_service=resolver(repository),
         suggest_service=suggester(repository),
     )
@@ -352,13 +362,8 @@ def test_ambiguous_or_interrogative_turn_does_not_confirm_suggestion(message):
 
 @pytest.mark.parametrize(
     "message",
-    [
-        "Sí, ese",
-        "Confirmo",
-        "Sí, cambia a ese servicio",
-        "Sí, cámbiala a ese servicio",
-        "Sí, cámbialo a ese servicio",
-    ],
+    ["Sí", "Sí, esa", "Eso mismo", "De acuerdo", "Dale", "Cámbiala",
+     "Sí, pediatría", "Mejor esa"],
 )
 def test_affirmative_confirmation_promotes_suggestion(message):
     repository = BookingServiceRepository("Consulta pediátrica")
@@ -373,7 +378,11 @@ def test_affirmative_confirmation_promotes_suggestion(message):
     confirmed = update_initial_booking_context(
         suggested,
         message,
-        proposal=proposal("booking_request", decision="confirm_candidate"),
+        proposal=proposal(
+            "booking_request",
+            candidate="pediatría" if message == "Sí, pediatría" else None,
+            decision="confirm_pending_suggestion",
+        ),
         resolve_service=resolver(repository),
         suggest_service=suggester(repository),
     )
@@ -382,6 +391,139 @@ def test_affirmative_confirmation_promotes_suggestion(message):
     assert confirmed.suggested_service is None
     assert confirmed.conversation_progress.service_confirmed is True
     assert confirmed.last_relevant_context["service_resolution"] == "identified"
+
+
+@pytest.mark.parametrize("message", ["Perfecto", "Ok", "Gracias"])
+def test_social_or_closing_turn_does_not_promote_pending_suggestion(message):
+    repository = BookingServiceRepository("Consulta pediátrica")
+    suggested = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero pediatría",
+        proposal=proposal("booking_request", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    unchanged = update_initial_booking_context(
+        suggested,
+        message,
+        proposal=proposal("casual_conversation", decision="none"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert unchanged.selected_service is None
+    assert unchanged.suggested_service.name == "Consulta pediátrica"
+    assert unchanged.last_relevant_context["service_resolution"] == "suggested"
+
+
+def test_information_or_distinct_candidate_cannot_confirm_pending_suggestion():
+    repository = BookingServiceRepository("Consulta pediátrica", "Consulta nefrología")
+    suggested = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero pediatría",
+        proposal=proposal("booking_request", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    information = update_initial_booking_context(
+        suggested,
+        "¿Qué servicios tienes?",
+        proposal=proposal("service_information", decision="explore"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+    distinct = update_initial_booking_context(
+        suggested,
+        "Mejor nefrología",
+        proposal=proposal("booking_request", "Consulta nefrología", decision="select"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert information.selected_service is None
+    assert information.suggested_service.name == "Consulta pediátrica"
+    assert distinct.selected_service.name == "Consulta nefrología"
+    assert distinct.suggested_service is None
+
+
+def test_confirm_pending_suggestion_without_suggestion_has_no_operational_effect():
+    repository = BookingServiceRepository("Consulta pediátrica")
+
+    context = update_initial_booking_context(
+        InitialBookingContext(),
+        "Sí, esa",
+        proposal=proposal(
+            "booking_request",
+            decision="confirm_pending_suggestion",
+        ),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert context.selected_service is None
+    assert context.suggested_service is None
+    assert context.stage.value == "collect_service"
+
+
+def test_confirm_pending_suggestion_requires_backend_reresolution():
+    repository = BookingServiceRepository("Consulta pediátrica")
+    suggested = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero pediatría",
+        proposal=proposal("booking_request", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    unresolved = update_initial_booking_context(
+        suggested,
+        "Eso mismo",
+        proposal=proposal(
+            "booking_request",
+            decision="confirm_pending_suggestion",
+        ),
+        resolve_service=lambda query: None,
+        suggest_service=suggester(repository),
+    )
+
+    assert unresolved.selected_service is None
+    assert unresolved.suggested_service.name == "Consulta pediátrica"
+    assert unresolved.last_relevant_context["service_resolution"] == "suggested"
+
+
+def test_reject_pending_suggestion_clears_it_and_preserves_confirmed_service():
+    repository = BookingServiceRepository("Consulta nefrología", "Consulta pediátrica")
+    selected = update_initial_booking_context(
+        InitialBookingContext(),
+        "Quiero Consulta nefrología",
+        proposal=proposal("booking_request", "Consulta nefrología"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+    suggested = update_initial_booking_context(
+        selected,
+        "¿Y pediatría?",
+        proposal=proposal("service_information", "pediatría"),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    rejected = update_initial_booking_context(
+        suggested,
+        "No, deja así",
+        proposal=proposal(
+            "booking_request",
+            decision="reject_pending_suggestion",
+        ),
+        resolve_service=resolver(repository),
+        suggest_service=suggester(repository),
+    )
+
+    assert rejected.selected_service.name == "Consulta nefrología"
+    assert rejected.suggested_service is None
+    assert rejected.last_relevant_context["service_resolution"] == "rejected"
 
 
 def test_casual_turn_preserves_pending_suggestion_and_collection_stage():
@@ -457,7 +599,10 @@ def test_pending_suggested_change_preserves_prior_selection_until_confirmation()
     confirmed = update_initial_booking_context(
         ambiguous,
         "Sí, cambia a ese servicio",
-        proposal=proposal("booking_request", decision="confirm_candidate"),
+        proposal=proposal(
+            "booking_request",
+            decision="confirm_pending_suggestion",
+        ),
         resolve_service=resolver(repository),
         suggest_service=suggester(repository),
     )
@@ -687,7 +832,8 @@ def test_llm_interpreter_returns_structured_proposal_without_persisting_raw_outp
     assert result.content.startswith("Tengo identificado el servicio Pediatría")
     assert len(provider.calls) == 1
     proposal_prompt = provider.calls[0][0].content
-    assert "aceptación afirmativa explícita" in proposal_prompt
+    assert "confirm_pending_suggestion" in proposal_prompt
+    assert "reject_pending_suggestion" in proposal_prompt
     assert "pregunta sobre si algo ya cambió" in proposal_prompt
-    assert 'expresiones ambiguas como "Perfecto"' in proposal_prompt
+    assert "Interpreta significado" in proposal_prompt
     assert str(repository.record.service_id) not in repr(provider.calls)

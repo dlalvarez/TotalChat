@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
-import re
 from typing import Callable
 import unicodedata
 from uuid import UUID
@@ -27,6 +26,7 @@ from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversa
 from app.ai.conversation_state import (
     InitialBookingContext,
     InitialConversationProgress,
+    CandidateConversationService,
     ConversationEntityDecision,
     InitialConversationIntent,
     InitialConversationStage,
@@ -45,15 +45,19 @@ PROPOSAL_SYSTEM_PROMPT = """\
 Interpreta únicamente el turno actual y devuelve JSON estricto con esta forma:
 {"intent":"booking_request|service_information|casual_conversation",
  "candidate_service":{"name":"texto mencionado"}|null,
- "service_decision":"none|explore|select|confirm_candidate"}
+ "service_decision":"none|explore|select|confirm_candidate|confirm_pending_suggestion|reject_pending_suggestion"}
 booking_request significa que quiere seleccionar o cambiar un servicio para una cita.
 service_information significa que pregunta si existe, qué ofrece o información sobre uno.
 candidate_service conserva solo el nombre mencionado, sin inventar IDs ni confirmar existencia.
 explore es una pregunta o mención informativa y nunca cambia una selección.
 select requiere una decisión explícita de seleccionar o reemplazar por el candidato nombrado.
-confirm_candidate requiere aceptación afirmativa explícita del candidato previo aunque no repita su nombre.
-Una pregunta sobre si algo ya cambió, quedó, se hizo o está listo nunca es confirm_candidate.
-none cubre conversación sin decisión. No infieras confirmación de expresiones ambiguas como "Perfecto".
+confirm_candidate confirma un candidato previo solo cuando no existe una sugerencia backend pendiente.
+confirm_pending_suggestion acepta semánticamente la suggested_service indicada en el contexto previo.
+reject_pending_suggestion rechaza, cancela o se aparta de esa sugerencia pendiente.
+Una pregunta sobre si algo ya cambió, quedó, se hizo o está listo nunca confirma.
+Una expresión social o de cierre como "Perfecto", "Ok" o "Gracias" no confirma.
+Si menciona otro servicio, usa select o explore; nunca confirmes la sugerencia anterior.
+none cubre conversación sin decisión. Interpreta significado, no coincidencias literales.
 No devuelvas markdown, explicación, UUID, tenant, schema ni razonamiento.
 """
 
@@ -144,7 +148,8 @@ class NaturalConversationAgentInvoker:
         safe_prior = (
             f"intent={context.intent.value}; stage={context.stage.value}; "
             f"selected_service={'yes' if context.selected_service else 'no'}; "
-            f"candidate_service={context.candidate_service.name if context.candidate_service else 'none'}"
+            f"candidate_service={context.candidate_service.name if context.candidate_service else 'none'}; "
+            f"suggested_service={context.suggested_service.name if context.suggested_service else 'none'}"
         )
         response = self._llm_provider.complete([
             LLMMessage(role="system", content=PROPOSAL_SYSTEM_PROMPT),
@@ -193,15 +198,61 @@ def update_initial_booking_context(
         suggested_service = None
     resolution: str | None = None
     if intent is InitialConversationIntent.BOOKING_REQUEST:
-        if can_replace_confirmed_service(proposal, message_text) and candidate is not None:
-            lookup_name = (
-                current.suggested_service.name
-                if (
-                    proposal.service_decision is ConversationEntityDecision.CONFIRM_CANDIDATE
-                    and current.suggested_service is not None
+        if (
+            proposal.service_decision
+            is ConversationEntityDecision.REJECT_PENDING_SUGGESTION
+            and current.suggested_service is not None
+        ):
+            suggested_service = None
+            resolution = "rejected"
+            if selected_service is not None:
+                stage = InitialConversationStage.SERVICE_IDENTIFIED
+                collected = {"service_name": selected_service.name}
+                missing = []
+            else:
+                stage = InitialConversationStage.COLLECT_SERVICE
+                collected = {}
+                missing = ["service"]
+        elif (
+            proposal.service_decision
+            is ConversationEntityDecision.CONFIRM_PENDING_SUGGESTION
+            and current.suggested_service is not None
+        ):
+            if _can_confirm_pending_suggestion(current, proposal, message_text):
+                match = (
+                    resolve_service(current.suggested_service.name)
+                    if resolve_service is not None else None
                 )
-                else candidate.name
-            )
+            else:
+                match = None
+            if match is not None:
+                selected_service = SelectedConversationService(
+                    id=match.service_id,
+                    name=match.name,
+                )
+                candidate = CandidateConversationService(name=match.name)
+                suggested_service = None
+                collected = {"service_name": match.name}
+                stage = InitialConversationStage.SERVICE_IDENTIFIED
+                missing = []
+                resolution = "identified"
+            else:
+                suggested_service = current.suggested_service
+                resolution = "suggested"
+                if selected_service is not None:
+                    stage = InitialConversationStage.SERVICE_IDENTIFIED
+                    collected = {"service_name": selected_service.name}
+                    missing = []
+                else:
+                    stage = InitialConversationStage.COLLECT_SERVICE
+                    collected = {}
+                    missing = ["service"]
+        elif (
+            can_replace_confirmed_service(proposal)
+            and candidate is not None
+            and suggested_service is None
+        ):
+            lookup_name = candidate.name
             match = resolve_service(lookup_name) if resolve_service is not None else None
             if match is None:
                 suggestion = (
@@ -268,6 +319,8 @@ def update_initial_booking_context(
             else:
                 suggested_service = SuggestedConversationService(name=suggestion.name)
                 resolution = "suggested"
+        elif suggested_service is not None:
+            resolution = "suggested"
         stage = (
             InitialConversationStage.SERVICE_IDENTIFIED
             if selected_service is not None
@@ -319,39 +372,49 @@ def update_initial_booking_context(
     )
 
 
-def can_replace_confirmed_service(
-    proposal: InitialConversationProposal,
-    message_text: str,
-) -> bool:
-    """Authorize mutation from a structured decision plus closed confirmation syntax."""
+def can_replace_confirmed_service(proposal: InitialConversationProposal) -> bool:
+    """Authorize named candidate mutation outside pending-suggestion semantics."""
 
     if proposal.intent is not InitialConversationIntent.BOOKING_REQUEST:
         return False
     if proposal.service_decision is ConversationEntityDecision.SELECT:
         return proposal.candidate_service is not None
     if proposal.service_decision is ConversationEntityDecision.CONFIRM_CANDIDATE:
-        return _is_affirmative_candidate_confirmation(message_text)
+        return True
     return False
 
 
-_AFFIRMATIVE_CANDIDATE_CONFIRMATION = re.compile(
-    r"^(?:si(?: (?:ese|esa)(?: servicio)?(?: (?:quiero|es|mismo))?"
-    r"| (?:cambia|cambiala|cambialo) a ese servicio| me refiero a ese)?"
-    r"|confirmo|correcto|ese es|ese servicio)$"
-)
+def _can_confirm_pending_suggestion(
+    current: InitialBookingContext,
+    proposal: InitialConversationProposal,
+    message_text: str,
+) -> bool:
+    """Validate semantic confirmation against current backend-owned state."""
 
-
-def _is_affirmative_candidate_confirmation(message_text: str) -> bool:
-    """Allow only closed affirmative forms; interrogative turns never confirm."""
-
+    if current.suggested_service is None:
+        return False
     if "?" in message_text or "¿" in message_text:
         return False
-    decomposed = unicodedata.normalize("NFKD", message_text.casefold())
-    without_accents = "".join(
-        character for character in decomposed if not unicodedata.combining(character)
+    if proposal.intent is not InitialConversationIntent.BOOKING_REQUEST:
+        return False
+    proposed_candidate = proposal.candidate_service
+    if proposed_candidate is None:
+        return True
+    allowed_names = {_normalize_entity_name(current.suggested_service.name)}
+    if current.candidate_service is not None:
+        allowed_names.add(_normalize_entity_name(current.candidate_service.name))
+    return _normalize_entity_name(proposed_candidate.name) in allowed_names
+
+
+def _normalize_entity_name(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join(
+        "".join(
+            character
+            for character in decomposed
+            if not unicodedata.combining(character)
+        ).split()
     )
-    normalized = " ".join(re.sub(r"[^a-z0-9]+", " ", without_accents).split())
-    return bool(_AFFIRMATIVE_CANDIDATE_CONFIRMATION.fullmatch(normalized))
 
 
 def _load_initial_context(persisted_state: dict) -> InitialBookingContext:
@@ -408,7 +471,7 @@ def _safe_context_instruction(context: InitialBookingContext) -> str:
 
 def _safe_service_resolution(context: InitialBookingContext) -> str:
     resolution = context.last_relevant_context.get("service_resolution")
-    if resolution in {"not_found", "suggested"}:
+    if resolution in {"not_found", "suggested", "rejected"}:
         return resolution
     if context.selected_service is not None:
         return "identified"

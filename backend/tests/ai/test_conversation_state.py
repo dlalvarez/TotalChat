@@ -16,6 +16,7 @@ from app.ai.conversation_state import (
     CandidateConversationService,
     SelectedConversationService,
     SuggestedConversationService,
+    ConversationEntityDecision,
 )
 
 
@@ -199,3 +200,12 @@ def test_suggested_service_is_json_safe_and_does_not_confirm_selection():
     )
     assert context.selected_service is None
     assert "id" not in context.to_persistent_dict()["suggested_service"]
+
+
+def test_pending_suggestion_decisions_are_part_of_structured_contract():
+    assert ConversationEntityDecision("confirm_pending_suggestion") is (
+        ConversationEntityDecision.CONFIRM_PENDING_SUGGESTION
+    )
+    assert ConversationEntityDecision("reject_pending_suggestion") is (
+        ConversationEntityDecision.REJECT_PENDING_SUGGESTION
+    )

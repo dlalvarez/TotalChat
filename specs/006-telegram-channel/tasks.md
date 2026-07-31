@@ -46,3 +46,5 @@
   bloquear consultas informativas grounded (corrección Fase 8A.9).
 - [x] Priorizar una sugerencia de cambio pendiente sin borrar la selección previa
   ni presentarla como ya reemplazada (corrección Fase 8A.9).
+- [x] Interpretar semánticamente confirmación o rechazo de sugerencias y mantener
+  autoridad operativa en la re-resolución backend (corrección Fase 8A.9).

@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.10-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.11-v1"
 
 _TECHNICAL_DISPLAY_NAME = "Assistant"
 _TECHNICAL_FRIENDLY_NAME = "Assistant"
@@ -106,6 +106,8 @@ Si service_resolution=suggested y recibes suggested_service_name, presenta ese
 nombre únicamente como servicio relacionado y pregunta si el usuario se refiere
 a ese. Una sugerencia no está seleccionada ni confirmada y no permite avanzar;
 solo una confirmación explícita posterior validada por el backend puede promoverla.
+Si service_resolution=rejected, acepta el rechazo y pregunta qué otro servicio
+necesita sin conservar la sugerencia rechazada como selección.
 next_expected_action=continue_booking solo indica conservar continuidad
 conversacional para una fase futura. No significa que exista una reserva ni
 habilita solicitar fechas, consultar agenda o ejecutar acciones fuera de alcance.

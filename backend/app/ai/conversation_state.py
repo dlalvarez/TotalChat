@@ -80,6 +80,8 @@ class ConversationEntityDecision(StrEnum):
     EXPLORE = "explore"
     SELECT = "select"
     CONFIRM_CANDIDATE = "confirm_candidate"
+    CONFIRM_PENDING_SUGGESTION = "confirm_pending_suggestion"
+    REJECT_PENDING_SUGGESTION = "reject_pending_suggestion"
 
 
 class InitialConversationProposal(BaseModel):

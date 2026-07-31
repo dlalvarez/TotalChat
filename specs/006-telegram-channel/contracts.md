@@ -187,7 +187,8 @@ LLM, al texto visible ni al payload de Telegram; el runtime recibe únicamente e
 estado de resolución y el nombre validado.
 
 La interpretación LLM produce exclusivamente una propuesta estructurada de
-intención, candidato y decisión (`none | explore | select | confirm_candidate`).
+intención, candidato y decisión (`none | explore | select | confirm_candidate |
+confirm_pending_suggestion | reject_pending_suggestion`).
 Una pregunta informativa puede conservar candidato, pero
 no crea `selected_service`. Solo el resolver backend tenant-scoped promueve un
 candidato de reserva a selección confirmada. El modelo rechaza
@@ -196,9 +197,11 @@ Una consulta informativa reemplaza únicamente `candidate_service` y conserva la
 selección confirmada previa. `conversation_progress` refleja de manera derivada
 si el servicio está confirmado y orienta a `continue_booking` o
 `collect_service`; no representa reserva, agenda ni acción ejecutable.
-Solo decisiones `select` o `confirm_candidate` permiten mutar la entidad
-confirmada después de validación backend. `explore`, `none` y confirmaciones
-ambiguas preservan `selected_service`.
+`select` opera sobre un candidato nombrado. `confirm_pending_suggestion` puede
+promover únicamente `current.suggested_service` después de resolver nuevamente su
+nombre tenant-scoped; nunca usa una entidad inventada por el LLM.
+`reject_pending_suggestion` limpia la sugerencia y conserva la selección previa.
+`explore`, `none` y confirmaciones ambiguas preservan `selected_service`.
 
 El estado se entrega al runtime como contexto seguro para que el LLM solicite la
 información faltante naturalmente. No se muestra al usuario ni contiene prompts,
@@ -225,10 +228,11 @@ habilita el siguiente paso. Su nombre seguro puede mostrarse para preguntar si e
 usuario se refiere a ese servicio; una confirmación explícita posterior debe
 resolver nuevamente el nombre real antes de promoverlo. Aliases persistentes,
 embeddings y LLM judge quedan fuera de 8A.9.
-La confirmación debe ser afirmativa y pertenecer al vocabulario cerrado autorizado
-por backend. Una pregunta sobre si el cambio ocurrió y una expresión ambigua como
-«Perfecto» no promueven `suggested_service`, aunque la propuesta LLM las clasifique
-como `confirm_candidate`; el estado permanece en `collect_service`.
+La confirmación se interpreta semánticamente como `confirm_pending_suggestion`, no
+mediante una lista sintáctica de frases. El backend exige que exista sugerencia,
+que el turno no sea interrogativo ni informativo y que no proponga otro candidato;
+luego vuelve a resolver el nombre persistido. Una pregunta sobre si el cambio
+ocurrió y expresiones sociales o ambiguas no promueven la sugerencia.
 El runtime decide antes de invocar al provider las respuestas para
 `suggested_service` pendiente, `not_found` y solicitudes de reserva con selección
 confirmada. Solo una consulta informativa respaldada por resultados no vacíos de
