@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import logging
 from typing import Callable
 import unicodedata
 from uuid import UUID
@@ -38,6 +39,8 @@ from app.ai.providers import LLMMessage, LLMProvider
 from app.ai.service_tools import ServiceRepository
 from app.models.tenant import ConversationSession, Message
 
+
+logger = logging.getLogger(__name__)
 
 VISIBLE_HISTORY_LIMIT = 8
 HISTORY_BATCH_SIZE = 24
@@ -151,11 +154,22 @@ class NaturalConversationAgentInvoker:
             f"candidate_service={context.candidate_service.name if context.candidate_service else 'none'}; "
             f"suggested_service={context.suggested_service.name if context.suggested_service else 'none'}"
         )
-        response = self._llm_provider.complete([
-            LLMMessage(role="system", content=PROPOSAL_SYSTEM_PROMPT),
-            LLMMessage(role="system", content=f"Contexto previo seguro: {safe_prior}"),
-            LLMMessage(role="user", content=message_text[:2_000]),
-        ])
+        try:
+            response = self._llm_provider.complete([
+                LLMMessage(role="system", content=PROPOSAL_SYSTEM_PROMPT),
+                LLMMessage(role="system", content=f"Contexto previo seguro: {safe_prior}"),
+                LLMMessage(role="user", content=message_text[:2_000]),
+            ])
+        except Exception as exc:
+            # Provider exception values may contain request or credential material.
+            # Keep the turn recoverable and log only a stable technical category.
+            logger.warning(
+                "Conversation proposal provider invocation failed exception_type=%s",
+                type(exc).__name__,
+            )
+            return InitialConversationProposal(
+                intent=InitialConversationIntent.CASUAL_CONVERSATION
+            )
         try:
             payload = json.loads(response.content)
             return InitialConversationProposal.model_validate(payload)

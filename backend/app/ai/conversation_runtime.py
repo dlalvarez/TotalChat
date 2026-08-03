@@ -150,10 +150,13 @@ class NaturalConversationRuntime:
                         service_lookup_performed=service_lookup_performed,
                         grounded_by_service_tool=grounded_by_service_tool,
                     )
-        except Exception:
+        except Exception as exc:
             # Do not log exception values: provider errors can contain request or
             # credential material. The visible response is deliberately generic.
-            logger.warning("Natural conversation provider invocation failed")
+            logger.warning(
+                "Natural conversation provider invocation failed exception_type=%s",
+                type(exc).__name__,
+            )
             return ConversationTurnResult(content=TECHNICAL_FALLBACK, code="provider_error")
 
         code = (

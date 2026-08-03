@@ -65,7 +65,10 @@ def test_intake_invokes_agnostic_runtime_and_persists_exact_provider_content(mon
     assert "chat_id" not in repr(agent.calls)
 
 
-def test_runtime_error_persists_generic_nonempty_fallback(monkeypatch):
+def test_runtime_error_persists_generic_fallback_and_logs_safe_diagnostics(
+    monkeypatch,
+    caplog,
+):
     agent = AgentSpy(fail=True)
     engine, update, _ = make_service(monkeypatch)
 
@@ -77,6 +80,12 @@ def test_runtime_error_persists_generic_nonempty_fallback(monkeypatch):
     assert "secret provider detail" not in outgoing.content
     assert outgoing.raw_payload["delivery_status"] == "pending"
     assert outgoing.raw_payload["agent_status"] == "runtime_error"
+    assert "Telegram agent invocation failed" in caplog.text
+    assert "exception_type=RuntimeError" in caplog.text
+    assert "AgentSpy.invoke" not in caplog.text
+    assert "telegram.py:" in caplog.text
+    assert ":invoke" in caplog.text
+    assert "secret provider detail" not in caplog.text
 
 
 def test_duplicate_update_does_not_reinvoke_runtime(monkeypatch):

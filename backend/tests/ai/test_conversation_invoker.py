@@ -120,6 +120,37 @@ def test_invoker_uses_only_visible_ordered_messages_from_resolved_conversation()
     assert "Assistant" in sent[0].content and "TotalChat" in sent[0].content
 
 
+def test_proposal_provider_failure_is_contained_before_telegram_boundary(caplog):
+    class FailingProvider:
+        def complete(self, messages, *, tools=()):
+            raise RuntimeError("secret provider detail")
+
+    engine = make_database()
+    with Session(engine) as session:
+        conversation = ConversationSession(
+            channel_type="telegram",
+            external_user_id="provider-failure",
+        )
+        session.add(conversation)
+        session.flush()
+
+        result = NaturalConversationAgentInvoker(
+            session,
+            FailingProvider(),
+            enable_service_tools=True,
+        ).invoke(
+            tenant_id=uuid.uuid4(),
+            conversation=conversation,
+            message_text="Hola",
+        )
+
+    assert result.code == "provider_error"
+    assert conversation.state["intent"] == "casual_conversation"
+    assert "Conversation proposal provider invocation failed" in caplog.text
+    assert "exception_type=RuntimeError" in caplog.text
+    assert "secret provider detail" not in caplog.text
+
+
 def test_invoker_applies_eight_message_limit_after_visibility_filtering():
     engine = make_database()
     provider = CapturingProvider()

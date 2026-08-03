@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import logging
+from pathlib import Path
+import traceback
 from typing import Protocol
 from urllib import error, request
 from uuid import UUID
@@ -18,6 +21,9 @@ from app.channels.base import ConversationAgentInvoker
 from app.models.tenant import ConversationSession, Message
 from app.tenancy.resolver import TenantResolver
 from app.tenancy.schema import is_valid_tenant_schema_name
+
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramChat(BaseModel):
@@ -148,8 +154,15 @@ class TelegramWebhookService:
             )
             content = result.content
             agent_status = result.code
-        except Exception:
+        except Exception as exc:
             # Keep the acknowledgement boundary and never persist exception details.
+            # Frame locations make unexpected failures diagnosable without logging
+            # exception values, request payloads, tenant schemas, or credentials.
+            logger.error(
+                "Telegram agent invocation failed exception_type=%s trace=%s",
+                type(exc).__name__,
+                _safe_traceback_locations(exc),
+            )
             self.session.rollback()
             self._select_tenant_schema(tenant.schema_name)
             conversation = self.session.execute(select(ConversationSession).where(
@@ -211,3 +224,13 @@ class TelegramWebhookService:
     def _select_tenant_schema(self, schema_name: str) -> None:
         if self.session.get_bind().dialect.name != "sqlite":
             self.session.execute(text(f'SET LOCAL search_path TO "{schema_name}", public'))
+
+
+def _safe_traceback_locations(exc: Exception) -> str:
+    """Return traceback locations without source text or exception values."""
+
+    frames = traceback.extract_tb(exc.__traceback__)
+    return " > ".join(
+        f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
+        for frame in frames
+    ) or "unavailable"
