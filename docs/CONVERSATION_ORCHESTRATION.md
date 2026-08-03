@@ -126,11 +126,12 @@ resultado. El provider redacta íntegramente la respuesta normal. El backend
 valida contenido no vacío y usa un fallback técnico genérico ante error o
 timeout. En esta fase no existe tool calling ni acceso a datos operacionales.
 
-El System Prompt rector está versionado como `8a7-v2`. La identidad visible
-backend-owned usa por defecto a **Sofía** (nombre cercano **Sofi**), identidad
-femenina y vertical MediChat, y puede inyectarse de forma segura por contexto
-conversacional. El mensaje del usuario nunca configura identidad, tenant,
-permisos o reglas. No existe todavía configuración administrativa persistente.
+El System Prompt rector permanece versionado por cada cambio de gobierno. La
+identidad visible llega desde un resolver backend-owned separado del prompt
+builder. Mientras no exista configuración administrativa persistente, el resolver
+usa exclusivamente el fallback técnico neutral `Assistant` / `TotalChat`; no
+incorpora nombres de negocio, vertical o tenant en el core. El mensaje del usuario
+nunca configura identidad, tenant, permisos o reglas.
 
 El historial contiene solo incoming anteriores y outgoing cuya entrega fue
 confirmada como `sent`. Se excluyen `pending`, `failed`, direcciones internas y
@@ -148,10 +149,10 @@ explícitamente `none`, no un default universal. No hay detección de capacidade
 selección dinámica, lógica específica de provider, cambio de modelo, fallback,
 tools o LangGraph.
 
-El nombre cercano Sofi identifica exclusivamente a la asistente, no al usuario.
+El nombre cercano configurado identifica exclusivamente a la asistente, no al usuario.
 Un nombre de usuario solo se usa tras una declaración inequívoca en el contexto
 seguro; no existe perfil ni memoria persistente de nombres. Mientras no haya
-tools, Sofía puede comprender, recopilar y organizar una solicitud, pero no puede
+tools, la identidad resuelta puede comprender, recopilar y organizar una solicitud, pero no puede
 prometer consultas, búsquedas, verificaciones, confirmaciones o ejecución futura
 de datos operacionales.
 
@@ -162,6 +163,17 @@ El runtime expone al provider exclusivamente la definición cerrada
 valida nombre y JSON, rechaza campos adicionales, limita la consulta y la ejecuta
 mediante `ServiceTools` sobre la sesión ya contextualizada al tenant. El tenant
 no forma parte de los argumentos del modelo.
+
+La búsqueda conversacional y la resolución de selección comparten normalización
+de mayúsculas, tildes, tokens genéricos y ranking conservador sobre servicios
+activos. La búsqueda informativa puede devolver varias coincidencias seguras para
+presentar opciones. La resolución exige un líder inequívoco separado por un
+margen mínimo; términos médicos parecidos no se promueven automáticamente.
+Ninguna de las dos rutas expone UUIDs. La igualdad normalizada o inclusión
+inequívoca sin tokens genéricos puede identificar. Una similitud textual
+conservadora solo puede sugerir y nunca confirmar. No se usa stemming casero,
+recorte de sufijos ni distancia de edición para identificar términos clínicos.
+Un typo o término clínicamente dudoso queda sin resolver y exige aclaración.
 
 La consulta lee servicios activos desde `practitioner_services`. El resultado
 que vuelve al modelo contiene únicamente `name`, `description` y
@@ -374,3 +386,103 @@ frontend, infraestructura ni correcciones operativas del PR #67.
 
 Cualquier necesidad adicional se registrará como **Desviación propuesta / mejora
 futura** y requerirá autorización antes de implementarse.
+
+## 13. Fase 8A.9 — contexto inicial persistente de reserva
+
+El invoker agnóstico de canal conserva un estado conversacional mínimo y
+serializable, preparado para convertirse posteriormente en estado de LangGraph:
+
+```text
+intent
+stage
+selected_service (referencia interna y nombre)
+candidate_service (mención temporal no confirmada)
+collected_context
+missing_information
+last_relevant_context
+conversation_progress (service_confirmed y next_expected_action)
+```
+
+La clasificación combina el turno actual con la intención y etapa persistidas.
+La interpretación de lenguaje natural pertenece al LLM y produce una propuesta
+estructurada (`intent`, `candidate_service` y `service_decision`) sin autoridad
+operacional. `service_decision` distingue exploración, selección explícita,
+confirmación explícita del candidato previo y ausencia de decisión. El
+backend no infiere entidades desde reglas textuales: valida el candidato con la
+consulta tenant-scoped antes de modificar `selected_service`.
+`booking_request` inicia en `collect_service` con `service` faltante. El turno
+siguiente conserva esa intención y resuelve la descripción contra servicios
+activos del tenant mediante la capacidad backend existente. Solo igualdad
+normalizada o inclusión inequívoca avanza a `service_identified` y persiste su
+referencia interna y nombre. Una relación textual conservadora queda como
+`suggested_service`, con `service_resolution=suggested`, y permanece en
+`collect_service` hasta una confirmación explícita. Sin identificación ni
+sugerencia segura, solicita aclaración.
+Una solicitud explícita de cambio vuelve a resolver el servicio. Una coincidencia
+reemplaza por completo `selected_service`; un cambio sin coincidencia elimina la
+selección anterior y regresa a `collect_service`.
+`service_information` y `casual_conversation` permanecen en `start` cuando no
+existe selección; si ya hay una, conservan `service_identified` sin modificarla.
+El LLM recibe una representación segura de este estado y
+redacta la pregunta o reconocimiento natural, pero no lo expone al usuario.
+Esa representación distingue explícitamente `service_confirmed`,
+`service_resolution`, `service_name` validado, `candidate_service` y
+`suggested_service_name`. El candidato
+es solo una mención: no prueba existencia ni autoriza afirmar que un servicio
+está configurado. La respuesta visible solo puede reconocer una entidad cuando
+el backend comunica `service_confirmed=true`, `service_resolution=identified` y
+el nombre validado, o cuando una consulta `search_services` del mismo turno
+devuelve el hecho correspondiente.
+`suggested` nunca equivale a `identified`: no selecciona, no confirma existencia
+para una reserva y no habilita avance. Una confirmación explícita posterior vuelve
+a validar el nombre sugerido tenant-scoped antes de promoverlo. Aliases
+persistentes, embeddings y LLM judge quedan como mejoras futuras no implementadas.
+La promoción requiere una aceptación afirmativa explícita. Preguntas sobre si el
+cambio ya ocurrió —incluidas formas interrogativas como «¿La cambiaste?» o
+«¿Ya quedó?»— y aceptaciones ambiguas como «Perfecto» conservan la sugerencia y
+deben provocar una nueva solicitud de confirmación, aun si el LLM propone
+erróneamente `confirm_candidate`.
+Las respuestas de estados críticos son backend-owned y se deciden antes de pedir
+redacción al provider: sugerencia pendiente sin selección, candidato `not_found`
+y `booking_request` con servicio confirmado usan textos determinísticos. Una
+consulta `service_information` conserva redacción natural únicamente cuando
+`search_services` devuelve hechos reales; un resultado vacío vuelve al texto
+determinístico del candidato. Esto evita perseguir variantes textuales del LLM.
+Una selección confirmada puede coexistir temporalmente con una sugerencia distinta
+pendiente de cambio. La selección anterior permanece como hecho confirmado, pero
+la respuesta crítica prioriza la sugerencia y pide confirmar el reemplazo; no
+repite únicamente el servicio anterior ni promueve el nuevo hasta recibir una
+aceptación afirmativa y volver a resolverlo tenant-scoped.
+
+Este contexto es memoria operacional, no fuente de verdad: PostgreSQL valida el
+servicio antes de identificarlo. No guarda prompts, razonamiento,
+respuestas internas, secretos ni `schema_name`; tampoco habilita disponibilidad,
+slots, creación o confirmación de citas, pagos, nuevas tools o un grafo. Telegram
+continúa siendo exclusivamente entrada/salida.
+El UUID de `selected_service` permanece únicamente en el estado backend. El LLM
+recibe solo `service_resolution` y el nombre validado; canales y texto visible no
+reciben el UUID.
+Una pregunta de existencia o información conserva el candidato como no confirmado
+y no selecciona el servicio. Además, el modelo rechaza como inválido cualquier
+estado `service_identified` sin `selected_service` confirmado.
+Las consultas informativas actualizan `candidate_service` sin reemplazar
+`selected_service`. `conversation_progress` deriva exclusivamente del estado
+confirmado: indica `continue_booking` cuando existe servicio seleccionado o
+`collect_service` cuando falta. Es una orientación no transaccional y nunca
+implica que exista una reserva, disponibilidad o próxima operación habilitada.
+8A.9 tampoco recolecta fecha, hora, preferencias de horario, sede ni datos
+personales, y no promete consultar disponibilidad, separar o crear una cita. El
+runtime aplica una protección cerrada para sustituir una salida del provider que
+contradiga estas fronteras por una aclaración segura basada en el estado backend.
+La protección recibe también la intención actual. En `service_information`, una
+consulta sobre otro candidato se responde con el resultado de `search_services`
+—o con la ausencia de resultados— sin reemplazar ni convertir en tema exclusivo
+el `selected_service` previo. `not_found` siempre describe el candidato del turno
+y tiene prioridad sobre cualquier reconocimiento de una selección anterior.
+Una exploración nunca modifica entidades confirmadas. `select` valida un candidato
+nombrado y `confirm_pending_suggestion` propone aceptar semánticamente la sugerencia
+backend pendiente; esta última solo promueve el nombre de `current.suggested_service`
+tras resolverlo nuevamente tenant-scoped. `reject_pending_suggestion` limpia la
+sugerencia sin borrar una selección previa. Una respuesta ambigua conserva el
+candidato sin promoverlo. Esta regla constituye el patrón reusable futuro para
+profesional, sede, pagador, plan y slot, que permanecen fuera de esta fase.

@@ -164,7 +164,17 @@ def test_post_rejects_schema_name(payment_attempt_session, tenant_context, booki
 
 
 def test_post_rejects_unknown_booking_id(payment_attempt_session, tenant_context, booking):
-    response = request("POST", "/api/admin/payment-attempts", payment_attempt_session, tenant_context, json=payload(booking, booking_id=str(uuid4())))
+    unknown_booking_id = str(uuid4())
+    data = {
+        "booking_id": unknown_booking_id,
+        "method": "transfer",
+        "amount": "100000.00",
+        "currency": "COP",
+    }
+    response = request(
+        "POST", "/api/admin/payment-attempts", payment_attempt_session, tenant_context,
+        json=data,
+    )
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "RESOURCE_NOT_FOUND"
 

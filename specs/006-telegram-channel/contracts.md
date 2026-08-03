@@ -135,8 +135,8 @@ payload completo o schema. Esta fase no conecta tools ni datos operacionales.
 El historial del invoker se forma exclusivamente con incoming anteriores y
 outgoing confirmados `sent`; `pending`, `failed`, direcciones desconocidas y la
 entrada actual quedan fuera. El límite de ocho se aplica después de ese filtro.
-La identidad Sofía/Sofi predeterminada y cualquier alternativa backend-owned no
-son responsabilidad ni configuración de Telegram.
+La identidad externa y el fallback técnico neutral son responsabilidad del
+resolver backend-owned, nunca configuración de Telegram ni del prompt builder.
 El invoker obtiene ese historial mediante lectura descendente en lotes limitados
 y keyset `(created_at, id)`, deteniéndose al reunir ocho visibles o agotar el
 historial. No carga toda la conversación ni usa `OFFSET`.
@@ -150,6 +150,95 @@ backend valida la solicitud, consulta `practitioner_services` mediante la capa d
 servicios existente y entrega al LLM únicamente nombre, descripción y duración.
 El LLM genera la respuesta visible final.
 
+La consulta informativa usa el mismo ranking normalizado y conservador que la
+resolución conversacional. Puede devolver múltiples opciones; no elige una. La
+resolución solo confirma una coincidencia única con margen seguro y rechaza
+términos médicos meramente parecidos. UUIDs y puntajes permanecen internos.
+La política clínica permite identificar solo por igualdad normalizada o inclusión
+inequívoca sin tokens genéricos. La similitud textual conservadora puede producir
+una sugerencia, nunca una selección. No se usa stemming, recorte de sufijos ni
+distancia de edición para identificar. Un typo dudoso permanece sin resolver.
+
 Telegram no conoce el catálogo, los argumentos ni los resultados. Continúa
 limitándose a persistencia, invocación y entrega. No se habilitan precios,
 disponibilidad, reservas, pagos ni otras tools.
+
+## Fase 8A.9 — contexto conversacional inicial de reservas
+
+El invoker común clasifica cada turno dentro del vocabulario cerrado
+`booking_request | service_information | casual_conversation`, combinando el
+mensaje con el estado tenant-scoped ya persistido. El estado JSON permitido
+contiene solo `intent`, `stage`, `collected_context`, `missing_information` y
+`last_relevant_context`, más `selected_service` como referencia backend tipada
+con UUID y nombre, `candidate_service` como propuesta temporal sin UUID y
+`suggested_service` como servicio real relacionado sin ID visible. Una
+solicitud de cita avanza a `collect_service`. La
+descripción del turno siguiente se normaliza y resuelve contra los servicios
+activos del tenant mediante la consulta backend existente; solo una coincidencia
+inequívoca avanza a `service_identified` con ID interno y nombre. Una similitud
+conservadora persiste `service_resolution=suggested` y mantiene `collect_service`
+hasta confirmación explícita. Sin coincidencia se solicita aclaración. Esta es una corrección del
+contrato de 8A.9, no una fase nueva.
+
+Una petición explícita de cambio de servicio se resuelve nuevamente. Si existe
+una coincidencia única reemplaza la selección; si no existe, elimina la selección
+anterior y vuelve a `collect_service`. El UUID nunca se incorpora al contexto del
+LLM, al texto visible ni al payload de Telegram; el runtime recibe únicamente el
+estado de resolución y el nombre validado.
+
+La interpretación LLM produce exclusivamente una propuesta estructurada de
+intención, candidato y decisión (`none | explore | select | confirm_candidate |
+confirm_pending_suggestion | reject_pending_suggestion`).
+Una pregunta informativa puede conservar candidato, pero
+no crea `selected_service`. Solo el resolver backend tenant-scoped promueve un
+candidato de reserva a selección confirmada. El modelo rechaza
+`service_identified` cuando no existe `selected_service`.
+Una consulta informativa reemplaza únicamente `candidate_service` y conserva la
+selección confirmada previa. `conversation_progress` refleja de manera derivada
+si el servicio está confirmado y orienta a `continue_booking` o
+`collect_service`; no representa reserva, agenda ni acción ejecutable.
+`select` opera sobre un candidato nombrado. `confirm_pending_suggestion` puede
+promover únicamente `current.suggested_service` después de resolver nuevamente su
+nombre tenant-scoped; nunca usa una entidad inventada por el LLM.
+`reject_pending_suggestion` limpia la sugerencia y conserva la selección previa.
+`explore`, `none` y confirmaciones ambiguas preservan `selected_service`.
+
+El estado se entrega al runtime como contexto seguro para que el LLM solicite la
+información faltante naturalmente. No se muestra al usuario ni contiene prompts,
+razonamiento, respuestas internas, secretos o `schema_name`. La coincidencia solo
+valida un servicio activo; no consulta disponibilidad, crea citas, bloquea horarios o
+procesa pagos. Telegram continúa limitado a entrada, persistencia, invocación y
+entrega; no clasifica ni conduce el flujo.
+
+El contexto seguro diferencia `service_confirmed`, `service_resolution`, el
+`service_name` validado y el `candidate_service` temporal. Un candidato nunca
+confirma existencia. Solo `service_confirmed=true` junto con
+`service_resolution=identified` y `service_name`, o un resultado real de
+`search_services` en ese turno, permite comunicar que el servicio existe. El
+runtime rechaza respuestas visibles que contradigan esa autoridad o que soliciten
+fecha, hora, disponibilidad o datos de agenda, y tampoco permite prometer o crear
+una reserva en 8A.9.
+El guard distingue `service_information` de una solicitud de reserva: una
+consulta informativa se orienta al `candidate_service` y al resultado de
+`search_services`, mientras preserva el `selected_service`. Una resolución
+`not_found` prioriza el candidato actual y nunca cae en un reconocimiento de la
+selección previa ni sugiere continuar con la entidad inexistente.
+`suggested` no equivale a `identified`, no confirma selección ni reserva y no
+habilita el siguiente paso. Su nombre seguro puede mostrarse para preguntar si el
+usuario se refiere a ese servicio; una confirmación explícita posterior debe
+resolver nuevamente el nombre real antes de promoverlo. Aliases persistentes,
+embeddings y LLM judge quedan fuera de 8A.9.
+La confirmación se interpreta semánticamente como `confirm_pending_suggestion`, no
+mediante una lista sintáctica de frases. El backend exige que exista sugerencia,
+que el turno no sea interrogativo ni informativo y que no proponga otro candidato;
+luego vuelve a resolver el nombre persistido. Una pregunta sobre si el cambio
+ocurrió y expresiones sociales o ambiguas no promueven la sugerencia.
+El runtime decide antes de invocar al provider las respuestas para
+`suggested_service` pendiente, `not_found` y solicitudes de reserva con selección
+confirmada. Solo una consulta informativa respaldada por resultados no vacíos de
+`search_services` conserva redacción LLM; la ausencia de resultados usa respuesta
+determinística. Estos textos no contienen UUID, tenant, `schema_name` ni prompts.
+Cuando `selected_service` y una `suggested_service` diferente coexisten, la primera
+permanece confirmada y la segunda representa un cambio pendiente. Una intención de
+cambio o seguimiento ambiguo produce una respuesta determinística que prioriza la
+sugerencia y solicita confirmación; solo después se reemplaza la selección.

@@ -12,6 +12,11 @@ from app.ai.conversation_state import (
     ConversationStage,
     PendingField,
     SelectedSlot,
+    InitialBookingContext,
+    CandidateConversationService,
+    SelectedConversationService,
+    SuggestedConversationService,
+    ConversationEntityDecision,
 )
 
 
@@ -127,3 +132,80 @@ def test_serialization_rechecks_mutated_metadata():
 
     with pytest.raises(ValueError, match="schema_name"):
         state.to_redis_json()
+
+
+def test_initial_context_is_json_safe_and_rejects_internal_material():
+    service_id = uuid4()
+    context = InitialBookingContext.model_validate({
+        "intent": "booking_request",
+        "stage": "service_identified",
+        "candidate_service": {"name": "consulta pediátrica"},
+        "selected_service": {"id": str(service_id), "name": "Pediatría"},
+        "collected_context": {"service_name": "Pediatría"},
+        "last_relevant_context": {"user_message": "Pediatría"},
+        "conversation_progress": {
+            "service_confirmed": True,
+            "next_expected_action": "continue_booking",
+        },
+    })
+    assert context.to_persistent_dict()["intent"] == "booking_request"
+    assert context.selected_service == SelectedConversationService(
+        id=service_id, name="Pediatría"
+    )
+    assert context.to_persistent_dict()["selected_service"]["id"] == str(service_id)
+    assert context.candidate_service == CandidateConversationService(
+        name="consulta pediátrica"
+    )
+    assert context.conversation_progress.service_confirmed is True
+    assert context.conversation_progress.next_expected_action == "continue_booking"
+
+    with pytest.raises(ValidationError, match="schema_name"):
+        InitialBookingContext.model_validate({
+            "last_relevant_context": {"schema_name": "tenant_private"}
+        })
+
+
+def test_initial_context_rejects_impossible_service_selection_states():
+    with pytest.raises(ValidationError, match="requires selected_service"):
+        InitialBookingContext(stage="service_identified")
+    with pytest.raises(ValidationError, match="requires service_identified"):
+        InitialBookingContext(
+            stage="collect_service",
+            selected_service={"id": str(uuid4()), "name": "Pediatría"},
+        )
+
+    with pytest.raises(ValidationError, match="progress must match"):
+        InitialBookingContext(
+            stage="service_identified",
+            selected_service={"id": str(uuid4()), "name": "Pediatría"},
+        )
+
+
+def test_suggested_service_is_json_safe_and_does_not_confirm_selection():
+    context = InitialBookingContext.model_validate({
+        "intent": "service_information",
+        "stage": "collect_service",
+        "candidate_service": {"name": "pediatría"},
+        "suggested_service": {"name": "Consulta pediátrica"},
+        "missing_information": ["service"],
+        "last_relevant_context": {"service_resolution": "suggested"},
+        "conversation_progress": {
+            "service_confirmed": False,
+            "next_expected_action": "collect_service",
+        },
+    })
+
+    assert context.suggested_service == SuggestedConversationService(
+        name="Consulta pediátrica"
+    )
+    assert context.selected_service is None
+    assert "id" not in context.to_persistent_dict()["suggested_service"]
+
+
+def test_pending_suggestion_decisions_are_part_of_structured_contract():
+    assert ConversationEntityDecision("confirm_pending_suggestion") is (
+        ConversationEntityDecision.CONFIRM_PENDING_SUGGESTION
+    )
+    assert ConversationEntityDecision("reject_pending_suggestion") is (
+        ConversationEntityDecision.REJECT_PENDING_SUGGESTION
+    )

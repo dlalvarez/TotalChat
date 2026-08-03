@@ -34,6 +34,130 @@ class ConversationIntent(StrEnum):
     CANCEL = "cancel"
 
 
+class InitialConversationIntent(StrEnum):
+    """Small intent vocabulary owned by the 8A.9 conversational layer."""
+
+    BOOKING_REQUEST = "booking_request"
+    SERVICE_INFORMATION = "service_information"
+    CASUAL_CONVERSATION = "casual_conversation"
+
+
+class InitialConversationStage(StrEnum):
+    START = "start"
+    COLLECT_SERVICE = "collect_service"
+    SERVICE_IDENTIFIED = "service_identified"
+
+
+class SelectedConversationService(BaseModel):
+    """Stable backend-only reference to a tenant-validated service."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: UUID
+    name: str = Field(min_length=1, max_length=200)
+
+
+class CandidateConversationService(BaseModel):
+    """Unconfirmed service wording proposed from conversational interpretation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(min_length=1, max_length=200)
+
+
+class SuggestedConversationService(BaseModel):
+    """Real tenant service proposed for confirmation, never selected implicitly."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(min_length=1, max_length=200)
+
+
+class ConversationEntityDecision(StrEnum):
+    """Authority requested by a proposal; only explicit decisions may confirm."""
+
+    NONE = "none"
+    EXPLORE = "explore"
+    SELECT = "select"
+    CONFIRM_CANDIDATE = "confirm_candidate"
+    CONFIRM_PENDING_SUGGESTION = "confirm_pending_suggestion"
+    REJECT_PENDING_SUGGESTION = "reject_pending_suggestion"
+
+
+class InitialConversationProposal(BaseModel):
+    """LLM proposal that carries no operational authority."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    intent: InitialConversationIntent
+    candidate_service: CandidateConversationService | None = None
+    service_decision: ConversationEntityDecision = ConversationEntityDecision.NONE
+
+
+class ConversationNextExpectedAction(StrEnum):
+    COLLECT_SERVICE = "collect_service"
+    CONTINUE_BOOKING = "continue_booking"
+
+
+class InitialConversationProgress(BaseModel):
+    """Non-transactional pointer for a future booking orchestration phase."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_confirmed: bool = False
+    next_expected_action: ConversationNextExpectedAction | None = None
+
+
+class InitialBookingContext(BaseModel):
+    """Persistent, JSON-safe context that can become a future graph state."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    intent: InitialConversationIntent = InitialConversationIntent.CASUAL_CONVERSATION
+    stage: InitialConversationStage = InitialConversationStage.START
+    candidate_service: CandidateConversationService | None = None
+    suggested_service: SuggestedConversationService | None = None
+    selected_service: SelectedConversationService | None = None
+    collected_context: dict[str, JsonValue] = Field(default_factory=dict)
+    missing_information: list[str] = Field(default_factory=list)
+    last_relevant_context: dict[str, JsonValue] = Field(default_factory=dict)
+    conversation_progress: InitialConversationProgress = Field(
+        default_factory=InitialConversationProgress
+    )
+
+    @model_validator(mode="after")
+    def reject_internal_material(self) -> Self:
+        _reject_forbidden_metadata(self.model_dump(mode="json"), path="conversation_state")
+        if (
+            self.stage is InitialConversationStage.SERVICE_IDENTIFIED
+            and self.selected_service is None
+        ):
+            raise ValueError("service_identified requires selected_service")
+        if (
+            self.stage is not InitialConversationStage.SERVICE_IDENTIFIED
+            and self.selected_service is not None
+        ):
+            raise ValueError("selected_service requires service_identified")
+        expected_confirmed = self.selected_service is not None
+        if self.conversation_progress.service_confirmed is not expected_confirmed:
+            raise ValueError("conversation progress must match selected_service")
+        expected_action = (
+            ConversationNextExpectedAction.CONTINUE_BOOKING
+            if expected_confirmed
+            else (
+                ConversationNextExpectedAction.COLLECT_SERVICE
+                if self.stage is InitialConversationStage.COLLECT_SERVICE
+                else None
+            )
+        )
+        if self.conversation_progress.next_expected_action is not expected_action:
+            raise ValueError("conversation progress must match current stage")
+        return self
+
+    def to_persistent_dict(self) -> dict[str, JsonValue]:
+        return self.model_dump(mode="json")
+
+
 class ChannelType(StrEnum):
     SIMULATED = "simulated"
     TELEGRAM = "telegram"

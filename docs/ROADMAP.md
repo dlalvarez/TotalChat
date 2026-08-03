@@ -208,8 +208,15 @@ Entregables:
 - **Fase 8A.8 — Tool calling de servicios.** Estado: implementada. Incorpora
   exclusivamente `search_services`, tenant-scoped y de solo lectura, con
   argumentos cerrados y resultado visible sin UUID ni datos de infraestructura.
-- **Fase 8A.9 — Contexto inicial de reserva.** Estado: pendiente. Incorporará su
-  recolección natural y persistente sin adelantar operaciones posteriores.
+- **Fase 8A.9 — Contexto inicial de reserva.** Estado: implementada. Incorpora
+  intención, etapa, contexto recolectado e información faltante persistentes,
+  además de una referencia backend estable al servicio validado que puede
+  reemplazarse ante cambios explícitos, sin exponer UUID ni adelantar
+  disponibilidad, reservas, pagos o LangGraph.
+  La interpretación LLM genera candidatos sin autoridad; únicamente la
+  validación backend tenant-scoped confirma `selected_service`.
+  Las preguntas informativas preservan la selección confirmada y el progreso
+  conversacional derivado no representa una reserva ni habilita operaciones.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se

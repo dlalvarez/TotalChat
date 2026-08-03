@@ -3,7 +3,11 @@ import uuid
 
 import pytest
 
-from app.ai.conversation_runtime import ConversationTurnRequest, NaturalConversationRuntime
+from app.ai.conversation_runtime import (
+    ConversationResponseGuard,
+    ConversationTurnRequest,
+    NaturalConversationRuntime,
+)
 from app.ai.conversation_tools import ConversationToolRegistry
 from app.ai.providers import LLMResponse, LLMToolCall
 from app.ai.service_tools import ServiceRecord
@@ -14,7 +18,7 @@ class TenantRepository:
         self.record = ServiceRecord(
             service_id=uuid.uuid4(), name=name, description="Atención real",
             duration_minutes=60, practitioner_id=uuid.uuid4(),
-            practitioner_name="Dra. Sofía", organization_id=uuid.uuid4(),
+            practitioner_name="Dra. Ana", organization_id=uuid.uuid4(),
             organization_name="Internal org",
         )
 
@@ -24,6 +28,17 @@ class TenantRepository:
 
     def get_active(self, service_id):
         return self.record if service_id == self.record.service_id else None
+
+
+class MultiServiceRepository:
+    def __init__(self, *names):
+        self.records = [TenantRepository(name).record for name in names]
+
+    def list_active(self, **filters):
+        return self.records
+
+    def get_active(self, service_id):
+        return next((item for item in self.records if item.service_id == service_id), None)
 
 
 class ToolCallingProvider:
@@ -44,10 +59,19 @@ class ToolCallingProvider:
         return LLMResponse(content=f"Ofrecemos: {names}", model="fake", provider="fake")
 
 
-def run_turn(tenant_id, repository, provider, text="¿Qué servicios ofrecen?"):
+def run_turn(
+    tenant_id,
+    repository,
+    provider,
+    text="¿Qué servicios ofrecen?",
+    response_guard=None,
+):
     registry = ConversationToolRegistry(tenant_id=tenant_id, repository=repository)
     return NaturalConversationRuntime(provider, registry).run(ConversationTurnRequest(
-        tenant_id=tenant_id, conversation_id=uuid.uuid4(), message_text=text,
+        tenant_id=tenant_id,
+        conversation_id=uuid.uuid4(),
+        message_text=text,
+        response_guard=response_guard,
     ))
 
 
@@ -70,6 +94,50 @@ def test_service_question_executes_tool_and_returns_grounded_natural_response():
     assert str(repository.record.practitioner_id) not in structured
 
 
+def test_grounded_informational_candidate_is_not_blocked_or_selected():
+    repository = TenantRepository("Consulta pediátrica")
+    guard = ConversationResponseGuard(
+        service_confirmed=False,
+        service_resolution="unresolved",
+        candidate_service="pediatría",
+        intent="service_information",
+    )
+
+    result = run_turn(
+        uuid.uuid4(),
+        repository,
+        ToolCallingProvider(arguments='{"query":"pediatria"}'),
+        "¿Tienen pediatría?",
+        response_guard=guard,
+    )
+
+    assert result.content == "Ofrecemos: Consulta pediátrica"
+    assert guard.service_confirmed is False
+
+
+def test_empty_informational_lookup_answers_about_candidate_not_prior_selection():
+    guard = ConversationResponseGuard(
+        service_confirmed=True,
+        service_resolution="identified",
+        service_name="Consulta nefrología",
+        candidate_service="odontología",
+        intent="service_information",
+    )
+
+    result = run_turn(
+        uuid.uuid4(),
+        TenantRepository("Consulta nefrología"),
+        ToolCallingProvider(arguments='{"query":"odontologia"}'),
+        "¿Y también tienen odontología?",
+        response_guard=guard,
+    )
+
+    assert result.content.startswith(
+        "No encontré un servicio configurado para odontología"
+    )
+    assert "Consulta nefrología" not in result.content
+
+
 def test_resolved_tenant_registry_never_crosses_repositories():
     tenant_a, tenant_b = uuid.uuid4(), uuid.uuid4()
     provider_a, provider_b = ToolCallingProvider(), ToolCallingProvider()
@@ -81,6 +149,87 @@ def test_resolved_tenant_registry_never_crosses_repositories():
     assert "nutricional" in result_b.content and "psicológica" not in result_b.content
     assert str(tenant_a) not in repr(provider_a.calls)
     assert str(tenant_b) not in repr(provider_b.calls)
+
+    resolved_a = ConversationToolRegistry(
+        tenant_id=tenant_a, repository=TenantRepository("Pediatría")
+    ).resolve_service("Pediatría")
+    resolved_b = ConversationToolRegistry(
+        tenant_id=tenant_b, repository=TenantRepository("Nutrición")
+    ).resolve_service("Pediatría")
+    assert resolved_a is not None
+    assert resolved_b is None
+
+
+@pytest.mark.parametrize("query", ["Pediatría", "Pediatria", "pediatria", "PEDIATRIA"])
+def test_related_service_is_suggested_but_not_resolved_by_approximation(query):
+    repository = TenantRepository("Consulta pediátrica")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    resolved = registry.resolve_service(query)
+    suggested = registry.suggest_service(query)
+
+    assert resolved is None
+    assert suggested is not None
+    assert suggested.service_id == repository.record.service_id
+    assert suggested.name == "Consulta pediátrica"
+
+
+def test_exact_normalized_service_name_is_identified():
+    repository = TenantRepository("Consulta nefrología")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    resolved = registry.resolve_service("CONSULTA NEFROLOGIA")
+
+    assert resolved is not None
+    assert resolved.service_id == repository.record.service_id
+
+
+@pytest.mark.parametrize("query", ["pediatria", "pediatría", "consulta pediatria"])
+def test_informational_search_uses_same_safe_matching_as_resolution(query):
+    repository = TenantRepository("Consulta pediátrica")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    result = registry.execute("search_services", json.dumps({"query": query}))
+
+    assert result == {"services": [{
+        "name": "Consulta pediátrica",
+        "description": "Atención real",
+        "duration_minutes": 60,
+    }]}
+
+
+@pytest.mark.parametrize("query", ["neurologia", "nuerologia"])
+def test_resolution_does_not_confuse_distinct_medical_terms(query):
+    registry = ConversationToolRegistry(
+        tenant_id=uuid.uuid4(), repository=TenantRepository("Consulta nefrología")
+    )
+
+    assert registry.resolve_service(query) is None
+    assert registry.suggest_service(query) is None
+
+    search = registry.execute("search_services", json.dumps({"query": query}))
+    assert search == {"services": []}
+
+
+def test_ambiguous_close_rankings_are_returned_for_exploration_but_not_selected():
+    repository = MultiServiceRepository("Pediatría infantil", "Pediatría general")
+    registry = ConversationToolRegistry(tenant_id=uuid.uuid4(), repository=repository)
+
+    search = registry.execute("search_services", '{"query":"pediatria"}')
+
+    assert [item["name"] for item in search["services"]] == [
+        "Pediatría general", "Pediatría infantil",
+    ]
+    assert registry.resolve_service("pediatria") is None
+
+
+def test_booking_service_resolution_does_not_match_on_generic_words_only():
+    registry = ConversationToolRegistry(
+        tenant_id=uuid.uuid4(), repository=TenantRepository("Servicio de nutrición")
+    )
+
+    assert registry.resolve_service("Servicio inexistente XYZ") is None
+    assert registry.resolve_service("Nutrición infantil avanzada") is None
 
 
 @pytest.mark.parametrize("tool_name", ["list_schemas", "create_booking", "execute_sql"])

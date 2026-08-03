@@ -24,5 +24,27 @@
   operativas (Fase 8A.7).
 - [x] Implementar tool calling tenant-scoped de servicios, solo lectura (Fase
   8A.8).
-- [ ] Implementar recolección natural y persistente del contexto inicial de
+- [x] Implementar recolección natural y persistente del contexto inicial de
   reserva (Fase 8A.9).
+- [x] Persistir la referencia interna del servicio validado y resolver cambios
+  explícitos sin exponer UUID al LLM o al canal (corrección Fase 8A.9).
+- [x] Separar propuesta LLM, candidato temporal y selección confirmada por el
+  backend, rechazando estados operativos imposibles (corrección Fase 8A.9).
+- [x] Preservar selecciones ante consultas informativas y derivar el próximo paso
+  conversacional no transaccional (corrección Fase 8A.9).
+- [x] Exigir una decisión estructurada explícita antes de promover o reemplazar
+  entidades confirmadas, conservando exploraciones (corrección Fase 8A.9).
+- [x] Alinear la respuesta visible con la resolución backend y bloquear la
+  recolección de fecha/hora o promesas de reserva (corrección Fase 8A.9).
+- [x] Preservar respuestas informativas sobre candidatos sin silenciarlas con la
+  selección confirmada previa (corrección Fase 8A.9).
+- [x] Separar sugerencias textuales conservadoras de identificaciones inequívocas
+  y exigir confirmación antes de promoverlas (corrección Fase 8A.9).
+- [x] Rechazar preguntas de estado y aceptaciones ambiguas como confirmación de
+  servicios sugeridos (corrección Fase 8A.9).
+- [x] Usar respuestas backend-owned determinísticas para estados críticos sin
+  bloquear consultas informativas grounded (corrección Fase 8A.9).
+- [x] Priorizar una sugerencia de cambio pendiente sin borrar la selección previa
+  ni presentarla como ya reemplazada (corrección Fase 8A.9).
+- [x] Interpretar semánticamente confirmación o rechazo de sugerencias y mantener
+  autoridad operativa en la re-resolución backend (corrección Fase 8A.9).
