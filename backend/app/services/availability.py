@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, PractitionerService, ServiceModality
+from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, PractitionerService, Room, ServiceModality
 from app.services.errors import DomainValidationError, ResourceNotFound, SlotNotAvailable
 from app.tenancy.context import TenantContext
 
@@ -93,6 +93,14 @@ class AvailabilityService:
             raise DomainValidationError("modality must be in_person or virtual")
         if room_id is not None and location_id is None:
             raise DomainValidationError("location_id is required when room_id is provided")
+        if room_id is not None:
+            room = self.session.get(Room, room_id)
+            if room is None:
+                raise ResourceNotFound("Room not found")
+            if room.status != "active":
+                raise DomainValidationError("room_id must reference an active room")
+            if room.location_id != location_id:
+                raise DomainValidationError("room_id must belong to location_id")
         practitioner_service = self.session.get(PractitionerService, practitioner_service_id)
         if practitioner_service is None or practitioner_service.status != "active":
             raise ResourceNotFound("Practitioner service not found")

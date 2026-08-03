@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, Organization, Patient, Practitioner, PractitionerService, Room, ServiceModality
 from app.services.availability import AvailabilityService, InternalSchedulingProvider
-from app.services.errors import DomainValidationError, SlotNotAvailable
+from app.services.errors import DomainValidationError, ResourceNotFound, SlotNotAvailable
 from app.tenancy.context import TenantContext
 
 TENANT_TABLES = [Organization.__table__, Location.__table__, Room.__table__, Practitioner.__table__, PractitionerService.__table__, ServiceModality.__table__, Patient.__table__, AvailabilityRule.__table__, AvailabilityException.__table__, Booking.__table__]
@@ -105,7 +105,31 @@ def test_filters_by_practitioner_service_location_and_room(session, ctx, availab
     with pytest.raises(DomainValidationError, match="practitioner_id"):
         list_slots(session, ctx, availability_fixture, practitioner_id=uuid4())
     assert list_slots(session, ctx, availability_fixture, location_id=uuid4()) == []
-    assert list_slots(session, ctx, availability_fixture, room_id=uuid4()) == []
+
+
+def test_rejects_room_from_another_location_before_generating_slots(session, ctx, availability_fixture):
+    org, _loc, _room, _practitioner, _service, _patient = availability_fixture
+    other_location = Location(organization=org, name="Sede Sur", address="Calle 456")
+    other_room = Room(location=other_location, name="Consultorio 202", status="active")
+    session.add_all([other_location, other_room])
+    session.flush()
+
+    with pytest.raises(DomainValidationError, match="must belong to location_id"):
+        list_slots(session, ctx, availability_fixture, room_id=other_room.id)
+
+
+def test_rejects_unknown_or_inactive_room_before_generating_slots(session, ctx, availability_fixture):
+    with pytest.raises(ResourceNotFound, match="Room not found"):
+        list_slots(session, ctx, availability_fixture, room_id=uuid4())
+
+    room = availability_fixture[2]
+    room.status = "inactive"
+    with pytest.raises(DomainValidationError, match="active room"):
+        list_slots(session, ctx, availability_fixture)
+
+
+def test_matching_active_room_still_generates_slots(session, ctx, availability_fixture):
+    assert len(list_slots(session, ctx, availability_fixture)) == 3
 
 
 def test_no_rules_returns_empty_list(session, ctx, availability_fixture):
