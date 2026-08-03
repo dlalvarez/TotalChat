@@ -161,10 +161,10 @@ def test_endpoint_delegates_slot_lookup_to_scheduling_provider(tenant_context):
     room_id = uuid4()
 
     class RecordingProvider:
-        def list_available_slots(self, session, tenant_context_arg, **kwargs):
+        def get_available_slots(self, session, tenant_context_arg, request):
             captured["session"] = session
             captured["tenant_context"] = tenant_context_arg
-            captured["kwargs"] = kwargs
+            captured["request"] = request
             return [AvailableSlot(starts_at=__import__("datetime").datetime(2026, 7, 13, 9), ends_at=__import__("datetime").datetime(2026, 7, 13, 9, 30), practitioner_id=practitioner_id, location_id=location_id, room_id=room_id, modality="in_person")]
 
     sentinel_session = object()
@@ -196,6 +196,27 @@ def test_endpoint_delegates_slot_lookup_to_scheduling_provider(tenant_context):
     assert response.status_code == 200
     assert captured["session"] is sentinel_session
     assert captured["tenant_context"] == tenant_context
-    assert captured["kwargs"]["practitioner_service_id"] == practitioner_service_id
-    assert captured["kwargs"]["start_date"] == date(2026, 7, 13)
+    assert captured["request"].practitioner_service_id == practitioner_service_id
+    assert captured["request"].date_from == date(2026, 7, 13)
     assert response.json()["data"][0]["source"] == "internal"
+
+
+def test_too_wide_date_range_maps_to_validation_error(session_with_availability, tenant_context):
+    session, _loc, _room, _practitioner, service = session_with_availability
+
+    def override_session():
+        yield session
+
+    app.dependency_overrides[get_db_session] = override_session
+    app.dependency_overrides[get_admin_tenant_context] = lambda: tenant_context
+    try:
+        response = TestClient(app).get(
+            "/api/admin/availability/slots",
+            params={"practitioner_service_id": str(service.id), "modality": "in_person", "date_from": "2026-07-01", "date_to": "2026-08-01"},
+            headers={"X-TotalChat-Tenant-Id": str(tenant_context.tenant_id)},
+        )
+    finally:
+        clear_overrides()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"

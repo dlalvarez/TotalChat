@@ -1,4 +1,4 @@
-from app.services.availability import AvailableSlot, AvailabilityService, InternalSchedulingProvider, SchedulingProvider
+from app.services.availability import AvailableSlot, AvailableSlotsRequest, AvailabilityService, InternalSchedulingProvider, SchedulingProvider
 from app.services.booking import (
     BookingService,
     BookingSnapshotBuilder,
@@ -19,6 +19,7 @@ from app.services.errors import (
 
 __all__ = [
     "AvailableSlot",
+    "AvailableSlotsRequest",
     "AvailabilityService",
     "BookingService",
     "BookingSnapshotBuilder",

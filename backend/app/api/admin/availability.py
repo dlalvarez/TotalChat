@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.admin.dependencies import get_admin_tenant_context
 from app.db.session import get_db_session
 from app.models.tenant import AvailabilityException, AvailabilityRule, Location, Organization, Practitioner, PractitionerService, Room
-from app.services.availability import AvailableSlot, InternalSchedulingProvider, SchedulingProvider
+from app.services.availability import AvailableSlot, AvailableSlotsRequest, InternalSchedulingProvider, SchedulingProvider
 from app.services.errors import BusinessRuleViolation, ConflictError, DomainValidationError, ResourceNotFound
 from app.tenancy.context import TenantContext
 
@@ -351,15 +351,17 @@ def list_availability_slots(
     # payer_plan_id is intentionally accepted for API-contract compatibility; pricing
     # remains out of scope for availability slot lookup in this PR.
     _ = payer_plan_id
-    slots = scheduling_provider.list_available_slots(
+    slots = scheduling_provider.get_available_slots(
         session,
         tenant_context,
-        practitioner_service_id=practitioner_service_id,
-        practitioner_id=practitioner_id,
-        modality=modality,
-        start_date=date_from,
-        end_date=date_to,
-        location_id=location_id,
-        room_id=room_id,
+        AvailableSlotsRequest(
+            practitioner_service_id=practitioner_service_id,
+            practitioner_id=practitioner_id,
+            modality=modality,
+            date_from=date_from,
+            date_to=date_to,
+            location_id=location_id,
+            room_id=room_id,
+        ),
     )
     return {"data": [serialize_slot(slot) for slot in slots]}

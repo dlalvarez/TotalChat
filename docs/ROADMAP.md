@@ -217,16 +217,23 @@ Entregables:
   validación backend tenant-scoped confirma `selected_service`.
   Las preguntas informativas preservan la selección confirmada y el progreso
   conversacional derivado no representa una reserva ni habilita operaciones.
+- **Fase 8A.10 — Consulta de disponibilidad interna de solo lectura.** Estado:
+  implementada. Endurece la consulta backend-owned y tenant-scoped de slots
+  reales mediante `SchedulingProvider.get_available_slots(request)` e
+  `InternalSchedulingProvider`. Aplica reglas, vigencia, duración, modalidad,
+  sede, consultorio, excepciones y citas bloqueantes; deduplica resultados y
+  limita el rango a 31 días inclusivos. No conecta esta consulta al runtime
+  conversacional ni crea reservas, holds, pagos o integraciones externas.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se
 conservan su idempotencia y fronteras de canal. 8A.7 sustituyó la conversación
 normal por generación LLM sin incorporar operaciones.
 
-Precios, disponibilidad, selección de slots, creación de reservas y pagos se
-incorporarán incrementalmente después de validar servicios y contexto
-conversacional. No se numeran ni cierran todavía: su detalle exige revisar este
-roadmap y autorización posterior. El contrato rector de esta secuencia está en
+Precios, consumo conversacional de disponibilidad, selección de slots, creación
+de reservas y pagos se incorporarán incrementalmente. Después de 8A.10, la base
+interna de disponibilidad queda validada, pero su exposición al agente requiere
+una fase posterior autorizada. El contrato rector de esta secuencia está en
 [`CONVERSATION_ORCHESTRATION.md`](CONVERSATION_ORCHESTRATION.md).
 
 ## Fase 9 — Recordatorios y confirmación

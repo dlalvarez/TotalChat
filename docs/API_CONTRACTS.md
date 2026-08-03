@@ -688,6 +688,8 @@ Query:
 &date_from=2026-07-10
 &date_to=2026-07-17
 &payer_plan_id=uuid
+&location_id=uuid
+&room_id=uuid
 ```
 
 Response:
@@ -713,6 +715,13 @@ Reglas:
 - El endpoint debe usar `SchedulingProvider`.
 - En MVP, provider implementado: `InternalSchedulingProvider`.
 - No acoplar directamente el controller al cálculo interno.
+- `date_from` y `date_to` son inclusivos; el rango máximo es 31 días.
+- `room_id` requiere `location_id`; la modalidad debe ser `in_person` o `virtual`.
+- `payer_plan_id` se acepta por compatibilidad contractual, pero no filtra
+  disponibilidad ni ejecuta lógica de precios en Fase 8A.10.
+- Sin reglas elegibles se responde `{"data": []}`. Un rango inválido o demasiado
+  amplio produce el error de dominio `VALIDATION_ERROR`.
+- El endpoint admin puede devolver UUIDs operativos, pero nunca `schema_name`.
 
 ## 14. Citas
 

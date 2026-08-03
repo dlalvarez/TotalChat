@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, Organization, Patient, Practitioner, PractitionerService, Room, ServiceModality
@@ -76,6 +76,43 @@ def test_filters_by_modality(session, ctx, availability_fixture):
     assert list_slots(session, ctx, availability_fixture, modality="virtual") == []
 
 
+def test_respects_rule_validity_dates(session, ctx, availability_fixture):
+    rule = session.scalar(select(AvailabilityRule))
+    rule.valid_from = date(2026, 7, 14)
+    assert list_slots(session, ctx, availability_fixture) == []
+    rule.valid_from = date(2026, 7, 1)
+    rule.valid_to = date(2026, 7, 12)
+    assert list_slots(session, ctx, availability_fixture) == []
+
+
+def test_inactive_exception_does_not_remove_slots(session, ctx, availability_fixture):
+    _org, loc, room, practitioner, _service, _patient = availability_fixture
+    session.add(AvailabilityException(practitioner_id=practitioner.id, location_id=loc.id, room_id=room.id, starts_at=datetime(2026, 7, 13, 9, 15), ends_at=datetime(2026, 7, 13, 9, 45), exception_type="vacation", status="inactive"))
+    session.flush()
+    assert len(list_slots(session, ctx, availability_fixture)) == 3
+
+
+def test_deduplicates_equivalent_slots_and_uses_requested_modality(session, ctx, availability_fixture):
+    org, loc, room, practitioner, service, _patient = availability_fixture
+    session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=service.id, location_id=loc.id, room_id=room.id, modality="both", weekday=1, start_time=time(9), end_time=time(10, 30), valid_from=date(2026, 7, 1), status="active"))
+    session.flush()
+    slots = list_slots(session, ctx, availability_fixture)
+    assert len(slots) == 3
+    assert {slot.modality for slot in slots} == {"in_person"}
+
+
+def test_filters_by_practitioner_service_location_and_room(session, ctx, availability_fixture):
+    with pytest.raises(DomainValidationError, match="practitioner_id"):
+        list_slots(session, ctx, availability_fixture, practitioner_id=uuid4())
+    assert list_slots(session, ctx, availability_fixture, location_id=uuid4()) == []
+    assert list_slots(session, ctx, availability_fixture, room_id=uuid4()) == []
+
+
+def test_no_rules_returns_empty_list(session, ctx, availability_fixture):
+    session.query(AvailabilityRule).delete()
+    assert list_slots(session, ctx, availability_fixture) == []
+
+
 def test_excludes_slots_covered_by_availability_exceptions(session, ctx, availability_fixture):
     _org, loc, room, practitioner, _service, _patient = availability_fixture
     session.add(AvailabilityException(practitioner_id=practitioner.id, location_id=loc.id, room_id=room.id, starts_at=datetime(2026, 7, 13, 9, 15), ends_at=datetime(2026, 7, 13, 9, 45), exception_type="unavailable", status="active"))
@@ -100,6 +137,10 @@ def test_rejects_invalid_date_range_or_missing_required_context(session, ctx, av
         AvailabilityService(session, None)  # type: ignore[arg-type]
     with pytest.raises(DomainValidationError):
         InternalSchedulingProvider().list_available_slots(session, None, practitioner_service_id=availability_fixture[4].id, start_date=date(2026, 7, 13), end_date=date(2026, 7, 13), modality="in_person")  # type: ignore[arg-type]
+    with pytest.raises(DomainValidationError, match="cannot exceed 31 days"):
+        list_slots(session, ctx, availability_fixture, start_date=date(2026, 7, 1), end_date=date(2026, 8, 1))
+    with pytest.raises(DomainValidationError, match="location_id"):
+        list_slots(session, ctx, availability_fixture, location_id=None)
 
 
 def test_internal_scheduling_provider_treats_rescheduled_as_active_status():
