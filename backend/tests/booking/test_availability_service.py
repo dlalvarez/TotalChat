@@ -104,9 +104,29 @@ def test_deduplicates_equivalent_slots_and_uses_requested_modality(session, ctx,
 def test_filters_by_practitioner_service_location_and_room(session, ctx, availability_fixture):
     with pytest.raises(DomainValidationError, match="practitioner_id"):
         list_slots(session, ctx, availability_fixture, practitioner_id=uuid4())
-    assert list_slots(session, ctx, availability_fixture, location_id=uuid4(), room_id=None) == []
-    with pytest.raises(DomainValidationError, match="room_id"):
+    with pytest.raises(ResourceNotFound, match="Location not found"):
+        list_slots(session, ctx, availability_fixture, location_id=uuid4(), room_id=None)
+    with pytest.raises(ResourceNotFound, match="Location not found"):
         list_slots(session, ctx, availability_fixture, location_id=uuid4())
+
+
+def test_rejects_inactive_or_other_organization_location_before_generating_slots(session, ctx, availability_fixture):
+    location = availability_fixture[1]
+    location.status = "inactive"
+    with pytest.raises(DomainValidationError, match="active location"):
+        list_slots(session, ctx, availability_fixture, room_id=None)
+
+    location.status = "active"
+    other_organization = Organization(name="Otra Clínica", organization_type="clinic")
+    other_location = Location(organization=other_organization, name="Sede Externa", status="active")
+    session.add_all([other_organization, other_location])
+    session.flush()
+    with pytest.raises(DomainValidationError, match="practitioner service organization"):
+        list_slots(session, ctx, availability_fixture, location_id=other_location.id, room_id=None)
+
+
+def test_matching_active_location_still_generates_slots(session, ctx, availability_fixture):
+    assert len(list_slots(session, ctx, availability_fixture, room_id=None)) == 3
 
 
 def test_rejects_room_from_another_location_before_generating_slots(session, ctx, availability_fixture):

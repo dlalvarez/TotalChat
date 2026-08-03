@@ -7,7 +7,7 @@
 - `modality` (`in_person | virtual`);
 - `practitioner_id`, `location_id` y `room_id` opcionales.
 
-`room_id` requiere `location_id` y debe identificar un consultorio activo que pertenezca a esa sede. La ausencia, inactividad o relación sede/consultorio inconsistente se rechaza antes de consultar reglas o generar slots. El rango máximo es 31 días. El MVP usa `InternalSchedulingProvider` y retorna slots con inicio, fin, profesional, sede, consultorio, modalidad y `source=internal`. La equivalencia de deduplicación es inicio + fin + profesional + sede + consultorio + modalidad.
+`location_id`, si se informa, debe identificar una sede activa de la organización del `practitioner_service`. `room_id` requiere `location_id` y debe identificar un consultorio activo que pertenezca a esa sede. La ausencia, inactividad o relación organizacional inconsistente de recursos explícitos se rechaza antes de consultar modalidades, reglas o generar slots. El rango máximo es 31 días. El MVP usa `InternalSchedulingProvider` y retorna slots con inicio, fin, profesional, sede, consultorio, modalidad y `source=internal`. La equivalencia de deduplicación es inicio + fin + profesional + sede + consultorio + modalidad.
 
 `GET /api/admin/availability/slots` conserva `payer_plan_id` solo por compatibilidad; no ejecuta precios ni cobertura. Responde `{"data": []}` sin disponibilidad y `VALIDATION_ERROR` para rangos inválidos. Los UUIDs son referencias operativas del admin; nunca se devuelve `schema_name`.
 

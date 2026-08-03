@@ -66,9 +66,10 @@ opcionales de profesional, sede y consultorio. `InternalSchedulingProvider`
 calcula desde reglas activas y vigentes, duración del servicio, modalidades,
 excepciones activas y bookings bloqueantes. Los slots equivalentes se deduplican
 por inicio, fin, profesional, sede, consultorio y modalidad.
-Cuando se solicita consultorio, este debe existir, estar activo y pertenecer a la
-sede solicitada; el backend rechaza cualquier inconsistencia antes de consultar
-reglas o generar slots.
+Cuando se solicita sede, esta debe existir, estar activa y pertenecer a la
+organización del servicio del profesional. Cuando se solicita consultorio, este
+debe existir, estar activo y pertenecer a esa sede. El backend rechaza cualquier
+inconsistencia antes de consultar modalidades, reglas o generar slots.
 
 El rango es inclusivo y no puede superar 31 días. Como todavía no existe una
 zona horaria tenant-scoped formal para las reglas recurrentes, el provider

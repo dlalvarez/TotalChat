@@ -2,7 +2,7 @@
 
 - [x] Definir request explícito de `SchedulingProvider.get_available_slots`.
 - [x] Usar `InternalSchedulingProvider` desde el endpoint admin.
-- [x] Validar rango, modalidad, dependencia sede/consultorio y pertenencia del consultorio activo a la sede.
+- [x] Validar rango, modalidad, sede activa de la organización y pertenencia del consultorio activo a la sede.
 - [x] Generar por duración y vigencia desde reglas activas.
 - [x] Excluir excepciones activas y bookings bloqueantes solapados.
 - [x] Preservar bookings terminales como no bloqueantes.

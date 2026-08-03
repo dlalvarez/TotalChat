@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, PractitionerService, Room, ServiceModality
+from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, PractitionerService, Room, ServiceModality
 from app.services.errors import DomainValidationError, ResourceNotFound, SlotNotAvailable
 from app.tenancy.context import TenantContext
 
@@ -91,6 +91,17 @@ class AvailabilityService:
             raise DomainValidationError(f"availability date range cannot exceed {self.MAX_DATE_RANGE_DAYS} days")
         if modality not in {"in_person", "virtual"}:
             raise DomainValidationError("modality must be in_person or virtual")
+        practitioner_service = self.session.get(PractitionerService, practitioner_service_id)
+        if practitioner_service is None or practitioner_service.status != "active":
+            raise ResourceNotFound("Practitioner service not found")
+        if location_id is not None:
+            location = self.session.get(Location, location_id)
+            if location is None:
+                raise ResourceNotFound("Location not found")
+            if location.status != "active":
+                raise DomainValidationError("location_id must reference an active location")
+            if location.organization_id != practitioner_service.organization_id:
+                raise DomainValidationError("location_id must belong to the practitioner service organization")
         if room_id is not None and location_id is None:
             raise DomainValidationError("location_id is required when room_id is provided")
         if room_id is not None:
@@ -101,9 +112,6 @@ class AvailabilityService:
                 raise DomainValidationError("room_id must reference an active room")
             if room.location_id != location_id:
                 raise DomainValidationError("room_id must belong to location_id")
-        practitioner_service = self.session.get(PractitionerService, practitioner_service_id)
-        if practitioner_service is None or practitioner_service.status != "active":
-            raise ResourceNotFound("Practitioner service not found")
         resolved_practitioner_id = practitioner_id or practitioner_service.practitioner_id
         if resolved_practitioner_id != practitioner_service.practitioner_id:
             raise DomainValidationError("practitioner_id must match practitioner_service")
