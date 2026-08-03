@@ -104,7 +104,9 @@ def test_deduplicates_equivalent_slots_and_uses_requested_modality(session, ctx,
 def test_filters_by_practitioner_service_location_and_room(session, ctx, availability_fixture):
     with pytest.raises(DomainValidationError, match="practitioner_id"):
         list_slots(session, ctx, availability_fixture, practitioner_id=uuid4())
-    assert list_slots(session, ctx, availability_fixture, location_id=uuid4()) == []
+    assert list_slots(session, ctx, availability_fixture, location_id=uuid4(), room_id=None) == []
+    with pytest.raises(DomainValidationError, match="room_id"):
+        list_slots(session, ctx, availability_fixture, location_id=uuid4())
 
 
 def test_rejects_room_from_another_location_before_generating_slots(session, ctx, availability_fixture):
