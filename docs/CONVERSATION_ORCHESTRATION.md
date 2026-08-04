@@ -94,6 +94,13 @@ Estos nombres expresan contratos conceptuales; este documento no crea ni cambia
 tools. Quedan prohibidas capacidades abiertas como `execute_sql`, `run_query`,
 `call_any_api`, `update_record`, `run_command` y `execute_code`.
 
+En Fase 8A.10, `get_available_slots` existe únicamente como frontera backend de
+solo lectura mediante `SchedulingProvider`; no forma parte del catálogo de tools
+del runtime conversacional. El agente conserva los límites de 8A.9 y no solicita
+fecha/hora operativa, promete disponibilidad, crea reservas ni bloquea slots.
+Una fase posterior deberá autorizar expresamente su exposición al runtime y
+encapsular las referencias UUID para que no lleguen como texto visible al LLM.
+
 ### 2.4. Canales: adaptadores de borde
 
 Telegram es el primer adaptador, no el motor conversacional. Los canales reciben,

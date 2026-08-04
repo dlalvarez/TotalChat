@@ -57,6 +57,35 @@ class SchedulingProvider:
     def sync_external_events(self, request): ...
 ```
 
+### 3.4. Contrato interno de solo lectura (Fase 8A.10)
+
+El backend resuelve el tenant y entrega una sesión ya contextualizada; ni el
+cliente ni el request eligen `tenant_id` o `schema_name`. El request de slots
+contiene `practitioner_service_id`, `date_from`, `date_to`, `modality` y filtros
+opcionales de profesional, sede y consultorio. `InternalSchedulingProvider`
+calcula desde reglas activas y vigentes, duración del servicio, modalidades,
+excepciones activas y bookings bloqueantes. Los slots equivalentes se deduplican
+por inicio, fin, profesional, sede, consultorio y modalidad.
+En Fase 8A.10, `availability_rules` es la fuente mínima de elegibilidad y usa
+`weekday` con `0 = lunes` a `6 = domingo`. La modalidad de la regla es
+autoritativa: `both` admite consultas presenciales y virtuales. La ausencia de
+filas en `service_modalities` no bloquea la generación de slots; esa tabla queda
+como configuración complementaria y no como prerrequisito de esta lectura.
+Cuando se solicita sede, esta debe existir, estar activa y pertenecer a la
+organización del servicio del profesional. Cuando se solicita consultorio, este
+debe existir, estar activo y pertenecer a esa sede. El backend rechaza cualquier
+inconsistencia antes de consultar reglas o generar slots.
+
+El rango es inclusivo y no puede superar 31 días. Como todavía no existe una
+zona horaria tenant-scoped formal para las reglas recurrentes, el provider
+conserva el patrón existente de horas locales sin offset; no infiere una zona.
+Esta limitación debe resolverse en una fase documental y de datos autorizada
+antes de presentar offsets como autoridad tenant-scoped.
+
+La operación no crea reservas, holds o bloqueos y no se expone al LLM en esta
+fase. `payer_plan_id` continúa aceptado únicamente por compatibilidad del
+endpoint admin y no filtra slots ni precios.
+
 ## 4. MeetingProvider
 
 ### 4.1. Responsabilidad

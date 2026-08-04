@@ -646,7 +646,7 @@ Request:
   "location_id": "uuid",
   "room_id": "uuid",
   "modality": "in_person",
-  "weekday": 1,
+  "weekday": 0,
   "start_time": "08:00",
   "end_time": "12:00",
   "valid_from": "2026-07-01",
@@ -657,7 +657,7 @@ Request:
 
 Reglas:
 
-- `weekday`: 1 lunes, 7 domingo, o el estándar que se defina en implementación; debe documentarse.
+- `weekday`: `0 = lunes` a `6 = domingo`, igual al contrato admin vigente.
 - Si `practitioner_service_id` es null, aplica a servicios compatibles.
 - La generación de slots debe respetar duración del servicio.
 
@@ -688,6 +688,8 @@ Query:
 &date_from=2026-07-10
 &date_to=2026-07-17
 &payer_plan_id=uuid
+&location_id=uuid
+&room_id=uuid
 ```
 
 Response:
@@ -713,6 +715,21 @@ Reglas:
 - El endpoint debe usar `SchedulingProvider`.
 - En MVP, provider implementado: `InternalSchedulingProvider`.
 - No acoplar directamente el controller al cálculo interno.
+- `availability_rules` es la fuente mínima de elegibilidad. Su `weekday` usa
+  `0 = lunes` a `6 = domingo`, y su modalidad (`in_person`, `virtual` o `both`)
+  decide la compatibilidad de la consulta.
+- La ausencia de filas en `service_modalities` no elimina slots en Fase 8A.10;
+  esa tabla no es un prerrequisito de la disponibilidad interna de solo lectura.
+- `date_from` y `date_to` son inclusivos; el rango máximo es 31 días.
+- `location_id`, si se informa, debe existir, estar activo y pertenecer a la
+  organización del servicio del profesional. `room_id` requiere `location_id`,
+  debe estar activo y pertenecer a esa sede. Las inconsistencias se rechazan
+  antes de generar slots. La modalidad debe ser `in_person` o `virtual`.
+- `payer_plan_id` se acepta por compatibilidad contractual, pero no filtra
+  disponibilidad ni ejecuta lógica de precios en Fase 8A.10.
+- Sin reglas elegibles se responde `{"data": []}`. Un rango inválido o demasiado
+  amplio produce el error de dominio `VALIDATION_ERROR`.
+- El endpoint admin puede devolver UUIDs operativos, pero nunca `schema_name`.
 
 ## 14. Citas
 

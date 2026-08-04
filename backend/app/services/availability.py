@@ -5,10 +5,10 @@ from datetime import date, datetime, time, timedelta
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, PractitionerService, ServiceModality
+from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, PractitionerService, Room
 from app.services.errors import DomainValidationError, ResourceNotFound, SlotNotAvailable
 from app.tenancy.context import TenantContext
 
@@ -24,7 +24,25 @@ class AvailableSlot:
     source: str = "internal"
 
 
+@dataclass(frozen=True, slots=True)
+class AvailableSlotsRequest:
+    practitioner_service_id: UUID
+    date_from: date
+    date_to: date
+    modality: str
+    practitioner_id: UUID | None = None
+    location_id: UUID | None = None
+    room_id: UUID | None = None
+
+
 class SchedulingProvider(Protocol):
+    def get_available_slots(
+        self,
+        session: Session,
+        tenant_context: TenantContext,
+        request: AvailableSlotsRequest,
+    ) -> list[AvailableSlot]: ...
+
     def list_available_slots(self, session: Session, tenant_context: TenantContext, **kwargs) -> list[AvailableSlot]: ...
 
     def ensure_slot_available(
@@ -43,10 +61,12 @@ class SchedulingProvider(Protocol):
 class AvailabilityService:
     """Tenant-scoped internal availability slot generation.
 
-    Weekday convention follows ISO-8601: Monday=1 through Sunday=7.
+    Weekday convention follows the admin contract: Monday=0 through Sunday=6.
     TenantContext must be supplied by trusted backend tenancy resolution; schema
     names are never accepted as service input.
     """
+
+    MAX_DATE_RANGE_DAYS = 31
 
     def __init__(self, session: Session, tenant_context: TenantContext):
         if tenant_context is None:
@@ -67,20 +87,40 @@ class AvailabilityService:
     ) -> list[AvailableSlot]:
         if start_date > end_date:
             raise DomainValidationError("start_date must be on or before end_date")
+        if (end_date - start_date).days + 1 > self.MAX_DATE_RANGE_DAYS:
+            raise DomainValidationError(f"availability date range cannot exceed {self.MAX_DATE_RANGE_DAYS} days")
+        if modality not in {"in_person", "virtual"}:
+            raise DomainValidationError("modality must be in_person or virtual")
         practitioner_service = self.session.get(PractitionerService, practitioner_service_id)
         if practitioner_service is None or practitioner_service.status != "active":
             raise ResourceNotFound("Practitioner service not found")
+        if location_id is not None:
+            location = self.session.get(Location, location_id)
+            if location is None:
+                raise ResourceNotFound("Location not found")
+            if location.status != "active":
+                raise DomainValidationError("location_id must reference an active location")
+            if location.organization_id != practitioner_service.organization_id:
+                raise DomainValidationError("location_id must belong to the practitioner service organization")
+        if room_id is not None and location_id is None:
+            raise DomainValidationError("location_id is required when room_id is provided")
+        if room_id is not None:
+            room = self.session.get(Room, room_id)
+            if room is None:
+                raise ResourceNotFound("Room not found")
+            if room.status != "active":
+                raise DomainValidationError("room_id must reference an active room")
+            if room.location_id != location_id:
+                raise DomainValidationError("room_id must belong to location_id")
         resolved_practitioner_id = practitioner_id or practitioner_service.practitioner_id
         if resolved_practitioner_id != practitioner_service.practitioner_id:
             raise DomainValidationError("practitioner_id must match practitioner_service")
 
-        if not self._service_modality_enabled(practitioner_service_id, modality, location_id, room_id):
-            return []
-
-        slots: list[AvailableSlot] = []
+        slots: dict[tuple[object, ...], AvailableSlot] = {}
         current_date = start_date
         while current_date <= end_date:
             for rule in self._rules_for_date(
+                organization_id=practitioner_service.organization_id,
                 practitioner_service_id=practitioner_service_id,
                 practitioner_id=resolved_practitioner_id,
                 current_date=current_date,
@@ -88,17 +128,31 @@ class AvailabilityService:
                 location_id=location_id,
                 room_id=room_id,
             ):
-                slots.extend(self._slots_for_rule(rule, current_date, practitioner_service.duration_minutes))
+                for slot in self._slots_for_rule(
+                    rule,
+                    current_date,
+                    practitioner_service.duration_minutes,
+                    requested_modality=modality,
+                    requested_location_id=location_id,
+                    requested_room_id=room_id,
+                ):
+                    key = (slot.starts_at, slot.ends_at, slot.practitioner_id, slot.location_id, slot.room_id, slot.modality)
+                    slots[key] = slot
             current_date += timedelta(days=1)
 
-        return [slot for slot in slots if not self._has_exception(slot) and not self._has_active_booking(slot)]
+        return [
+            slot
+            for slot in sorted(slots.values(), key=self._slot_sort_key)
+            if not self._has_exception(slot) and not self._has_active_booking(slot)
+        ]
 
-    def _rules_for_date(self, *, practitioner_service_id: UUID, practitioner_id: UUID, current_date: date, modality: str, location_id: UUID | None, room_id: UUID | None) -> list[AvailabilityRule]:
+    def _rules_for_date(self, *, organization_id: UUID, practitioner_service_id: UUID, practitioner_id: UUID, current_date: date, modality: str, location_id: UUID | None, room_id: UUID | None) -> list[AvailabilityRule]:
         stmt = select(AvailabilityRule).where(
             AvailabilityRule.status == "active",
+            AvailabilityRule.organization_id == organization_id,
             AvailabilityRule.practitioner_id == practitioner_id,
             or_(AvailabilityRule.practitioner_service_id.is_(None), AvailabilityRule.practitioner_service_id == practitioner_service_id),
-            AvailabilityRule.weekday == current_date.isoweekday(),
+            AvailabilityRule.weekday == self._availability_weekday(current_date),
             AvailabilityRule.valid_from <= current_date,
             or_(AvailabilityRule.valid_to.is_(None), AvailabilityRule.valid_to >= current_date),
             AvailabilityRule.modality.in_([modality, "both"]),
@@ -109,16 +163,43 @@ class AvailabilityService:
             stmt = stmt.where(or_(AvailabilityRule.room_id.is_(None), AvailabilityRule.room_id == room_id))
         return list(self.session.execute(stmt).scalars())
 
-    def _slots_for_rule(self, rule: AvailabilityRule, current_date: date, duration_minutes: int) -> list[AvailableSlot]:
+    @staticmethod
+    def _availability_weekday(value: date) -> int:
+        """Return the persisted admin weekday (Monday=0 through Sunday=6)."""
+        return value.weekday()
+
+    def _slots_for_rule(
+        self,
+        rule: AvailabilityRule,
+        current_date: date,
+        duration_minutes: int,
+        *,
+        requested_modality: str,
+        requested_location_id: UUID | None,
+        requested_room_id: UUID | None,
+    ) -> list[AvailableSlot]:
         cursor = datetime.combine(current_date, rule.start_time)
         rule_end = datetime.combine(current_date, rule.end_time)
         step = timedelta(minutes=duration_minutes + (rule.buffer_minutes or 0))
         duration = timedelta(minutes=duration_minutes)
         slots: list[AvailableSlot] = []
         while cursor + duration <= rule_end:
-            slots.append(AvailableSlot(cursor, cursor + duration, rule.practitioner_id, rule.location_id, rule.room_id, rule.modality))
+            slots.append(
+                AvailableSlot(
+                    cursor,
+                    cursor + duration,
+                    rule.practitioner_id,
+                    requested_location_id or rule.location_id,
+                    requested_room_id or rule.room_id,
+                    requested_modality,
+                )
+            )
             cursor += step
         return slots
+
+    @staticmethod
+    def _slot_sort_key(slot: AvailableSlot) -> tuple[object, ...]:
+        return (slot.starts_at, slot.ends_at, str(slot.practitioner_id), str(slot.location_id or ""), str(slot.room_id or ""), slot.modality)
 
     def _has_exception(self, slot: AvailableSlot) -> bool:
         stmt = select(AvailabilityException.id).where(
@@ -126,29 +207,27 @@ class AvailabilityService:
             AvailabilityException.practitioner_id == slot.practitioner_id,
             AvailabilityException.starts_at < slot.ends_at,
             AvailabilityException.ends_at > slot.starts_at,
-            or_(AvailabilityException.location_id.is_(None), slot.location_id is None, AvailabilityException.location_id == slot.location_id),
-            or_(AvailabilityException.room_id.is_(None), slot.room_id is None, AvailabilityException.room_id == slot.room_id),
+            or_(AvailabilityException.location_id.is_(None), AvailabilityException.location_id == slot.location_id),
+            or_(AvailabilityException.room_id.is_(None), AvailabilityException.room_id == slot.room_id),
         )
         return self.session.execute(stmt.limit(1)).first() is not None
 
     def _has_active_booking(self, slot: AvailableSlot) -> bool:
         return InternalSchedulingProvider().slot_has_active_booking(self.session, slot)
 
-    def _service_modality_enabled(self, practitioner_service_id: UUID, modality: str, location_id: UUID | None, room_id: UUID | None) -> bool:
-        stmt = select(ServiceModality.id).where(
-            ServiceModality.practitioner_service_id == practitioner_service_id,
-            ServiceModality.status == "active",
-            ServiceModality.modality.in_([modality, "both"]),
-        )
-        if location_id is not None:
-            stmt = stmt.where(or_(ServiceModality.location_id.is_(None), ServiceModality.location_id == location_id))
-        if room_id is not None:
-            stmt = stmt.where(or_(ServiceModality.room_id.is_(None), ServiceModality.room_id == room_id))
-        return self.session.execute(stmt.limit(1)).first() is not None
-
-
 class InternalSchedulingProvider:
     ACTIVE_STATUSES = {"tentative", "pending_payment", "pending_payment_evidence", "pending_manual_payment_review", "review_overdue", "confirmed", "confirmed_without_payment", "rescheduled"}
+
+    def get_available_slots(self, session: Session, tenant_context: TenantContext, request: AvailableSlotsRequest) -> list[AvailableSlot]:
+        return AvailabilityService(session, tenant_context).list_available_slots(
+            practitioner_service_id=request.practitioner_service_id,
+            start_date=request.date_from,
+            end_date=request.date_to,
+            modality=request.modality,
+            practitioner_id=request.practitioner_id,
+            location_id=request.location_id,
+            room_id=request.room_id,
+        )
 
     def list_available_slots(self, session: Session, tenant_context: TenantContext, **kwargs) -> list[AvailableSlot]:
         return AvailabilityService(session, tenant_context).list_available_slots(**kwargs)
