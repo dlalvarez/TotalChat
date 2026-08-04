@@ -39,7 +39,7 @@ def availability_fixture(session):
     session.add_all([org, loc, room, practitioner, service, patient])
     session.flush()
     session.add(ServiceModality(practitioner_service_id=service.id, modality="in_person", location_id=loc.id, room_id=room.id, status="active"))
-    session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=None, location_id=loc.id, room_id=room.id, modality="in_person", weekday=1, start_time=time(9), end_time=time(10, 30), valid_from=date(2026, 7, 1), status="active"))
+    session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=None, location_id=loc.id, room_id=room.id, modality="in_person", weekday=0, start_time=time(9), end_time=time(10, 30), valid_from=date(2026, 7, 1), status="active"))
     session.flush()
     return org, loc, room, practitioner, service, patient
 
@@ -67,6 +67,20 @@ def test_generates_slots_from_rules_and_returns_internal_source(session, ctx, av
     assert slots[0].room_id == availability_fixture[2].id
 
 
+def test_generates_slots_without_service_modality_rows(session, ctx, availability_fixture):
+    session.query(ServiceModality).delete()
+    assert len(list_slots(session, ctx, availability_fixture)) == 3
+
+
+def test_specific_and_all_services_rules_generate_slots(session, ctx, availability_fixture):
+    rule = session.scalar(select(AvailabilityRule))
+    service = availability_fixture[4]
+    assert rule.practitioner_service_id is None
+    assert len(list_slots(session, ctx, availability_fixture)) == 3
+    rule.practitioner_service_id = service.id
+    assert len(list_slots(session, ctx, availability_fixture)) == 3
+
+
 def test_respects_practitioner_service_duration(session, ctx, availability_fixture):
     availability_fixture[4].duration_minutes = 45
     assert [(s.starts_at.time(), s.ends_at.time()) for s in list_slots(session, ctx, availability_fixture)] == [(time(9), time(9, 45)), (time(9, 45), time(10, 30))]
@@ -74,6 +88,27 @@ def test_respects_practitioner_service_duration(session, ctx, availability_fixtu
 
 def test_filters_by_modality(session, ctx, availability_fixture):
     assert list_slots(session, ctx, availability_fixture, modality="virtual") == []
+
+
+def test_rule_modality_is_authoritative_without_service_modalities(session, ctx, availability_fixture):
+    rule = session.scalar(select(AvailabilityRule))
+    session.query(ServiceModality).delete()
+    rule.modality = "both"
+    assert len(list_slots(session, ctx, availability_fixture, modality="in_person")) == 3
+    assert len(list_slots(session, ctx, availability_fixture, modality="virtual")) == 3
+    rule.modality = "virtual"
+    assert list_slots(session, ctx, availability_fixture, modality="in_person") == []
+    assert len(list_slots(session, ctx, availability_fixture, modality="virtual")) == 3
+    rule.modality = "in_person"
+    assert list_slots(session, ctx, availability_fixture, modality="virtual") == []
+
+
+def test_admin_weekday_convention_matches_monday_and_tuesday(session, ctx, availability_fixture):
+    rule = session.scalar(select(AvailabilityRule))
+    assert rule.weekday == 0
+    assert len(list_slots(session, ctx, availability_fixture, start_date=date(2026, 7, 13), end_date=date(2026, 7, 13))) == 3
+    rule.weekday = 1
+    assert len(list_slots(session, ctx, availability_fixture, start_date=date(2026, 7, 14), end_date=date(2026, 7, 14))) == 3
 
 
 def test_respects_rule_validity_dates(session, ctx, availability_fixture):
@@ -94,7 +129,7 @@ def test_inactive_exception_does_not_remove_slots(session, ctx, availability_fix
 
 def test_deduplicates_equivalent_slots_and_uses_requested_modality(session, ctx, availability_fixture):
     org, loc, room, practitioner, service, _patient = availability_fixture
-    session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=service.id, location_id=loc.id, room_id=room.id, modality="both", weekday=1, start_time=time(9), end_time=time(10, 30), valid_from=date(2026, 7, 1), status="active"))
+    session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=service.id, location_id=loc.id, room_id=room.id, modality="both", weekday=0, start_time=time(9), end_time=time(10, 30), valid_from=date(2026, 7, 1), status="active"))
     session.flush()
     slots = list_slots(session, ctx, availability_fixture)
     assert len(slots) == 3
@@ -127,6 +162,15 @@ def test_rejects_inactive_or_other_organization_location_before_generating_slots
 
 def test_matching_active_location_still_generates_slots(session, ctx, availability_fixture):
     assert len(list_slots(session, ctx, availability_fixture, room_id=None)) == 3
+
+
+def test_general_rule_can_return_slots_without_location_or_room(session, ctx, availability_fixture):
+    rule = session.scalar(select(AvailabilityRule))
+    rule.location_id = None
+    rule.room_id = None
+    slots = list_slots(session, ctx, availability_fixture, location_id=None, room_id=None)
+    assert len(slots) == 3
+    assert {(slot.location_id, slot.room_id) for slot in slots} == {(None, None)}
 
 
 def test_rejects_room_from_another_location_before_generating_slots(session, ctx, availability_fixture):

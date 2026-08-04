@@ -66,10 +66,15 @@ opcionales de profesional, sede y consultorio. `InternalSchedulingProvider`
 calcula desde reglas activas y vigentes, duración del servicio, modalidades,
 excepciones activas y bookings bloqueantes. Los slots equivalentes se deduplican
 por inicio, fin, profesional, sede, consultorio y modalidad.
+En Fase 8A.10, `availability_rules` es la fuente mínima de elegibilidad y usa
+`weekday` con `0 = lunes` a `6 = domingo`. La modalidad de la regla es
+autoritativa: `both` admite consultas presenciales y virtuales. La ausencia de
+filas en `service_modalities` no bloquea la generación de slots; esa tabla queda
+como configuración complementaria y no como prerrequisito de esta lectura.
 Cuando se solicita sede, esta debe existir, estar activa y pertenecer a la
 organización del servicio del profesional. Cuando se solicita consultorio, este
 debe existir, estar activo y pertenecer a esa sede. El backend rechaza cualquier
-inconsistencia antes de consultar modalidades, reglas o generar slots.
+inconsistencia antes de consultar reglas o generar slots.
 
 El rango es inclusivo y no puede superar 31 días. Como todavía no existe una
 zona horaria tenant-scoped formal para las reglas recurrentes, el provider

@@ -5,10 +5,10 @@ from datetime import date, datetime, time, timedelta
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, PractitionerService, Room, ServiceModality
+from app.models.tenant import AvailabilityException, AvailabilityRule, Booking, Location, PractitionerService, Room
 from app.services.errors import DomainValidationError, ResourceNotFound, SlotNotAvailable
 from app.tenancy.context import TenantContext
 
@@ -61,7 +61,7 @@ class SchedulingProvider(Protocol):
 class AvailabilityService:
     """Tenant-scoped internal availability slot generation.
 
-    Weekday convention follows ISO-8601: Monday=1 through Sunday=7.
+    Weekday convention follows the admin contract: Monday=0 through Sunday=6.
     TenantContext must be supplied by trusted backend tenancy resolution; schema
     names are never accepted as service input.
     """
@@ -116,9 +116,6 @@ class AvailabilityService:
         if resolved_practitioner_id != practitioner_service.practitioner_id:
             raise DomainValidationError("practitioner_id must match practitioner_service")
 
-        if not self._service_modality_enabled(practitioner_service_id, modality, location_id, room_id):
-            return []
-
         slots: dict[tuple[object, ...], AvailableSlot] = {}
         current_date = start_date
         while current_date <= end_date:
@@ -131,15 +128,6 @@ class AvailabilityService:
                 location_id=location_id,
                 room_id=room_id,
             ):
-                effective_location_id = location_id or rule.location_id
-                effective_room_id = room_id or rule.room_id
-                if not self._service_modality_enabled(
-                    practitioner_service_id,
-                    modality,
-                    effective_location_id,
-                    effective_room_id,
-                ):
-                    continue
                 for slot in self._slots_for_rule(
                     rule,
                     current_date,
@@ -164,7 +152,7 @@ class AvailabilityService:
             AvailabilityRule.organization_id == organization_id,
             AvailabilityRule.practitioner_id == practitioner_id,
             or_(AvailabilityRule.practitioner_service_id.is_(None), AvailabilityRule.practitioner_service_id == practitioner_service_id),
-            AvailabilityRule.weekday == current_date.isoweekday(),
+            AvailabilityRule.weekday == self._availability_weekday(current_date),
             AvailabilityRule.valid_from <= current_date,
             or_(AvailabilityRule.valid_to.is_(None), AvailabilityRule.valid_to >= current_date),
             AvailabilityRule.modality.in_([modality, "both"]),
@@ -174,6 +162,11 @@ class AvailabilityService:
         if room_id is not None:
             stmt = stmt.where(or_(AvailabilityRule.room_id.is_(None), AvailabilityRule.room_id == room_id))
         return list(self.session.execute(stmt).scalars())
+
+    @staticmethod
+    def _availability_weekday(value: date) -> int:
+        """Return the persisted admin weekday (Monday=0 through Sunday=6)."""
+        return value.weekday()
 
     def _slots_for_rule(
         self,
@@ -221,19 +214,6 @@ class AvailabilityService:
 
     def _has_active_booking(self, slot: AvailableSlot) -> bool:
         return InternalSchedulingProvider().slot_has_active_booking(self.session, slot)
-
-    def _service_modality_enabled(self, practitioner_service_id: UUID, modality: str, location_id: UUID | None, room_id: UUID | None) -> bool:
-        stmt = select(ServiceModality.id).where(
-            ServiceModality.practitioner_service_id == practitioner_service_id,
-            ServiceModality.status == "active",
-            ServiceModality.modality.in_([modality, "both"]),
-        )
-        if location_id is not None:
-            stmt = stmt.where(or_(ServiceModality.location_id.is_(None), ServiceModality.location_id == location_id))
-        if room_id is not None:
-            stmt = stmt.where(or_(ServiceModality.room_id.is_(None), ServiceModality.room_id == room_id))
-        return self.session.execute(stmt.limit(1)).first() is not None
-
 
 class InternalSchedulingProvider:
     ACTIVE_STATUSES = {"tentative", "pending_payment", "pending_payment_evidence", "pending_manual_payment_review", "review_overdue", "confirmed", "confirmed_without_payment", "rescheduled"}

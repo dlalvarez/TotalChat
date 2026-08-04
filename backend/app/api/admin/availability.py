@@ -28,7 +28,7 @@ class CreateAvailabilityRuleRequest(BaseModel):
     location_id: UUID | None = None
     room_id: UUID | None = None
     modality: Literal["in_person", "virtual", "both"]
-    weekday: int = Field(ge=1, le=7)
+    weekday: int = Field(ge=0, le=6)
     start_time: time
     end_time: time
     valid_from: date

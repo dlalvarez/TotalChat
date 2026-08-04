@@ -7,7 +7,9 @@ Implementar la Fase 8A.10: consulta interna, tenant-scoped y de solo lectura de 
 ## Alcance
 
 - Fortalecer `InternalSchedulingProvider` como autoridad MVP.
-- Generar slots desde reglas activas, vigencia y duración del servicio.
+- Generar slots desde reglas activas, vigencia y duración del servicio, sin
+  exigir filas en `service_modalities`.
+- Usar la convención administrativa `weekday` de `0 = lunes` a `6 = domingo`.
 - Aplicar modalidad, profesional, sede y consultorio.
 - Excluir excepciones activas y bookings bloqueantes solapados.
 - Deduplicar slots equivalentes y limitar consultas a 31 días inclusivos.

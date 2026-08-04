@@ -59,7 +59,7 @@ def booking_session():
         session.add_all([org, loc, room, practitioner, service, payer_type, payer, plan, price, patient])
         session.flush()
         session.add(ServiceModality(practitioner_service_id=service.id, modality="in_person", location_id=loc.id, room_id=room.id, status="active"))
-        session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=None, location_id=loc.id, room_id=room.id, modality="in_person", weekday=5, start_time=time(9), end_time=time(11), valid_from=date(2026, 7, 1), status="active"))
+        session.add(AvailabilityRule(organization_id=org.id, practitioner_id=practitioner.id, practitioner_service_id=None, location_id=loc.id, room_id=room.id, modality="in_person", weekday=4, start_time=time(9), end_time=time(11), valid_from=date(2026, 7, 1), status="active"))
         session.flush()
         yield session, loc, room, practitioner, service, plan, price, patient
 
