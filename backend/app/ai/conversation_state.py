@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
@@ -108,6 +108,17 @@ class InitialConversationProgress(BaseModel):
     next_expected_action: ConversationNextExpectedAction | None = None
 
 
+class LastAvailabilityQuery(BaseModel):
+    """Sanitized audit of the last read-only query; slots are never persisted."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_name: str = Field(min_length=1, max_length=200)
+    date_from: str
+    date_to: str
+    modality: Literal["in_person", "virtual"]
+
+
 class InitialBookingContext(BaseModel):
     """Persistent, JSON-safe context that can become a future graph state."""
 
@@ -124,6 +135,7 @@ class InitialBookingContext(BaseModel):
     conversation_progress: InitialConversationProgress = Field(
         default_factory=InitialConversationProgress
     )
+    last_availability_query: LastAvailabilityQuery | None = None
 
     @model_validator(mode="after")
     def reject_internal_material(self) -> Self:

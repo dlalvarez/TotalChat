@@ -1,8 +1,9 @@
-"""Closed, tenant-scoped conversational tool catalog for phase 8A.8."""
+"""Closed, tenant-scoped conversational read-only tool catalog."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import date, time
 from difflib import SequenceMatcher
 import json
 from types import MappingProxyType
@@ -19,6 +20,12 @@ from app.ai.service_tools import (
     ServiceSummary,
     ServiceTools,
 )
+from app.services.availability import (
+    AvailableSlotsRequest,
+    InternalSchedulingProvider,
+    SchedulingProvider,
+)
+from app.tenancy.context import TenantContext
 
 
 SEARCH_SERVICES_DEFINITION = LLMToolDefinition(
@@ -36,6 +43,26 @@ SEARCH_SERVICES_DEFINITION = LLMToolDefinition(
                 "maxLength": 200,
             }
         },
+        "additionalProperties": False,
+    },
+)
+
+GET_AVAILABLE_SLOTS_DEFINITION = LLMToolDefinition(
+    name="get_available_slots",
+    description=(
+        "Consulta horarios reales de solo lectura para el servicio ya confirmado. "
+        "Requiere un rango cerrado de máximo 31 días; no reserva ni bloquea horarios."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "date_from": {"type": "string", "format": "date"},
+            "date_to": {"type": "string", "format": "date"},
+            "modality": {"type": "string", "enum": ["in_person", "virtual"]},
+            "time_from": {"type": "string", "pattern": "^[0-2][0-9]:[0-5][0-9]$"},
+            "time_to": {"type": "string", "pattern": "^[0-2][0-9]:[0-5][0-9]$"},
+        },
+        "required": ["date_from", "date_to", "modality"],
         "additionalProperties": False,
     },
 )
@@ -65,23 +92,37 @@ class ConversationToolRegistry:
         tenant_id: UUID,
         session: Session | None = None,
         repository: ServiceRepository | None = None,
+        tenant_context: TenantContext | None = None,
+        selected_service: ResolvedConversationService | None = None,
+        scheduling_provider: SchedulingProvider | None = None,
+        availability_session: Session | None = None,
     ) -> None:
         self._tools = ServiceTools(
             tenant_id=tenant_id, session=session, repository=repository
         )
+        self._session = availability_session or session
+        self._tenant_context = tenant_context
+        self._selected_service = selected_service
+        self._scheduling_provider = scheduling_provider or InternalSchedulingProvider()
 
     @property
     def definitions(self) -> tuple[LLMToolDefinition, ...]:
+        if self._selected_service is not None and self._tenant_context is not None:
+            return (SEARCH_SERVICES_DEFINITION, GET_AVAILABLE_SLOTS_DEFINITION)
         return (SEARCH_SERVICES_DEFINITION,)
 
     def execute(self, name: str, raw_arguments: str) -> Mapping[str, Any]:
-        if name != SEARCH_SERVICES_DEFINITION.name:
+        if name not in {item.name for item in self.definitions}:
             raise ValueError("tool is not allowed")
         try:
             arguments = json.loads(raw_arguments or "{}")
         except (TypeError, json.JSONDecodeError) as exc:
             raise ValueError("invalid tool arguments") from exc
-        if not isinstance(arguments, dict) or set(arguments) - {"query"}:
+        if not isinstance(arguments, dict):
+            raise ValueError("invalid tool arguments")
+        if name == GET_AVAILABLE_SLOTS_DEFINITION.name:
+            return self._execute_availability(arguments)
+        if set(arguments) - {"query"}:
             raise ValueError("invalid tool arguments")
         query = arguments.get("query", "")
         if not isinstance(query, str) or len(query) > 200:
@@ -97,6 +138,44 @@ class ConversationToolRegistry:
             duration_minutes=service.duration_minutes,
         ) for service in matched)
         return MappingProxyType({"services": [asdict(service) for service in services]})
+
+    def _execute_availability(self, arguments: dict[str, Any]) -> Mapping[str, Any]:
+        allowed = {"date_from", "date_to", "modality", "time_from", "time_to"}
+        if set(arguments) - allowed or not {"date_from", "date_to", "modality"} <= set(arguments):
+            raise ValueError("invalid tool arguments")
+        if self._session is None or self._tenant_context is None or self._selected_service is None:
+            raise ValueError("availability requires a confirmed service")
+        try:
+            date_from = date.fromisoformat(arguments["date_from"])
+            date_to = date.fromisoformat(arguments["date_to"])
+            modality = arguments["modality"]
+            time_from = time.fromisoformat(arguments["time_from"]) if "time_from" in arguments else None
+            time_to = time.fromisoformat(arguments["time_to"]) if "time_to" in arguments else None
+        except (TypeError, ValueError):
+            raise ValueError("invalid tool arguments") from None
+        if modality not in {"in_person", "virtual"} or date_from > date_to or (date_to - date_from).days >= 31:
+            raise ValueError("invalid tool arguments")
+        slots = self._scheduling_provider.get_available_slots(
+            self._session,
+            self._tenant_context,
+            AvailableSlotsRequest(
+                practitioner_service_id=self._selected_service.service_id,
+                date_from=date_from,
+                date_to=date_to,
+                modality=modality,
+            ),
+        )
+        visible = [slot for slot in slots if (time_from is None or slot.starts_at.time() >= time_from) and (time_to is None or slot.starts_at.time() < time_to)]
+        return MappingProxyType({
+            "service_name": self._selected_service.name,
+            "date_from": date_from.isoformat(),
+            "date_to": date_to.isoformat(),
+            "modality": modality,
+            "slots": [
+                {"date": slot.starts_at.date().isoformat(), "start_time": slot.starts_at.strftime("%H:%M"), "end_time": slot.ends_at.strftime("%H:%M")}
+                for slot in visible
+            ],
+        })
 
     def resolve_service(self, query: str) -> ResolvedConversationService | None:
         """Resolve only one exact or unequivocal active tenant service."""

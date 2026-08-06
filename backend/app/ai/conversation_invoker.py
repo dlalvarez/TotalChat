@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 import json
 import logging
 from typing import Callable
@@ -15,6 +15,11 @@ from sqlalchemy.orm import Session
 from app.ai.conversation_prompts import (
     ConversationAssistantIdentity,
     resolve_conversation_assistant_identity,
+)
+from app.ai.availability_language import (
+    is_availability_request,
+    is_booking_action,
+    parse_availability_query,
 )
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
@@ -34,9 +39,12 @@ from app.ai.conversation_state import (
     InitialConversationProposal,
     SelectedConversationService,
     SuggestedConversationService,
+    LastAvailabilityQuery,
 )
 from app.ai.providers import LLMMessage, LLMProvider
 from app.ai.service_tools import ServiceRepository
+from app.services.availability import SchedulingProvider
+from app.tenancy.context import TenantContext
 from app.models.tenant import ConversationSession, Message
 
 
@@ -79,6 +87,8 @@ class NaturalConversationAgentInvoker:
         proposal_interpreter: Callable[
             [InitialBookingContext, str], InitialConversationProposal
         ] | None = None,
+        scheduling_provider: SchedulingProvider | None = None,
+        today_provider: Callable[[], date] = date.today,
     ) -> None:
         self._session = session
         self._llm_provider = llm_provider
@@ -88,16 +98,37 @@ class NaturalConversationAgentInvoker:
         )
         self._service_repository = service_repository
         self._proposal_interpreter = proposal_interpreter or self._interpret_proposal
+        self._scheduling_provider = scheduling_provider
+        self._today_provider = today_provider
 
     def invoke(
         self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
     ) -> ConversationTurnResult:
+        current = _load_initial_context(conversation.state or {})
+        selected = (
+            ResolvedConversationService(
+                service_id=current.selected_service.id,
+                name=current.selected_service.name,
+            )
+            if current.selected_service is not None else None
+        )
         registry = ConversationToolRegistry(
             tenant_id=tenant_id,
             repository=self._service_repository,
             session=None if self._service_repository is not None else self._session,
+            tenant_context=TenantContext(tenant_id=tenant_id, slug="resolved", schema_name=""),
+            selected_service=selected,
+            scheduling_provider=self._scheduling_provider,
+            availability_session=self._session,
         )
-        current = _load_initial_context(conversation.state or {})
+        if is_booking_action(message_text) and current.last_availability_query is not None:
+            return ConversationTurnResult(
+                content=("Puedo mostrarte disponibilidad, pero en esta etapa todavía no "
+                         "puedo separar ni crear la cita desde aquí."),
+                code="availability_booking_blocked",
+            )
+        if is_availability_request(message_text):
+            return self._availability_response(current, registry, conversation, message_text)
         proposal = self._proposal_interpreter(current, message_text)
         context = update_initial_booking_context(
             current,
@@ -143,6 +174,66 @@ class NaturalConversationAgentInvoker:
                 ),
                 assistant_identity=self._assistant_identity,
             )
+        )
+
+    def _availability_response(
+        self,
+        context: InitialBookingContext,
+        registry: ConversationToolRegistry,
+        conversation: ConversationSession,
+        message_text: str,
+    ) -> ConversationTurnResult:
+        if context.suggested_service is not None:
+            return ConversationTurnResult(
+                content=(f"Antes de revisar disponibilidad, confirma si te refieres a "
+                         f"{context.suggested_service.name}."),
+                code="availability_service_unconfirmed",
+            )
+        if context.selected_service is None or not context.conversation_progress.service_confirmed:
+            return ConversationTurnResult(
+                content="Primero necesito que confirmemos el servicio para revisar disponibilidad.",
+                code="availability_service_unconfirmed",
+            )
+        query = parse_availability_query(message_text, today=self._today_provider())
+        if query is None:
+            return ConversationTurnResult(
+                content="¿Para qué día quieres que revise la disponibilidad?",
+                code="availability_date_clarification",
+            )
+        arguments = {
+            "date_from": query.date_from.isoformat(),
+            "date_to": query.date_to.isoformat(),
+            "modality": query.modality,
+            **({"time_from": query.time_from.strftime("%H:%M")} if query.time_from else {}),
+            **({"time_to": query.time_to.strftime("%H:%M")} if query.time_to else {}),
+        }
+        try:
+            result = registry.execute("get_available_slots", json.dumps(arguments))
+        except Exception as exc:
+            logger.warning("Availability lookup failed exception_type=%s", type(exc).__name__)
+            return ConversationTurnResult(content="No pude consultar la disponibilidad en este momento. Intenta nuevamente.", code="availability_error")
+        context.last_availability_query = LastAvailabilityQuery(
+            service_name=context.selected_service.name,
+            date_from=query.date_from.isoformat(), date_to=query.date_to.isoformat(),
+            modality=query.modality,
+        )
+        conversation.state = context.to_persistent_dict()
+        slots = result["slots"]
+        if not slots:
+            return ConversationTurnResult(
+                content=(f"No encontré horarios disponibles para {context.selected_service.name} "
+                         "ese día. ¿Quieres que revise otro día?"),
+                code="grounded_availability_response",
+            )
+        shown = slots[:10]
+        hours = ", ".join(item["start_time"] for item in shown)
+        more = " Hay más horarios disponibles." if len(slots) > 10 else ""
+        return ConversationTurnResult(
+            content=(f"Tengo disponibilidad para {context.selected_service.name} el "
+                     f"{query.date_from.strftime('%d/%m/%Y')}: {hours}.{more} "
+                     "Por ahora puedo mostrar horarios disponibles, pero todavía no puedo "
+                     "separar la cita desde aquí."),
+            code="grounded_availability_response",
         )
 
     def _interpret_proposal(

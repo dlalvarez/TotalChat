@@ -172,6 +172,10 @@ class NaturalConversationRuntime:
             content=build_natural_conversation_system_prompt(
                 request.assistant_identity,
                 services_tool_enabled=self._tool_registry is not None,
+                availability_tool_enabled=(
+                    self._tool_registry is not None
+                    and any(item.name == "get_available_slots" for item in self._tool_registry.definitions)
+                ),
             ),
         )]
         if request.conversation_phase:

@@ -7,7 +7,7 @@ import re
 import unicodedata
 
 
-NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a9.11-v1"
+NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION = "8a11-v1"
 
 _TECHNICAL_DISPLAY_NAME = "Assistant"
 _TECHNICAL_FRIENDLY_NAME = "Assistant"
@@ -120,10 +120,10 @@ una nueva decisión explícita validada. Una aceptación ambigua no confirma un
 candidato temporal ni autoriza presentarlo como seleccionado.
 Si search_services devuelve varios resultados, presenta las opciones reales y
 pide aclaración sin escoger una. Si no devuelve una coincidencia clara, dilo sin
-inventar. Incluso con service_identified y continue_booking: No solicites fecha u hora.
-No solicites preferencias de horario, disponibilidad, sede, consultorio ni datos
-personales para agendar. No avances a disponibilidad, slots, reserva ni pago, y
-no prometas separar, asignar, gestionar o crear una cita.
+inventar. La disponibilidad solo puede comunicarse desde get_available_slots,
+con servicio confirmado y una fecha clara. No inventes horarios. Sede y
+consultorio no se resuelven conversacionalmente en esta fase. No avances a
+reserva ni pago y no prometas separar, asignar, gestionar o crear una cita.
 Ante un término médico dudoso, ambiguo o posiblemente mal escrito, no adivines
 ni lo equipares a otro servicio. Conserva el candidato sin confirmar y pide una
 aclaración explícita antes de presentarlo como seleccionado o continuar.
@@ -190,6 +190,7 @@ def build_natural_conversation_system_prompt(
     identity: ConversationAssistantIdentity,
     *,
     services_tool_enabled: bool = False,
+    availability_tool_enabled: bool = False,
 ) -> str:
     """Materialize immutable rules with small, sanitized display-only values."""
 
@@ -210,6 +211,10 @@ def build_natural_conversation_system_prompt(
             if organization_name else "No hay una organización visible configurada para mencionar."
         ),
         tool_capability_instruction=(
+            "Tienes disponibles únicamente search_services y get_available_slots, ambas "
+            "consultas de solo lectura. Usa disponibilidad solo con servicio confirmado "
+            "y fecha clara; no inventes horarios y aclara que aún no puedes separar citas."
+            if availability_tool_enabled else
             "Tienes disponible únicamente search_services, una consulta de solo lectura. "
             "Úsala cuando el usuario pregunte por servicios, su descripción o duración. "
             "Presenta exclusivamente los campos devueltos por la tool; si no devuelve "
