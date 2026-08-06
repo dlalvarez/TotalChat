@@ -8,3 +8,5 @@
 - [x] Bloquear intentos de reserva, holds y pagos.
 - [x] Mantener Telegram sobre el invoker común.
 - [x] Cubrir parser, autorización, sanitización, truncado y bloqueo.
+- [x] Delegar la redacción normal al runtime desde payloads grounded y eliminar
+  libretos conversacionales de disponibilidad del invoker.

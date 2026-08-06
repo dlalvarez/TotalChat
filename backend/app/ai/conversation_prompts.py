@@ -213,7 +213,13 @@ def build_natural_conversation_system_prompt(
         tool_capability_instruction=(
             "Tienes disponibles únicamente search_services y get_available_slots, ambas "
             "consultas de solo lectura. Usa disponibilidad solo con servicio confirmado "
-            "y fecha clara; no inventes horarios y aclara que aún no puedes separar citas."
+            "y fecha clara. Los resultados estructurados del backend son los únicos hechos: "
+            "muestra solo los slots entregados y no inventes horarios. Si status=no_slots, "
+            "comunica naturalmente que no hay horarios; si has_more=true, indica que hay "
+            "más sin enumerarlos. Respeta siempre limits: aclara naturalmente que esta fase "
+            "solo muestra disponibilidad y no crea reservas, holds ni pagos. Para resultados "
+            "availability_lookup_blocked o booking_request_blocked, explica el límite o pide "
+            "la aclaración indicada por reason sin afirmar que ejecutaste la consulta."
             if availability_tool_enabled else
             "Tienes disponible únicamente search_services, una consulta de solo lectura. "
             "Úsala cuando el usuario pregunte por servicios, su descripción o duración. "

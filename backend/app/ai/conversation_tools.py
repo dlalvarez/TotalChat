@@ -166,15 +166,26 @@ class ConversationToolRegistry:
             ),
         )
         visible = [slot for slot in slots if (time_from is None or slot.starts_at.time() >= time_from) and (time_to is None or slot.starts_at.time() < time_to)]
+        shown = visible[:10]
         return MappingProxyType({
+            "kind": "availability_lookup",
+            "status": "available" if visible else "no_slots",
             "service_name": self._selected_service.name,
             "date_from": date_from.isoformat(),
             "date_to": date_to.isoformat(),
             "modality": modality,
             "slots": [
                 {"date": slot.starts_at.date().isoformat(), "start_time": slot.starts_at.strftime("%H:%M"), "end_time": slot.ends_at.strftime("%H:%M")}
-                for slot in visible
+                for slot in shown
             ],
+            "total_slots": len(visible),
+            "shown_slots": len(shown),
+            "has_more": len(visible) > len(shown),
+            "limits": {
+                "can_create_booking": False,
+                "can_hold_slot": False,
+                "can_take_payment": False,
+            },
         })
 
     def resolve_service(self, query: str) -> ResolvedConversationService | None:

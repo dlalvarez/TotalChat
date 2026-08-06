@@ -13,6 +13,8 @@ lectura de slots reales desde la capacidad validada en 8A.10.
 - Consultar `SchedulingProvider` con rango inclusivo máximo de 31 días.
 - Mostrar como máximo diez horas legibles y persistir solo el resumen seguro.
 - Compartir el invoker con Telegram sin lógica de canal propia.
+- Entregar al LLM un resultado estructurado sanitizado para que redacte la
+  respuesta normal; no construir libretos de disponibilidad en Python.
 
 ## Exclusiones
 

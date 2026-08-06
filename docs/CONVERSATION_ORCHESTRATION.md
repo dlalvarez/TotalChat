@@ -110,6 +110,13 @@ como máximo diez horas y solo se persiste un resumen sanitizado, nunca los slot
 Una petición de separar o crear una cita se bloquea determinísticamente. No hay
 selección definitiva, reserva, hold, pago ni lógica propia en Telegram.
 
+La decisión, autorización y ejecución permanecen backend-owned, pero la salida
+normal no es un libreto Python: el backend entrega al runtime un resultado JSON
+sanitizado con estado, horas visibles, conteos, `has_more` y límites explícitos.
+El LLM redacta desde esos hechos. Los textos determinísticos quedan limitados al
+fallback técnico central y a guardrails críticos ya autorizados; un bloqueo por
+servicio o fecha se comunica mediante `kind` y `reason` estructurados.
+
 ### 2.4. Canales: adaptadores de borde
 
 Telegram es el primer adaptador, no el motor conversacional. Los canales reciben,

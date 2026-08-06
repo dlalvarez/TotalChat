@@ -27,6 +27,7 @@ from app.ai.conversation_runtime import (
     ConversationTurnRequest,
     ConversationTurnResult,
     NaturalConversationRuntime,
+    TECHNICAL_FALLBACK,
 )
 from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversationService
 from app.ai.conversation_state import (
@@ -122,13 +123,26 @@ class NaturalConversationAgentInvoker:
             availability_session=self._session,
         )
         if is_booking_action(message_text) and current.last_availability_query is not None:
-            return ConversationTurnResult(
-                content=("Puedo mostrarte disponibilidad, pero en esta etapa todavía no "
-                         "puedo separar ni crear la cita desde aquí."),
-                code="availability_booking_blocked",
+            return self._run_grounded_response(
+                tenant_id=tenant_id,
+                conversation=conversation,
+                message_text=message_text,
+                context=current,
+                registry=registry,
+                payload={
+                    "kind": "booking_request_blocked",
+                    "reason": "booking_creation_out_of_scope",
+                    "limits": {
+                        "can_create_booking": False,
+                        "can_hold_slot": False,
+                        "can_take_payment": False,
+                    },
+                },
             )
         if is_availability_request(message_text):
-            return self._availability_response(current, registry, conversation, message_text)
+            return self._availability_response(
+                tenant_id, current, registry, conversation, message_text
+            )
         proposal = self._proposal_interpreter(current, message_text)
         context = update_initial_booking_context(
             current,
@@ -178,27 +192,41 @@ class NaturalConversationAgentInvoker:
 
     def _availability_response(
         self,
+        tenant_id: UUID,
         context: InitialBookingContext,
         registry: ConversationToolRegistry,
         conversation: ConversationSession,
         message_text: str,
     ) -> ConversationTurnResult:
         if context.suggested_service is not None:
-            return ConversationTurnResult(
-                content=(f"Antes de revisar disponibilidad, confirma si te refieres a "
-                         f"{context.suggested_service.name}."),
-                code="availability_service_unconfirmed",
+            return self._run_grounded_response(
+                tenant_id=tenant_id, conversation=conversation,
+                message_text=message_text, context=context, registry=registry,
+                payload={
+                    "kind": "availability_lookup_blocked",
+                    "reason": "suggested_service_pending",
+                    "suggested_service_name": context.suggested_service.name,
+                },
             )
         if context.selected_service is None or not context.conversation_progress.service_confirmed:
-            return ConversationTurnResult(
-                content="Primero necesito que confirmemos el servicio para revisar disponibilidad.",
-                code="availability_service_unconfirmed",
+            return self._run_grounded_response(
+                tenant_id=tenant_id, conversation=conversation,
+                message_text=message_text, context=context, registry=registry,
+                payload={
+                    "kind": "availability_lookup_blocked",
+                    "reason": "service_not_confirmed",
+                },
             )
         query = parse_availability_query(message_text, today=self._today_provider())
         if query is None:
-            return ConversationTurnResult(
-                content="¿Para qué día quieres que revise la disponibilidad?",
-                code="availability_date_clarification",
+            return self._run_grounded_response(
+                tenant_id=tenant_id, conversation=conversation,
+                message_text=message_text, context=context, registry=registry,
+                payload={
+                    "kind": "availability_lookup_blocked",
+                    "reason": "date_requires_clarification",
+                    "service_name": context.selected_service.name,
+                },
             )
         arguments = {
             "date_from": query.date_from.isoformat(),
@@ -211,29 +239,47 @@ class NaturalConversationAgentInvoker:
             result = registry.execute("get_available_slots", json.dumps(arguments))
         except Exception as exc:
             logger.warning("Availability lookup failed exception_type=%s", type(exc).__name__)
-            return ConversationTurnResult(content="No pude consultar la disponibilidad en este momento. Intenta nuevamente.", code="availability_error")
+            return ConversationTurnResult(content=TECHNICAL_FALLBACK, code="availability_error")
         context.last_availability_query = LastAvailabilityQuery(
             service_name=context.selected_service.name,
             date_from=query.date_from.isoformat(), date_to=query.date_to.isoformat(),
             modality=query.modality,
         )
         conversation.state = context.to_persistent_dict()
-        slots = result["slots"]
-        if not slots:
-            return ConversationTurnResult(
-                content=(f"No encontré horarios disponibles para {context.selected_service.name} "
-                         "ese día. ¿Quieres que revise otro día?"),
-                code="grounded_availability_response",
+        return self._run_grounded_response(
+            tenant_id=tenant_id, conversation=conversation,
+            message_text=message_text, context=context, registry=registry,
+            payload=dict(result),
+        )
+
+    def _run_grounded_response(
+        self,
+        *,
+        tenant_id: UUID,
+        conversation: ConversationSession,
+        message_text: str,
+        context: InitialBookingContext,
+        registry: ConversationToolRegistry,
+        payload: dict[str, object],
+    ) -> ConversationTurnResult:
+        visible_messages = _load_visible_history(self._session, conversation.id)
+        recent_messages = tuple(
+            ConversationContextMessage(
+                role="user" if item.direction == "incoming" else "assistant",
+                content=item.content,
             )
-        shown = slots[:10]
-        hours = ", ".join(item["start_time"] for item in shown)
-        more = " Hay más horarios disponibles." if len(slots) > 10 else ""
-        return ConversationTurnResult(
-            content=(f"Tengo disponibilidad para {context.selected_service.name} el "
-                     f"{query.date_from.strftime('%d/%m/%Y')}: {hours}.{more} "
-                     "Por ahora puedo mostrar horarios disponibles, pero todavía no puedo "
-                     "separar la cita desde aquí."),
-            code="grounded_availability_response",
+            for item in visible_messages
+        )
+        return NaturalConversationRuntime(self._llm_provider, registry).run(
+            ConversationTurnRequest(
+                tenant_id=tenant_id,
+                conversation_id=conversation.id,
+                message_text=message_text,
+                recent_messages=recent_messages,
+                conversation_phase=_safe_context_instruction(context),
+                grounded_context=payload,
+                assistant_identity=self._assistant_identity,
+            )
         )
 
     def _interpret_proposal(

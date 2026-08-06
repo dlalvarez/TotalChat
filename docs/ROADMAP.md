@@ -229,6 +229,9 @@ Entregables:
   previamente confirmado, fechas conservadoras y resultados sanitizados. Muestra
   hasta diez horarios. Telegram no implementa lógica propia. No selecciona slots,
   crea reservas, bloquea horarios, crea holds, consulta precios ni habilita pagos.
+  El backend autoriza y entrega hechos estructurados; el LLM redacta la respuesta
+  normal grounded. Los textos determinísticos se reservan para fallbacks técnicos
+  y guardrails críticos centralizados.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se

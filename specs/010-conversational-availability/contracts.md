@@ -14,3 +14,8 @@ Sin servicio confirmado o fecha inequívoca no se consulta el provider. La
 modalidad predeterminada es `in_person`; una mención virtual usa `virtual`.
 Pedidos de sede o consultorio no se resuelven en esta fase. Intentos de reservar
 después de consultar se bloquean con respuesta backend-owned.
+
+El resultado grounded incluye `kind`, `status`, `total_slots`, `shown_slots`,
+`has_more` y límites booleanos para reserva, hold y pago. El backend decide y
+ejecuta; el LLM redacta la respuesta final desde este payload. Los bloqueos por
+servicio o fecha usan `kind` y `reason` estructurados, sin ejecutar la tool.
