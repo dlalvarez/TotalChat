@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 import json
 import uuid
 
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.ai.availability_language import parse_availability_query
@@ -17,7 +18,7 @@ from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversa
 from app.ai.providers import LLMResponse
 from app.services.availability import AvailableSlot
 from app.tenancy.context import TenantContext
-from app.models.tenant import ConversationSession
+from app.models.tenant import ConversationSession, Message
 
 
 class FakeSchedulingProvider:
@@ -48,6 +49,11 @@ def confirmed_state(service_id):
         collected_context={"service_name": "Consulta pediátrica"},
         conversation_progress=InitialConversationProgress(service_confirmed=True, next_expected_action="continue_booking"),
     ).to_persistent_dict()
+
+
+def create_conversation_tables(engine):
+    ConversationSession.__table__.create(engine)
+    Message.__table__.create(engine)
 
 
 def test_natural_dates_and_time_preferences_use_controlled_clock():
@@ -93,9 +99,8 @@ def test_availability_tool_is_closed_and_returns_only_readable_slot_fields():
 
 def test_confirmed_service_queries_real_slots_limits_visible_output_and_blocks_booking():
     # Conversation persistence does not require domain tables when the provider is injected.
-    from sqlalchemy import create_engine
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    ConversationSession.__table__.create(engine)
+    create_conversation_tables(engine)
     provider = FakeSchedulingProvider(12)
     llm = NoopProvider("Redacción natural generada por el provider")
     with Session(engine) as session:
@@ -128,9 +133,8 @@ def test_confirmed_service_queries_real_slots_limits_visible_output_and_blocks_b
 
 
 def test_unconfirmed_service_never_calls_availability_provider():
-    from sqlalchemy import create_engine
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    ConversationSession.__table__.create(engine)
+    create_conversation_tables(engine)
     provider = FakeSchedulingProvider()
     with Session(engine) as session:
         conversation = ConversationSession(channel_type="telegram", external_user_id="unconfirmed")
@@ -147,9 +151,8 @@ def test_unconfirmed_service_never_calls_availability_provider():
 
 
 def test_no_slots_and_ambiguous_date_are_structured_for_provider_without_lookup_guessing():
-    from sqlalchemy import create_engine
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    ConversationSession.__table__.create(engine)
+    create_conversation_tables(engine)
     scheduling = FakeSchedulingProvider(0)
     llm = NoopProvider()
     with Session(engine) as session:
@@ -172,9 +175,8 @@ def test_no_slots_and_ambiguous_date_are_structured_for_provider_without_lookup_
 
 
 def test_pending_suggestion_blocks_availability_tool_with_structured_reason():
-    from sqlalchemy import create_engine
     engine = create_engine("sqlite+pysqlite:///:memory:")
-    ConversationSession.__table__.create(engine)
+    create_conversation_tables(engine)
     scheduling, llm = FakeSchedulingProvider(), NoopProvider()
     state = InitialBookingContext(
         stage=InitialConversationStage.COLLECT_SERVICE,
