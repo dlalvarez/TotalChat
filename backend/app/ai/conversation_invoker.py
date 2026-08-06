@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 import json
 import logging
 from typing import Callable
@@ -16,12 +16,18 @@ from app.ai.conversation_prompts import (
     ConversationAssistantIdentity,
     resolve_conversation_assistant_identity,
 )
+from app.ai.availability_language import (
+    is_availability_request,
+    is_booking_action,
+    parse_availability_query,
+)
 from app.ai.conversation_runtime import (
     ConversationContextMessage,
     ConversationResponseGuard,
     ConversationTurnRequest,
     ConversationTurnResult,
     NaturalConversationRuntime,
+    TECHNICAL_FALLBACK,
 )
 from app.ai.conversation_tools import ConversationToolRegistry, ResolvedConversationService
 from app.ai.conversation_state import (
@@ -34,9 +40,12 @@ from app.ai.conversation_state import (
     InitialConversationProposal,
     SelectedConversationService,
     SuggestedConversationService,
+    LastAvailabilityQuery,
 )
 from app.ai.providers import LLMMessage, LLMProvider
 from app.ai.service_tools import ServiceRepository
+from app.services.availability import SchedulingProvider
+from app.tenancy.context import TenantContext
 from app.models.tenant import ConversationSession, Message
 
 
@@ -79,6 +88,8 @@ class NaturalConversationAgentInvoker:
         proposal_interpreter: Callable[
             [InitialBookingContext, str], InitialConversationProposal
         ] | None = None,
+        scheduling_provider: SchedulingProvider | None = None,
+        today_provider: Callable[[], date] = date.today,
     ) -> None:
         self._session = session
         self._llm_provider = llm_provider
@@ -88,16 +99,50 @@ class NaturalConversationAgentInvoker:
         )
         self._service_repository = service_repository
         self._proposal_interpreter = proposal_interpreter or self._interpret_proposal
+        self._scheduling_provider = scheduling_provider
+        self._today_provider = today_provider
 
     def invoke(
         self, *, tenant_id: UUID, conversation: ConversationSession, message_text: str
     ) -> ConversationTurnResult:
+        current = _load_initial_context(conversation.state or {})
+        selected = (
+            ResolvedConversationService(
+                service_id=current.selected_service.id,
+                name=current.selected_service.name,
+            )
+            if current.selected_service is not None else None
+        )
         registry = ConversationToolRegistry(
             tenant_id=tenant_id,
             repository=self._service_repository,
             session=None if self._service_repository is not None else self._session,
+            tenant_context=TenantContext(tenant_id=tenant_id, slug="resolved", schema_name=""),
+            selected_service=selected,
+            scheduling_provider=self._scheduling_provider,
+            availability_session=self._session,
         )
-        current = _load_initial_context(conversation.state or {})
+        if is_booking_action(message_text) and current.last_availability_query is not None:
+            return self._run_grounded_response(
+                tenant_id=tenant_id,
+                conversation=conversation,
+                message_text=message_text,
+                context=current,
+                registry=registry,
+                payload={
+                    "kind": "booking_request_blocked",
+                    "reason": "booking_creation_out_of_scope",
+                    "limits": {
+                        "can_create_booking": False,
+                        "can_hold_slot": False,
+                        "can_take_payment": False,
+                    },
+                },
+            )
+        if is_availability_request(message_text):
+            return self._availability_response(
+                tenant_id, current, registry, conversation, message_text
+            )
         proposal = self._proposal_interpreter(current, message_text)
         context = update_initial_booking_context(
             current,
@@ -141,6 +186,98 @@ class NaturalConversationAgentInvoker:
                     pending_suggestion_follow_up=pending_suggestion_follow_up,
                     pending_suggestion_change=pending_suggestion_change,
                 ),
+                assistant_identity=self._assistant_identity,
+            )
+        )
+
+    def _availability_response(
+        self,
+        tenant_id: UUID,
+        context: InitialBookingContext,
+        registry: ConversationToolRegistry,
+        conversation: ConversationSession,
+        message_text: str,
+    ) -> ConversationTurnResult:
+        if context.suggested_service is not None:
+            return self._run_grounded_response(
+                tenant_id=tenant_id, conversation=conversation,
+                message_text=message_text, context=context, registry=registry,
+                payload={
+                    "kind": "availability_lookup_blocked",
+                    "reason": "suggested_service_pending",
+                    "suggested_service_name": context.suggested_service.name,
+                },
+            )
+        if context.selected_service is None or not context.conversation_progress.service_confirmed:
+            return self._run_grounded_response(
+                tenant_id=tenant_id, conversation=conversation,
+                message_text=message_text, context=context, registry=registry,
+                payload={
+                    "kind": "availability_lookup_blocked",
+                    "reason": "service_not_confirmed",
+                },
+            )
+        query = parse_availability_query(message_text, today=self._today_provider())
+        if query is None:
+            return self._run_grounded_response(
+                tenant_id=tenant_id, conversation=conversation,
+                message_text=message_text, context=context, registry=registry,
+                payload={
+                    "kind": "availability_lookup_blocked",
+                    "reason": "date_requires_clarification",
+                    "service_name": context.selected_service.name,
+                },
+            )
+        arguments = {
+            "date_from": query.date_from.isoformat(),
+            "date_to": query.date_to.isoformat(),
+            "modality": query.modality,
+            **({"time_from": query.time_from.strftime("%H:%M")} if query.time_from else {}),
+            **({"time_to": query.time_to.strftime("%H:%M")} if query.time_to else {}),
+        }
+        try:
+            result = registry.execute("get_available_slots", json.dumps(arguments))
+        except Exception as exc:
+            logger.warning("Availability lookup failed exception_type=%s", type(exc).__name__)
+            return ConversationTurnResult(content=TECHNICAL_FALLBACK, code="availability_error")
+        context.last_availability_query = LastAvailabilityQuery(
+            service_name=context.selected_service.name,
+            date_from=query.date_from.isoformat(), date_to=query.date_to.isoformat(),
+            modality=query.modality,
+        )
+        conversation.state = context.to_persistent_dict()
+        return self._run_grounded_response(
+            tenant_id=tenant_id, conversation=conversation,
+            message_text=message_text, context=context, registry=registry,
+            payload=dict(result),
+        )
+
+    def _run_grounded_response(
+        self,
+        *,
+        tenant_id: UUID,
+        conversation: ConversationSession,
+        message_text: str,
+        context: InitialBookingContext,
+        registry: ConversationToolRegistry,
+        payload: dict[str, object],
+    ) -> ConversationTurnResult:
+        visible_messages = _load_visible_history(self._session, conversation.id)
+        recent_messages = tuple(
+            ConversationContextMessage(
+                role="user" if item.direction == "incoming" else "assistant",
+                content=item.content,
+            )
+            for item in visible_messages
+        )
+        return NaturalConversationRuntime(self._llm_provider, registry).run(
+            ConversationTurnRequest(
+                tenant_id=tenant_id,
+                conversation_id=conversation.id,
+                message_text=message_text,
+                recent_messages=recent_messages,
+                conversation_phase=_safe_context_instruction(context),
+                grounded_context=payload,
                 assistant_identity=self._assistant_identity,
             )
         )

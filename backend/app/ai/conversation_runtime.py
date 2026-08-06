@@ -60,6 +60,7 @@ class ConversationTurnRequest:
     recent_messages: tuple[ConversationContextMessage, ...] = ()
     conversation_phase: str | None = None
     response_guard: ConversationResponseGuard | None = None
+    grounded_context: Mapping[str, Any] | None = None
     assistant_identity: ConversationAssistantIdentity = field(
         default_factory=resolve_conversation_assistant_identity
     )
@@ -104,7 +105,12 @@ class NaturalConversationRuntime:
         service_lookup_performed = False
         grounded_by_service_tool = False
         try:
-            if self._tool_registry is None:
+            if request.grounded_context is not None:
+                # The backend already authorized and executed the operation. The
+                # provider only verbalizes the sanitized facts and receives no
+                # opportunity to propose a second operation.
+                response = self._llm_provider.complete(messages)
+            elif self._tool_registry is None:
                 response = self._llm_provider.complete(messages)
             else:
                 response = self._llm_provider.complete(
@@ -159,11 +165,19 @@ class NaturalConversationRuntime:
             )
             return ConversationTurnResult(content=TECHNICAL_FALLBACK, code="provider_error")
 
-        code = (
-            "grounded_service_response"
-            if len(messages) > 1 and messages[-1].role == "tool"
-            else "natural_response"
-        )
+        if request.grounded_context is not None:
+            kind = request.grounded_context.get("kind")
+            code = (
+                "grounded_availability_response"
+                if kind == "availability_lookup"
+                else "grounded_guardrail_response"
+            )
+        else:
+            code = (
+                "grounded_service_response"
+                if len(messages) > 1 and messages[-1].role == "tool"
+                else "natural_response"
+            )
         return ConversationTurnResult(content=content, code=code)
 
     def _build_messages(self, request: ConversationTurnRequest) -> list[LLMMessage]:
@@ -172,6 +186,20 @@ class NaturalConversationRuntime:
             content=build_natural_conversation_system_prompt(
                 request.assistant_identity,
                 services_tool_enabled=self._tool_registry is not None,
+                availability_tool_enabled=(
+                    (
+                        self._tool_registry is not None
+                        and any(item.name == "get_available_slots" for item in self._tool_registry.definitions)
+                    )
+                    or (
+                        request.grounded_context is not None
+                        and request.grounded_context.get("kind") in {
+                            "availability_lookup",
+                            "availability_lookup_blocked",
+                            "booking_request_blocked",
+                        }
+                    )
+                ),
             ),
         )]
         if request.conversation_phase:
@@ -181,6 +209,15 @@ class NaturalConversationRuntime:
                     "Estado conversacional permitido: "
                     f"{request.conversation_phase[:MAX_SAFE_STATE_CHARS]}"
                 ),
+            ))
+        if request.grounded_context is not None:
+            messages.append(LLMMessage(
+                role="system",
+                content=(
+                    "Resultado estructurado autoritativo del backend para este turno. "
+                    "Redacta la respuesta natural únicamente con estos hechos: "
+                    + json.dumps(dict(request.grounded_context), ensure_ascii=False)
+                )[:MAX_MESSAGE_CHARS],
             ))
         for item in request.recent_messages[-MAX_CONTEXT_MESSAGES:]:
             if item.role in {"user", "assistant"} and item.content.strip():

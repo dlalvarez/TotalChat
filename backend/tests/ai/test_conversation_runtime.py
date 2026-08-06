@@ -58,7 +58,7 @@ def test_provider_generates_complete_visible_response_for_basic_intents(text):
     assert result.code == "natural_response"
     assert result.metadata == {
         "runtime": "natural_conversation",
-        "system_prompt_version": "8a9.11-v1",
+        "system_prompt_version": "8a11-v1",
     }
     assert "reasoning" not in repr(result)
     assert NATURAL_CONVERSATION_SYSTEM_PROMPT_VERSION not in result.content
@@ -153,7 +153,7 @@ def test_context_content_is_truncated():
     assert len(user_history.content) == 2000
 
 
-def test_confirmed_service_context_does_not_enable_date_or_availability_collection():
+def test_confirmed_service_context_only_enables_grounded_availability():
     provider = FakeProvider()
     NaturalConversationRuntime(provider).run(request(
         "Continuemos",
@@ -164,8 +164,8 @@ def test_confirmed_service_context_does_not_enable_date_or_availability_collecti
     ))
 
     system_prompt = provider.calls[0][0].content.lower()
-    assert "no solicites fecha u hora" in system_prompt
-    assert "no avances a disponibilidad" in system_prompt
+    assert "disponibilidad solo puede comunicarse desde get_available_slots" in system_prompt
+    assert "no inventes horarios" in system_prompt
 
 
 def test_unconfirmed_candidate_cannot_be_presented_as_configured_service():

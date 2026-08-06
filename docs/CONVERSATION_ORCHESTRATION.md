@@ -101,6 +101,22 @@ fecha/hora operativa, promete disponibilidad, crea reservas ni bloquea slots.
 Una fase posterior deberá autorizar expresamente su exposición al runtime y
 encapsular las referencias UUID para que no lleguen como texto visible al LLM.
 
+Fase 8A.11 autoriza esa exposición en el invoker común exclusivamente como
+lectura. El backend exige `selected_service` confirmado, interpreta fechas y
+preferencias horarias simples de forma conservadora y usa `in_person` por defecto
+o `virtual` ante mención explícita. La tool recibe internamente el UUID y el
+`TenantContext`; el modelo no recibe UUID, tenant ni `schema_name`. Se muestran
+como máximo diez horas y solo se persiste un resumen sanitizado, nunca los slots.
+Una petición de separar o crear una cita se bloquea determinísticamente. No hay
+selección definitiva, reserva, hold, pago ni lógica propia en Telegram.
+
+La decisión, autorización y ejecución permanecen backend-owned, pero la salida
+normal no es un libreto Python: el backend entrega al runtime un resultado JSON
+sanitizado con estado, horas visibles, conteos, `has_more` y límites explícitos.
+El LLM redacta desde esos hechos. Los textos determinísticos quedan limitados al
+fallback técnico central y a guardrails críticos ya autorizados; un bloqueo por
+servicio o fecha se comunica mediante `kind` y `reason` estructurados.
+
 ### 2.4. Canales: adaptadores de borde
 
 Telegram es el primer adaptador, no el motor conversacional. Los canales reciben,

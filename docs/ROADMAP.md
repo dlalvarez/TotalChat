@@ -224,16 +224,23 @@ Entregables:
   sede, consultorio, excepciones y citas bloqueantes; deduplica resultados y
   limita el rango a 31 días inclusivos. No conecta esta consulta al runtime
   conversacional ni crea reservas, holds, pagos o integraciones externas.
+- **Fase 8A.11 — Consulta conversacional de disponibilidad de solo lectura.**
+  Estado: implementada. Expone `get_available_slots` al invoker común con servicio
+  previamente confirmado, fechas conservadoras y resultados sanitizados. Muestra
+  hasta diez horarios. Telegram no implementa lógica propia. No selecciona slots,
+  crea reservas, bloquea horarios, crea holds, consulta precios ni habilita pagos.
+  El backend autoriza y entrega hechos estructurados; el LLM redacta la respuesta
+  normal grounded. Los textos determinísticos se reservan para fallbacks técnicos
+  y guardrails críticos centralizados.
 
 La respuesta fija de 8A.5 fue una implementación transitoria que validó estado
 incompleto, persistencia y entrega; no representa la redacción definitiva. Se
 conservan su idempotencia y fronteras de canal. 8A.7 sustituyó la conversación
 normal por generación LLM sin incorporar operaciones.
 
-Precios, consumo conversacional de disponibilidad, selección de slots, creación
-de reservas y pagos se incorporarán incrementalmente. Después de 8A.10, la base
-interna de disponibilidad queda validada, pero su exposición al agente requiere
-una fase posterior autorizada. El contrato rector de esta secuencia está en
+Precios, selección definitiva de slots, creación de reservas y pagos se
+incorporarán incrementalmente. 8A.11 consume la base interna validada por 8A.10
+exclusivamente en lectura. El contrato rector de esta secuencia está en
 [`CONVERSATION_ORCHESTRATION.md`](CONVERSATION_ORCHESTRATION.md).
 
 ## Fase 9 — Recordatorios y confirmación
